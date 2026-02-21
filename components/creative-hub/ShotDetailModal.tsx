@@ -1,5 +1,5 @@
 import { Shot, Scene, Character } from "@/types/creative-hub";
-import { X, Film, Calendar, MapPin, User, ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { X, Film, Calendar, MapPin, User, ChevronLeft, ChevronRight, Clock, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 
@@ -13,6 +13,7 @@ interface ShotDetailModalProps {
   onGeneratePreviz?: (shotId: number) => void;
   showGenerateButton?: boolean;
   onRefresh?: () => void;
+  error?: string;
 }
 
 import { uploadPreviz, getShotPreviz } from "@/services/creative-hub";
@@ -28,7 +29,8 @@ export default function ShotDetailModal({
     onNext, 
     onGeneratePreviz, 
     showGenerateButton,
-    onRefresh 
+    onRefresh,
+    error
 }: ShotDetailModalProps) {
   const [previzHistory, setPrevizHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -152,6 +154,19 @@ export default function ShotDetailModal({
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                    {/* Error Display */}
+                    {error && (
+                        <div className="bg-red-900/30 border border-red-800 rounded-lg p-4 flex gap-3 items-start">
+                             <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                             <div>
+                                 <h4 className="text-red-400 text-sm font-bold mb-1">Generation Failed</h4>
+                                 <p className="text-red-200 text-xs leading-relaxed whitespace-pre-wrap">
+                                     {error}
+                                 </p>
+                             </div>
+                        </div>
+                    )}
+
                     {/* Description */}
                     <section>
                         <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3 flex items-center gap-2">

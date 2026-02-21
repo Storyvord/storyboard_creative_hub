@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardData, getSceneStoryboardData } from "@/services/creative-hub";
+import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardData, getSceneStoryboardData, getScriptTasks, getShotPreviz } from "@/services/creative-hub";
 import { Scene, Shot } from "@/types/creative-hub";
-import { Loader2, Film, ChevronLeft, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon } from "lucide-react";
+import { Loader2, Film, ChevronLeft, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon, CheckCircle, Circle } from "lucide-react";
 import { clsx } from "clsx";
 import { useParams } from "next/navigation";
 import ShotDetailModal from "@/components/creative-hub/ShotDetailModal";
+import { toast } from "react-toastify";
 
 // Simplified SceneItem for internal use if imported one fails or for direct integration
 interface SceneItemProps {
@@ -17,6 +18,11 @@ interface SceneItemProps {
     onShotClick: (shot: Shot) => void;
     loadingShots: boolean;
     onGenerateShots: (sceneId: number) => void;
+    trackedTasks: Record<number, string>;
+    shotErrors: Record<number, string>;
+    selectedShotIds: Set<number>;
+    onToggleSelectShot: (shotId: number) => void;
+    retryingTasks: Record<number, boolean>;
 }
 
 function SceneItem({
@@ -26,7 +32,12 @@ function SceneItem({
     onToggleSelect,
     onShotClick,
     loadingShots,
-    onGenerateShots
+    onGenerateShots,
+    trackedTasks,
+    shotErrors,
+    selectedShotIds,
+    onToggleSelectShot,
+    retryingTasks
 }: SceneItemProps) {
     return (
         <div className={clsx(
@@ -91,6 +102,39 @@ function SceneItem({
                                             <ImageIcon className="w-6 h-6 opacity-20" />
                                         </div>
                                     )}
+                                    {/* Loading Overlay from explicitly tracked task_id */}
+                                    {!!trackedTasks[shot.id] && (
+                                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-10 transition-opacity">
+                                            <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mb-2" />
+                                            <span className="text-[10px] text-indigo-200 font-medium">
+                                                {retryingTasks[shot.id] ? "Retrying..." : "Generating..."}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {/* Error Overlay */}
+                                    {shotErrors[shot.id] && !trackedTasks[shot.id] && (
+                                        <div className="absolute inset-x-0 bottom-0 bg-red-900/90 p-2 flex flex-col justify-end z-10">
+                                            <span className="text-[10px] text-red-200 font-bold uppercase truncate">
+                                                Failed: {shotErrors[shot.id].split(':')[0]}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {/* Selection Toggle */}
+                                    <div className="absolute top-1 right-1 z-20">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onToggleSelectShot(shot.id);
+                                            }}
+                                            className="p-1 rounded-full bg-black/40 hover:bg-black/80 backdrop-blur text-white transition-colors"
+                                        >
+                                            {selectedShotIds.has(shot.id) ? (
+                                                <CheckCircle className="w-4 h-4 text-indigo-400 fill-indigo-500/20" />
+                                            ) : (
+                                                <Circle className="w-4 h-4 opacity-50" />
+                                            )}
+                                        </button>
+                                    </div>
                                     {/* Minimal Overlay - Only Shot # and Type */}
                                     <div className="absolute top-1 left-1 bg-black/70 px-1 py-0.5 rounded text-[9px] text-white font-mono backdrop-blur-sm">
                                         #{shot.order}
@@ -129,8 +173,108 @@ export default function StoryboardPage() {
   
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null);
   const [selectedSceneIds, setSelectedSceneIds] = useState<Set<number>>(new Set());
+  const [selectedShotIds, setSelectedShotIds] = useState<Set<number>>(new Set());
   
   const [isBulkGenerating, setIsBulkGenerating] = useState(false);
+  const [activeScriptId, setActiveScriptId] = useState<number | null>(null);
+  const [trackedTasks, setTrackedTasks] = useState<Record<number, string>>({});
+  const [retryingTasks, setRetryingTasks] = useState<Record<number, boolean>>({});
+  const [shotErrors, setShotErrors] = useState<Record<number, string>>({});
+
+  // Polling Effect
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    const fetchTasks = async () => {
+        // Only pool if we actually have tasks we care about polling for
+        if (!activeScriptId || Object.keys(trackedTasks).length === 0) return;
+        
+        try {
+            const data = await getScriptTasks(activeScriptId);
+            const { previs } = data;
+            
+            const tasksToComplete: {shotId: number, status: string, error?: string}[] = [];
+            
+            (previs || []).forEach((task: any) => {
+                const trackedTaskId = trackedTasks[task.object_id];
+                // Only process the exact task ID we spawned for this shot
+                if (trackedTaskId && trackedTaskId === task.task_id) {
+                    if (task.status === 'completed' || task.status === 'failed') {
+                        tasksToComplete.push({ shotId: task.object_id, status: task.status, error: task.error });
+                    } else if (task.status === 'retrying') {
+                        setRetryingTasks(prev => ({ ...prev, [task.object_id]: true }));
+                    } else if (task.status === 'processing') {
+                        setRetryingTasks(prev => {
+                            if (!prev[task.object_id]) return prev;
+                            const copy = { ...prev };
+                            delete copy[task.object_id];
+                            return copy;
+                        });
+                    }
+                }
+            });
+            
+            if (tasksToComplete.length > 0) {
+                // Erase completed from our tracker so loader hides
+                setTrackedTasks(prev => {
+                    const copy = { ...prev };
+                    tasksToComplete.forEach(t => delete copy[t.shotId]);
+                    return copy;
+                });
+                setRetryingTasks(prev => {
+                    const copy = { ...prev };
+                    tasksToComplete.forEach(t => delete copy[t.shotId]);
+                    return copy;
+                });
+                
+                // Fetch corresponding update for the shots that succeeded or log failure
+                tasksToComplete.forEach(async t => {
+                    if (t.status === 'completed') {
+                        try {
+                            const shotData = await getShotPreviz(t.shotId);
+                            if (shotData && shotData.length > 0) {
+                                const newImageUrl = shotData[0].image_url;
+                                const newPrevizObj = shotData[0];
+                                
+                                setShotsMap(prev => {
+                                    const copy = { ...prev };
+                                    for (const [sceneIdStr, shots] of Object.entries(copy)) {
+                                        const sceneId = parseInt(sceneIdStr, 10);
+                                        const shotIndex = shots.findIndex(s => s.id === t.shotId);
+                                        if (shotIndex !== -1) {
+                                            copy[sceneId] = [
+                                                ...shots.slice(0, shotIndex),
+                                                { ...shots[shotIndex], image_url: newImageUrl, previz: newPrevizObj },
+                                                ...shots.slice(shotIndex + 1)
+                                            ];
+                                            break;
+                                        }
+                                    }
+                                    return copy;
+                                });
+                            }
+                        } catch (err) {
+                            console.error(`Failed to refresh previz mapping for shot ${t.shotId}`, err);
+                        }
+                    } else if (t.status === 'failed') {
+                        toast.error(t.error || "Background task failed.");
+                        setShotErrors(prev => ({ ...prev, [t.shotId]: t.error || "Unknown Error" }));
+                    }
+                });
+            }
+        } catch (e) {
+            console.error("Failed to fetch script tasks for polling", e);
+        }
+    };
+
+    if (Object.keys(trackedTasks).length > 0) {
+        fetchTasks();
+        intervalId = setInterval(fetchTasks, 3000);
+    }
+    
+    return () => {
+        if (intervalId) clearInterval(intervalId);
+    };
+  }, [activeScriptId, trackedTasks, scenes, shotsMap]);
 
   useEffect(() => {
     if (projectId) {
@@ -149,6 +293,7 @@ export default function StoryboardPage() {
           const scripts = await getScripts(projectId);
           if (scripts && scripts.length > 0) {
               scriptId = scripts[0].id;
+              setActiveScriptId(scriptId);
           }
       } catch (e) {
           console.error("Failed to fetch scripts", e);
@@ -279,6 +424,16 @@ export default function StoryboardPage() {
       setSelectedSceneIds(newSet);
   };
 
+  const handleToggleSelectShotId = (id: number) => {
+      const newSet = new Set(selectedShotIds);
+      if (newSet.has(id)) {
+          newSet.delete(id);
+      } else {
+          newSet.add(id);
+      }
+      setSelectedShotIds(newSet);
+  };
+
   const handleSelectAll = () => {
       if (selectedSceneIds.size === scenes.length) {
           setSelectedSceneIds(new Set());
@@ -304,22 +459,33 @@ export default function StoryboardPage() {
   };
 
   const handleBulkGeneratePreviz = async () => {
-      if (selectedSceneIds.size === 0) return;
+      if (selectedSceneIds.size === 0 && selectedShotIds.size === 0) return;
 
-      const shotIds = Array.from(selectedSceneIds).flatMap(sceneId => 
+      const sceneShotIds = Array.from(selectedSceneIds).flatMap(sceneId => 
           (shotsMap[sceneId] || []).map(shot => shot.id)
       );
       
-      if (shotIds.length === 0) {
-          alert("No shots found in the selected scenes to generate previz for.");
+      const combinedShotIds = Array.from(new Set([...sceneShotIds, ...Array.from(selectedShotIds)]));
+      
+      if (combinedShotIds.length === 0) {
+          alert("No shots found to generate previz for.");
           return;
       }
 
       setIsBulkGenerating(true);
       try {
-          await bulkGeneratePreviz(shotIds);
+          const response = await bulkGeneratePreviz(combinedShotIds);
+          // Store explicitly generated task IDs to local tracked state!
+          if (response && response.shot_ids && response.task_ids) {
+              setTrackedTasks(prev => {
+                  const copy = { ...prev };
+                  response.shot_ids.forEach((sid: number, i: number) => {
+                      copy[sid] = response.task_ids[i];
+                  });
+                  return copy;
+              });
+          }
           alert("Bulk previz generation started! This may take a while.");
-          // We might want to poll for updates or just let user refresh
       } catch (error) {
           console.error("Bulk generate previz failed", error);
           alert("Failed to start bulk previz generation.");
@@ -410,12 +576,11 @@ export default function StoryboardPage() {
                       )}
                   </div>
               </div>
-              
-              <div className="flex items-center gap-3">
-                  {selectedSceneIds.size > 0 && (
+                            <div className="flex items-center gap-3">
+                  {(selectedSceneIds.size > 0 || selectedShotIds.size > 0) && (
                       <>
                         <button 
-                            disabled={isBulkGenerating}
+                            disabled={isBulkGenerating || selectedSceneIds.size === 0} // Only bulk scenes
                             onClick={handleBulkGenerateShots}
                             className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
                         >
@@ -428,7 +593,7 @@ export default function StoryboardPage() {
                             className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
                         >
                              {isBulkGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                            Bulk Previz
+                            Bulk Previz {selectedShotIds.size > 0 && selectedSceneIds.size === 0 ? `(${selectedShotIds.size})` : ''}
                         </button>
                       </>
                   )}
@@ -449,6 +614,11 @@ export default function StoryboardPage() {
                                 onShotClick={setSelectedShot}
                                 loadingShots={loadingShotsMap[scene.id]}
                                 onGenerateShots={handleGenerateShots}
+                                trackedTasks={trackedTasks}
+                                shotErrors={shotErrors}
+                                selectedShotIds={selectedShotIds}
+                                onToggleSelectShot={handleToggleSelectShotId}
+                                retryingTasks={retryingTasks}
                               />
                           </div>
                       ))
@@ -466,6 +636,7 @@ export default function StoryboardPage() {
         isOpen={!!selectedShot}
         onClose={() => setSelectedShot(null)}
         shot={selectedShot}
+        error={selectedShot ? shotErrors[selectedShot.id] : undefined}
         scene={selectedShot ? scenes.find(s => shotsMap[s.id]?.some(shot => shot.id === selectedShot.id)) || null : null}
         onPrev={getAllShots().findIndex(s => s.id === selectedShot?.id) > 0 ? handlePrevShot : undefined}
         onNext={getAllShots().findIndex(s => s.id === selectedShot?.id) < getAllShots().length - 1 ? handleNextShot : undefined}

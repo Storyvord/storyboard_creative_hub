@@ -245,10 +245,16 @@ export const bulkGenerateShots = async (sceneIds: number[]): Promise<void> => {
     });
 }
 
-export const bulkGeneratePreviz = async (shotIds: number[]): Promise<void> => {
-    await api.post(`/api/creative_hub/previsualization/bulk-generate/`, {
+export const bulkGeneratePreviz = async (shotIds: number[]): Promise<any> => {
+    const response = await api.post(`/api/creative_hub/previsualization/bulk-generate/`, {
         shot_ids: shotIds
     });
+    return response.data;
+}
+
+export const getScriptTasks = async (scriptId: string | number): Promise<any> => {
+    const response = await api.get(`/api/creative_hub/scripts/tasks/${scriptId}/`);
+    return response.data;
 }
 
 // Fetches scenes with nested shots and previsualizations
