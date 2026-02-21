@@ -181,6 +181,43 @@ export default function StoryboardPage() {
   const [retryingTasks, setRetryingTasks] = useState<Record<number, boolean>>({});
   const [shotErrors, setShotErrors] = useState<Record<number, string>>({});
 
+  // Restore Active Tasks on Mount (or when activeScriptId resolves)
+  useEffect(() => {
+      const initializeActiveTasks = async () => {
+          if (!activeScriptId) return;
+          try {
+              const data = await getScriptTasks(activeScriptId);
+              const { previs } = data;
+              
+              if (previs && previs.length > 0) {
+                  const newTracked: Record<number, string> = {};
+                  const newRetrying: Record<number, boolean> = {};
+                  
+                  previs.forEach((task: any) => {
+                      if (task.status === 'processing' || task.status === 'pending' || task.status === 'retrying') {
+                          // The backend doesn't currently store the initial array of tasks spawned in the batch
+                          // but since we only care about restoring the loader, we can just bind tracking to the task_id
+                          newTracked[task.object_id] = task.task_id;
+                          
+                          if (task.status === 'retrying') {
+                              newRetrying[task.object_id] = true;
+                          }
+                      }
+                  });
+                  
+                  if (Object.keys(newTracked).length > 0) {
+                      setTrackedTasks(newTracked);
+                      setRetryingTasks(newRetrying);
+                  }
+              }
+          } catch (e) {
+              console.error("Failed to initialize active tasks", e);
+          }
+      };
+
+      initializeActiveTasks();
+  }, [activeScriptId]);
+
   // Polling Effect
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
