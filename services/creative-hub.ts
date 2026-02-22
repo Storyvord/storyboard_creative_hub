@@ -1,6 +1,16 @@
 import api from "./api";
 import { Script, Scene, Character, Cloth, Shot } from "@/types/creative-hub";
 
+export interface ImageModel {
+  model_name: string;
+  provider: string;
+  credits_per_image: number;
+  cost_per_image: string;
+  resolution: string | null;
+  aspect_ratio: string | null;
+}
+
+
 // Script
 export const uploadScript = async (projectId: string, file: File): Promise<Script> => {
   const formData = new FormData();
@@ -117,9 +127,11 @@ export const updateSceneCharacter = async (sceneCharacterId: number, data: any):
     return response.data;
 }
 
-export const generateSceneCharacterImage = async (sceneCharacterId: number, editPrompt?: string): Promise<any> => {
+export const generateSceneCharacterImage = async (sceneCharacterId: number, editPrompt?: string, model?: string, provider?: string): Promise<any> => {
     const response = await api.post(`/api/creative_hub/scene-characters/${sceneCharacterId}/generate-image/`, {
-        edit_prompt: editPrompt
+        edit_prompt: editPrompt,
+        model,
+        provider
     });
     return response.data; // Returns task_id
 }
@@ -181,8 +193,11 @@ export const deleteCharacter = async (characterId: number): Promise<void> => {
     await api.delete(`/api/creative_hub/characters/${characterId}/`);
 }
 
-export const generateCharacterImage = async (characterId: number): Promise<void> => {
-    await api.post(`/api/creative_hub/characters/${characterId}/generate-image/`);
+export const generateCharacterImage = async (characterId: number, model?: string, provider?: string): Promise<void> => {
+    await api.post(`/api/creative_hub/characters/${characterId}/generate-image/`, {
+        model,
+        provider
+    });
 }
 
 // Wardrobe/Cloths
@@ -216,8 +231,11 @@ export const deleteCloth = async (clothId: number): Promise<void> => {
     await api.delete(`/api/creative_hub/cloths/${clothId}/`);
 }
 
-export const generateClothImage = async (clothId: number): Promise<void> => {
-    await api.post(`/api/creative_hub/cloths/${clothId}/generate-image/`);
+export const generateClothImage = async (clothId: number, model?: string, provider?: string): Promise<void> => {
+    await api.post(`/api/creative_hub/cloths/${clothId}/generate-image/`, {
+        model,
+        provider
+    });
 }
 
 // Shots/Previz
@@ -232,10 +250,12 @@ export const generateShots = async (sceneId: number): Promise<void> => {
     await api.post(`/api/creative_hub/scenes/${sceneId}/shots/`);
 }
 
-export const generateShotImage = async (shotId: number): Promise<void> => {
+export const generateShotImage = async (shotId: number, model?: string, provider?: string): Promise<void> => {
     // Reuse the bulk endpoint for single generation as it handles async properly
     await api.post(`/api/creative_hub/previsualization/bulk-generate/`, {
-        shot_ids: [shotId]
+        shot_ids: [shotId],
+        model,
+        provider
     });
 }
 
@@ -246,10 +266,17 @@ export const bulkGenerateShots = async (sceneIds: number[]): Promise<any> => {
     return response.data;
 }
 
-export const bulkGeneratePreviz = async (shotIds: number[]): Promise<any> => {
+export const bulkGeneratePreviz = async (shotIds: number[], model?: string, provider?: string): Promise<any> => {
     const response = await api.post(`/api/creative_hub/previsualization/bulk-generate/`, {
-        shot_ids: shotIds
+        shot_ids: shotIds,
+        model,
+        provider
     });
+    return response.data;
+}
+
+export const getImageModels = async (): Promise<ImageModel[]> => {
+    const response = await api.get(`/api/creative_hub/image-models/`);
     return response.data;
 }
 

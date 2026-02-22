@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardData, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus } from "@/services/creative-hub";
+import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { Scene, Shot } from "@/types/creative-hub";
 import { Loader2, Film, ChevronLeft, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon, CheckCircle, Circle } from "lucide-react";
 import { clsx } from "clsx";
@@ -185,6 +186,8 @@ export default function StoryboardPage() {
   const [initializedScriptId, setInitializedScriptId] = useState<number | null>(null);
   
   const [isSlideshowOpen, setIsSlideshowOpen] = useState(false);
+  const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
+  const [pendingPrevizShotIds, setPendingPrevizShotIds] = useState<number[]>([]);
 
   // Restore Active Tasks on Mount (or when activeScriptId resolves)
   useEffect(() => {
@@ -618,9 +621,18 @@ export default function StoryboardPage() {
           return;
       }
 
+      // Open ModelSelector instead of generating directly
+      setPendingPrevizShotIds(combinedShotIds);
+      setIsModelSelectorOpen(true);
+  };
+
+  const handleModelConfirm = async (model: string, provider: string) => {
+      setIsModelSelectorOpen(false);
+      if (pendingPrevizShotIds.length === 0) return;
+
       setIsBulkGenerating(true);
       try {
-          const response = await bulkGeneratePreviz(combinedShotIds);
+          const response = await bulkGeneratePreviz(pendingPrevizShotIds, model, provider);
           // Store explicitly generated task IDs to local tracked state!
           if (response && response.shot_ids && response.task_ids) {
               setTrackedTasks(prev => {
@@ -646,6 +658,7 @@ export default function StoryboardPage() {
           alert("Failed to start bulk previz generation.");
       } finally {
           setIsBulkGenerating(false);
+          setPendingPrevizShotIds([]);
       }
   };
 
@@ -868,6 +881,15 @@ export default function StoryboardPage() {
         isOpen={isSlideshowOpen}
         onClose={() => setIsSlideshowOpen(false)}
         shots={getSlideshowShots()}
+      />
+
+      <ModelSelector
+        isOpen={isModelSelectorOpen}
+        onClose={() => { setIsModelSelectorOpen(false); setPendingPrevizShotIds([]); }}
+        onConfirm={handleModelConfirm}
+        itemCount={pendingPrevizShotIds.length}
+        title="Select Model for Previz Generation"
+        confirmLabel="Generate Previz"
       />
     </div>
   );

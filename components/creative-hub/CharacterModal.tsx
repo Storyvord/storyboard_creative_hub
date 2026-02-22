@@ -3,6 +3,7 @@ import { X, User, Edit, Trash2, Wand2, Plus, Save, Loader2 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { createCharacter, updateCharacter, generateCharacterImage } from "@/services/creative-hub";
+import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { toast } from "react-toastify";
 
 interface CharacterModalProps {
@@ -18,6 +19,7 @@ export default function CharacterModal({ character, scriptId, isOpen, onClose, o
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
 
   useEffect(() => {
     if (character) {
@@ -52,11 +54,16 @@ export default function CharacterModal({ character, scriptId, isOpen, onClose, o
 
   const handleGenerateImage = async () => {
       if (!character) return;
+      setIsModelSelectorOpen(true);
+  }
+
+  const handleModelConfirm = async (model: string, provider: string) => {
+      if (!character) return;
+      setIsModelSelectorOpen(false);
       setGenerating(true);
       try {
-          await generateCharacterImage(character.id);
+          await generateCharacterImage(character.id, model, provider);
           toast.success("Image generation started");
-          // Simple delay mainly for demo, ideally poll or websocket
           setTimeout(onUpdate, 3000);
       } catch (error) {
           console.error("Failed to generate image", error);
@@ -193,6 +200,15 @@ export default function CharacterModal({ character, scriptId, isOpen, onClose, o
           </form>
         </motion.div>
       </motion.div>
+
+      <ModelSelector
+        isOpen={isModelSelectorOpen}
+        onClose={() => setIsModelSelectorOpen(false)}
+        onConfirm={handleModelConfirm}
+        itemCount={1}
+        title="Select Model for Character Image"
+        confirmLabel="Generate Image"
+      />
     </AnimatePresence>
   );
 }

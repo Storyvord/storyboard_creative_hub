@@ -3,6 +3,7 @@ import { X, Shirt, Edit, Trash2, Wand2, Plus, Save } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { createCloth, updateCloth, generateClothImage } from "@/services/creative-hub";
+import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { toast } from "react-toastify";
 import { Loader2 } from "lucide-react";
 
@@ -29,6 +30,7 @@ export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpda
   const [clothType, setClothType] = useState("full_outfit");
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
 
   useEffect(() => {
     if (cloth) {
@@ -65,9 +67,15 @@ export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpda
 
   const handleGenerateImage = async () => {
       if (!cloth) return;
+      setIsModelSelectorOpen(true);
+  }
+
+  const handleModelConfirm = async (model: string, provider: string) => {
+      if (!cloth) return;
+      setIsModelSelectorOpen(false);
       setGenerating(true);
       try {
-          await generateClothImage(cloth.id);
+          await generateClothImage(cloth.id, model, provider);
           toast.success("Image generation started");
           setTimeout(onUpdate, 3000);
       } catch (error) {
@@ -189,6 +197,15 @@ export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpda
           </form>
         </motion.div>
       </motion.div>
+
+      <ModelSelector
+        isOpen={isModelSelectorOpen}
+        onClose={() => setIsModelSelectorOpen(false)}
+        onConfirm={handleModelConfirm}
+        itemCount={1}
+        title="Select Model for Cloth Image"
+        confirmLabel="Generate Image"
+      />
     </AnimatePresence>
   );
 }
