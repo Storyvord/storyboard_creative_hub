@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Shirt, Wand2, Save, Plus, Upload, User } from "lucide-react";
-import { Cloth } from "@/types/creative-hub";
-import { getCloths, updateSceneCharacter, generateSceneCharacterImage, createCloth, updateCharacter } from "@/services/creative-hub";
+import { Cloth, Script } from "@/types/creative-hub";
+import { getCloths, updateSceneCharacter, generateSceneCharacterImage, createCloth, updateCharacter, getBulkTaskStatus } from "@/services/creative-hub";
 import { toast } from "react-toastify";
+import { Loader2 } from "lucide-react";
 
 interface SceneCharacterDetailModalProps {
   sceneCharacter: any;
@@ -30,6 +31,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
   const [loadingCloths, setLoadingCloths] = useState(false);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [editPrompt, setEditPrompt] = useState("");
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,6 +58,43 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
       setEditPrompt(sceneCharacter.notes || "");
     }
   }, [sceneCharacter]);
+
+  // Poll for background generation tasks
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (activeTaskId) {
+       checkTasks();
+       interval = setInterval(checkTasks, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [activeTaskId]);
+
+  const checkTasks = async () => {
+      try {
+          if (!activeTaskId) return;
+          const data = await getBulkTaskStatus([activeTaskId]);
+          const tasks = data?.tasks || [];
+          
+          if (tasks.length > 0) {
+              const activeTask = tasks[0];
+              
+              if (activeTask.status === 'processing' || activeTask.status === 'pending' || activeTask.status === 'retrying' || activeTask.status === 'started') {
+                  setGenerating(true);
+              } else {
+                  setGenerating(false);
+                  setActiveTaskId(null); // Stop polling
+
+                  if (activeTask.status === 'success' || activeTask.status === 'completed') {
+                      onUpdate(); // refresh data
+                  } else if (activeTask.status === 'failed' || activeTask.status === 'failure') {
+                      toast.error(`Generation failed: ${activeTask.error || "Unknown error"}`);
+                  }
+              }
+          }
+      } catch (err) {
+          console.error("Failed to check tasks for scene character", err);
+      }
+  };
 
   const fetchCloths = async () => {
     setLoadingCloths(true);
@@ -155,11 +194,12 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
               cloth_ids: clothIds,
               notes: editPrompt
           });
-          toast.success("Character updated");
+          toast.success("Character updated successfully");
           onUpdate();
-      } catch (error) {
+      } catch (error: any) {
           console.error("Failed to update character", error);
-          toast.error("Failed to update character");
+          const errorMsg = error?.response?.data?.error || error?.message || "Failed to update character";
+          toast.error(errorMsg);
       } finally {
           setSaving(false);
       }
@@ -168,13 +208,15 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
   const handleGenerate = async () => {
       setGenerating(true);
       try {
-          await generateSceneCharacterImage(sceneCharacter.id, editPrompt);
+          const res = await generateSceneCharacterImage(sceneCharacter.id, editPrompt);
           toast.success("Image generation started. It will update shortly.");
-          setTimeout(onUpdate, 5000); 
-      } catch (error) {
+          if (res && res.task_id) {
+              setActiveTaskId(res.task_id);
+          }
+      } catch (error: any) {
           console.error("Failed to generate image", error);
-          toast.error("Failed to trigger generation");
-      } finally {
+          const errorMsg = error?.response?.data?.error || error?.message || "Failed to trigger generation. Please check your credits or try again.";
+          toast.error(errorMsg);
           setGenerating(false);
       }
   };
@@ -283,11 +325,20 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                         
                         <button
                             onClick={handleGenerate}
-                            disabled={generating}
-                            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 group"
+                            disabled={generating || uploading || saving}
+                            className={`w-full py-3 ${generating ? 'bg-indigo-600/50 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500'} text-white rounded-xl font-bold shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 group`}
                         >
-                            {generating ? <Wand2 className="h-5 w-5 animate-spin" /> : <Wand2 className="h-5 w-5 group-hover:scale-110 transition-transform" />}
-                            Generate New Look
+                            {generating ? (
+                                <>
+                                    <Wand2 className="h-5 w-5 animate-spin" />
+                                    Generating...
+                                </>
+                            ) : (
+                                <>
+                                    <Wand2 className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                                    Generate New Look
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>
@@ -392,11 +443,20 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                         </div>
                         <button
                             onClick={handleSave}
-                            disabled={saving}
-                            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+                            disabled={saving || generating || uploading}
+                            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <Save className="h-4 w-4" />
-                            {saving ? "Saving..." : "Save Outfit"}
+                            {saving ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="h-4 w-4" />
+                                    Save Outfit
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>

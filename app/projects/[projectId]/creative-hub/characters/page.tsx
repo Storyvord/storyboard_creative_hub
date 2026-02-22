@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getScripts, getCharacters } from "@/services/creative-hub";
+import { getScripts, getCharacters, getScriptTasks } from "@/services/creative-hub";
 import { Script, Character } from "@/types/creative-hub";
-import { Loader2, AlertCircle, Plus, Edit, Trash2 } from "lucide-react";
+import { Loader2, AlertCircle, Plus, Edit, Trash2, Wand2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import CharacterModal from "@/components/creative-hub/CharacterModal";
 import { toast } from "react-toastify";
@@ -17,12 +17,60 @@ export default function CharactersPage() {
   const [script, setScript] = useState<Script | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
+  
+  const [globalTask, setGlobalTask] = useState<any>(null); // To store character_generation task
 
   useEffect(() => {
     if (projectId) {
         fetchData();
     }
   }, [projectId]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (script?.id) {
+        checkTasks();
+        interval = setInterval(checkTasks, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [script?.id]);
+
+  const checkTasks = async () => {
+    try {
+        if (!script?.id) return;
+        const data = await getScriptTasks(script.id);
+        const { characters } = data;
+        
+        let activeTask = null;
+        if (characters && characters.length > 0) {
+            const now = new Date().getTime();
+            const maxAgeMs = 60 * 60 * 1000; // 1 hour threshold
+            
+            // Only care about tasks that are NOT completed/failed to avoid showing old history
+            // AND are not older than maxAge
+            const incompleteTasks = characters.filter((t: any) => {
+                const taskAge = now - new Date(t.created_at || new Date()).getTime();
+                return taskAge < maxAgeMs && (t.status === 'processing' || t.status === 'pending' || t.status === 'retrying');
+            });
+            
+            if (incompleteTasks.length > 0) {
+                activeTask = incompleteTasks[incompleteTasks.length - 1]; // Use most recent incomplete
+            } else if (globalTask && globalTask.status !== 'completed' && globalTask.status !== 'failed') {
+                // If we WERE tracking a task, and now there are no incomplete tasks, it just finished!
+                const justFinishedTask = characters.find((t: any) => t.task_id === globalTask.task_id);
+                if (justFinishedTask && (justFinishedTask.status === 'completed' || justFinishedTask.status === 'failed')) {
+                    fetchData(); // Refresh list to get new images
+                    if (justFinishedTask.status === 'failed') {
+                         toast.error("Character generation failed: " + (justFinishedTask.error || "Unknown error"));
+                    }
+                }
+            }
+        }
+        setGlobalTask(activeTask);
+    } catch (e) {
+        console.error("Failed to check script tasks", e);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -83,6 +131,27 @@ export default function CharactersPage() {
             Add Character
         </button>
       </header>
+
+      {/* Global Generation Loader */}
+      {globalTask && (
+          <div className="mb-8 p-4 bg-indigo-900/40 rounded-xl border border-indigo-500/50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                  <div className="bg-indigo-600/30 p-2 rounded-lg text-indigo-400">
+                      <Wand2 className="h-5 w-5 animate-pulse" />
+                  </div>
+                  <div>
+                      <h4 className="font-semibold text-white">Generating Initial Characters</h4>
+                      <p className="text-sm text-indigo-300">
+                          {globalTask.progress_message || `Task ID: ${globalTask.task_id}`}
+                      </p>
+                  </div>
+              </div>
+              <div className="flex items-center gap-3">
+                  <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
+                  <span className="text-sm font-medium text-white">{globalTask.progress_percentage}%</span>
+              </div>
+          </div>
+      )}
       
       {characters.length === 0 ? (
         <div className="text-center py-20 bg-gray-900/50 rounded-xl border border-dashed border-gray-800">

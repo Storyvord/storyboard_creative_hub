@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardData, getSceneStoryboardData, getScriptTasks, getShotPreviz } from "@/services/creative-hub";
+import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardData, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus } from "@/services/creative-hub";
 import { Scene, Shot } from "@/types/creative-hub";
 import { Loader2, Film, ChevronLeft, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon, CheckCircle, Circle } from "lucide-react";
 import { clsx } from "clsx";
@@ -178,7 +178,8 @@ export default function StoryboardPage() {
   
   const [isBulkGenerating, setIsBulkGenerating] = useState(false);
   const [activeScriptId, setActiveScriptId] = useState<number | null>(null);
-  const [trackedTasks, setTrackedTasks] = useState<Record<number, string>>({});
+  const [trackedTasks, setTrackedTasks] = useState<Record<number, string>>({}); // shotId -> taskId (previs)
+  const [trackedShotTasks, setTrackedShotTasks] = useState<Record<number, string>>({}); // sceneId -> taskId (shots)
   const [retryingTasks, setRetryingTasks] = useState<Record<number, boolean>>({});
   const [shotErrors, setShotErrors] = useState<Record<number, string>>({});
   const [initializedScriptId, setInitializedScriptId] = useState<number | null>(null);
@@ -195,32 +196,52 @@ export default function StoryboardPage() {
 
           try {
               const data = await getScriptTasks(activeScriptId);
-              const { previs } = data;
+              const { previs, shots } = data;
               setInitializedScriptId(activeScriptId);
+              
+              const now = new Date().getTime();
+              const maxAgeMs = 60 * 60 * 1000; // 1 hour threshold for stale tasks
+
+              if (shots && shots.length > 0) {
+                  const newLoadingShots: Record<number, boolean> = {};
+                  const newTrackedShots: Record<number, string> = {};
+                  shots.forEach((task: any) => {
+                      const taskAge = now - new Date(task.created_at || new Date()).getTime();
+                      if (taskAge < maxAgeMs && (task.status === 'processing' || task.status === 'pending' || task.status === 'retrying' || task.status === 'started')) {
+                          newLoadingShots[task.object_id] = true;
+                          newTrackedShots[task.object_id] = task.task_id;
+                      }
+                  });
+                  // Merge with existing loading states
+                  if (Object.keys(newLoadingShots).length > 0) {
+                      setLoadingShotsMap(prev => ({ ...prev, ...newLoadingShots }));
+                      setTrackedShotTasks(prev => ({ ...prev, ...newTrackedShots }));
+                  }
+              }
               
               if (previs && previs.length > 0) {
                   const newTracked: Record<number, string> = {};
                   const newRetrying: Record<number, boolean> = {};
                   
                   previs.forEach((task: any) => {
-                      if (task.status === 'processing' || task.status === 'pending' || task.status === 'retrying') {
-                          // Check if shot already has an image
-                          let hasImage = false;
-                          Object.values(shotsMap).forEach(shots => {
-                              const shot = shots.find(s => s.id === task.object_id);
-                              if (shot && shot.image_url) {
-                                  hasImage = true;
-                              }
-                          });
+                      // Check if the shot already has an image. If so, we don't need to load
+                      let hasImage = false;
+                      for (const sceneShots of Object.values(shotsMap)) {
+                          const shot = sceneShots.find(s => s.id === task.object_id);
+                          if (shot && shot.image_url) {
+                              hasImage = true;
+                              break;
+                          }
+                      }
+                      
+                      const taskAge = now - new Date(task.created_at || new Date()).getTime();
 
-                          // Only track the task if the shot doesn't already have an image URL
-                          // This prevents old stuck tasks from showing loading/errors on completed shots
-                          if (!hasImage) {
-                              newTracked[task.object_id] = task.task_id;
-                              
-                              if (task.status === 'retrying') {
-                                  newRetrying[task.object_id] = true;
-                              }
+                      if (!hasImage && taskAge < maxAgeMs && (task.status === 'processing' || task.status === 'pending' || task.status === 'retrying' || task.status === 'started')) {
+                          // Always track the task if it is incomplete in the DB
+                          newTracked[task.object_id] = task.task_id;
+                          
+                          if (task.status === 'retrying') {
+                              newRetrying[task.object_id] = true;
                           }
                       }
                   });
@@ -242,34 +263,86 @@ export default function StoryboardPage() {
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
     const fetchTasks = async () => {
-        // Only pool if we actually have tasks we care about polling for
-        if (!activeScriptId || Object.keys(trackedTasks).length === 0) return;
+        // Collect all task IDs we care about
+        const previsTaskIds = Object.values(trackedTasks);
+        const shotTaskIds = Object.values(trackedShotTasks);
+        const allTaskIds = [...previsTaskIds, ...shotTaskIds];
+        
+        if (!activeScriptId || allTaskIds.length === 0) return;
         
         try {
-            const data = await getScriptTasks(activeScriptId);
-            const { previs } = data;
+            const data = await getBulkTaskStatus(allTaskIds);
+            const returnedTasks = data?.tasks || [];
             
+            // Separate logic for shots generation tasks vs previs generation tasks using their tracked IDs
+            
+            // 1. Process Previs Tasks
             const tasksToComplete: {shotId: number, status: string, error?: string}[] = [];
-            
-            (previs || []).forEach((task: any) => {
-                const trackedTaskId = trackedTasks[task.object_id];
-                // Only process the exact task ID we spawned for this shot
-                if (trackedTaskId && trackedTaskId === task.task_id) {
-                    if (task.status === 'completed' || task.status === 'failed') {
-                        tasksToComplete.push({ shotId: task.object_id, status: task.status, error: task.error });
+            Object.entries(trackedTasks).forEach(([shotIdStr, taskId]) => {
+                const shotId = Number(shotIdStr);
+                const task = returnedTasks.find((t: any) => t.task_id === taskId);
+                
+                if (task) {
+                    if (task.status === 'completed' || task.status === 'failed' || task.status === 'success' || task.status === 'failure') {
+                        tasksToComplete.push({ shotId, status: task.status, error: task.error });
                     } else if (task.status === 'retrying') {
-                        setRetryingTasks(prev => ({ ...prev, [task.object_id]: true }));
-                    } else if (task.status === 'processing') {
+                        setRetryingTasks(prev => ({ ...prev, [shotId]: true }));
+                    } else if (task.status === 'processing' || task.status === 'started') {
                         setRetryingTasks(prev => {
-                            if (!prev[task.object_id]) return prev;
+                            if (!prev[shotId]) return prev;
                             const copy = { ...prev };
-                            delete copy[task.object_id];
+                            delete copy[shotId];
                             return copy;
                         });
                     }
                 }
             });
             
+            // 2. Process Shots Generation Tasks
+            const shotsToRefresh: number[] = [];
+            const newLoadingShots: Record<number, boolean> = {};
+            
+            Object.entries(trackedShotTasks).forEach(([sceneIdStr, taskId]) => {
+                const sceneId = Number(sceneIdStr);
+                const task = returnedTasks.find((t: any) => t.task_id === taskId);
+                
+                if (task) {
+                    if (task.status === 'completed' || task.status === 'failed' || task.status === 'success' || task.status === 'failure') {
+                         if (loadingShotsMap[sceneId]) {
+                             shotsToRefresh.push(sceneId);
+                         } 
+                         newLoadingShots[sceneId] = false;
+                    } else if (task.status === 'processing' || task.status === 'pending' || task.status === 'started') {
+                         newLoadingShots[sceneId] = true;
+                    }
+                }
+            });
+            
+            // Apply state updates for shots 
+            if (Object.keys(newLoadingShots).some(id => newLoadingShots[Number(id)] !== loadingShotsMap[Number(id)])) {
+                 setLoadingShotsMap(prev => {
+                     const copy = { ...prev };
+                     Object.entries(newLoadingShots).forEach(([k, v]) => {
+                         if (v) copy[Number(k)] = true;
+                         else delete copy[Number(k)];
+                     });
+                     return copy;
+                 });
+                 
+                 // Remove from tracked tasks if done
+                 setTrackedShotTasks(prev => {
+                     const copy = { ...prev };
+                     shotsToRefresh.forEach(id => delete copy[id]);
+                     Object.entries(newLoadingShots).forEach(([k, v]) => {
+                         if (!v) delete copy[Number(k)];
+                     });
+                     return copy;
+                 });
+                 
+                 shotsToRefresh.forEach(id => fetchShots(id));
+            }
+            
+            // Apply state updates for Previs
             if (tasksToComplete.length > 0) {
                 // Erase completed from our tracker so loader hides
                 setTrackedTasks(prev => {
@@ -289,8 +362,9 @@ export default function StoryboardPage() {
                         try {
                             const shotData = await getShotPreviz(t.shotId);
                             if (shotData && shotData.length > 0) {
-                                const newImageUrl = shotData[0].image_url;
-                                const newPrevizObj = shotData[0];
+                                const lastIdx = shotData.length - 1;
+                                const newImageUrl = shotData[lastIdx].image_url;
+                                const newPrevizObj = shotData[lastIdx];
                                 
                                 // Erase any potential lingering errors for this successful shot
                                 setShotErrors(prev => {
@@ -403,7 +477,7 @@ export default function StoryboardPage() {
               if (shotData.previz && shotData.previz.length > 0) {
                   // Previz image_url might be a full URL or relative.
                   // The serializer returns obj.image_url.url which is usually full or absolute path.
-                  imageUrl = shotData.previz[0].image_url;
+                  imageUrl = shotData.previz[shotData.previz.length - 1].image_url;
               }
 
               return {
@@ -425,7 +499,7 @@ export default function StoryboardPage() {
                   created_at: "",
                   updated_at: "",
                   image_url: imageUrl,
-                  previz: shotData.previz && shotData.previz.length > 0 ? shotData.previz[0] : null
+                  previz: shotData.previz && shotData.previz.length > 0 ? shotData.previz[shotData.previz.length - 1] : null
               } as Shot;
           });
           
@@ -452,7 +526,7 @@ export default function StoryboardPage() {
              const shots: Shot[] = sceneData.shots.map((shotData: any) => {
                   let imageUrl = null;
                   if (shotData.previz && shotData.previz.length > 0) {
-                      imageUrl = shotData.previz[0].image_url;
+                      imageUrl = shotData.previz[shotData.previz.length - 1].image_url;
                   }
 
                   return {
@@ -463,7 +537,7 @@ export default function StoryboardPage() {
                       order: shotData.order,
                       // parsing other fields if needed
                       image_url: imageUrl,
-                      previz: shotData.previz && shotData.previz.length > 0 ? shotData.previz[0] : null
+                      previz: shotData.previz && shotData.previz.length > 0 ? shotData.previz[shotData.previz.length - 1] : null
                   } as Shot;
              });
              const sortedShots = shots.sort((a, b) => a.order - b.order);
@@ -511,9 +585,16 @@ export default function StoryboardPage() {
       if (selectedSceneIds.size === 0) return;
       setIsBulkGenerating(true);
       try {
-          await bulkGenerateShots(Array.from(selectedSceneIds));
-          // Refresh shots for selected scenes
-          Array.from(selectedSceneIds).forEach(id => fetchShots(id));
+          const res = await bulkGenerateShots(Array.from(selectedSceneIds));
+          if (res?.task_ids) {
+              const newTasks: Record<number, string> = {};
+              Array.from(selectedSceneIds).forEach((sceneId, idx) => {
+                  if (res.task_ids[idx]) newTasks[sceneId] = res.task_ids[idx];
+                  setLoadingShotsMap(prev => ({ ...prev, [sceneId]: true }));
+              });
+              setTrackedShotTasks(prev => ({ ...prev, ...newTasks }));
+          }
+          // Note: we don't need to fetchShots immediately, the polling will refresh when done.
           alert("Bulk shot generation started!");
       } catch (error) {
           console.error("Bulk generate shots failed", error);

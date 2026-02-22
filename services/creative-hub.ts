@@ -239,10 +239,11 @@ export const generateShotImage = async (shotId: number): Promise<void> => {
     });
 }
 
-export const bulkGenerateShots = async (sceneIds: number[]): Promise<void> => {
-    await api.post(`/api/creative_hub/shots/bulk-generate/`, {
+export const bulkGenerateShots = async (sceneIds: number[]): Promise<any> => {
+    const response = await api.post(`/api/creative_hub/shots/bulk-generate/`, {
         scene_ids: sceneIds
     });
+    return response.data;
 }
 
 export const bulkGeneratePreviz = async (shotIds: number[]): Promise<any> => {
@@ -254,6 +255,16 @@ export const bulkGeneratePreviz = async (shotIds: number[]): Promise<any> => {
 
 export const getScriptTasks = async (scriptId: string | number): Promise<any> => {
     const response = await api.get(`/api/creative_hub/scripts/tasks/${scriptId}/`);
+    return response.data;
+}
+
+export const getTaskStatus = async (taskId: string): Promise<any> => {
+    const response = await api.get(`/api/creative_hub/tasks/${taskId}/`);
+    return response.data;
+}
+
+export const getBulkTaskStatus = async (taskIds: string[]): Promise<any> => {
+    const response = await api.post(`/api/project/v2/bulk_taskstatus/`, { task_ids: taskIds });
     return response.data;
 }
 
