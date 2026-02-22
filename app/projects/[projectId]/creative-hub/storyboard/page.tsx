@@ -7,6 +7,7 @@ import { Loader2, Film, ChevronLeft, ChevronRight, CheckSquare, Square, Play, Im
 import { clsx } from "clsx";
 import { useParams } from "next/navigation";
 import ShotDetailModal from "@/components/creative-hub/ShotDetailModal";
+import StoryboardSlideshowModal from "@/components/creative-hub/StoryboardSlideshowModal";
 import { toast } from "react-toastify";
 
 // Simplified SceneItem for internal use if imported one fails or for direct integration
@@ -181,6 +182,8 @@ export default function StoryboardPage() {
   const [retryingTasks, setRetryingTasks] = useState<Record<number, boolean>>({});
   const [shotErrors, setShotErrors] = useState<Record<number, string>>({});
   const [initializedScriptId, setInitializedScriptId] = useState<number | null>(null);
+  
+  const [isSlideshowOpen, setIsSlideshowOpen] = useState(false);
 
   // Restore Active Tasks on Mount (or when activeScriptId resolves)
   useEffect(() => {
@@ -603,6 +606,50 @@ export default function StoryboardPage() {
       fetchShots(sceneId);
   }
 
+  const handlePlaySlideshow = () => {
+      setIsSlideshowOpen(true);
+  };
+
+  const getSlideshowShots = useCallback(() => {
+      if (selectedSceneIds.size === 0 && selectedShotIds.size === 0) {
+          // Play all shots
+          return getAllShots();
+      }
+
+      // Gather from selected scenes
+      const sceneShots = Array.from(selectedSceneIds).flatMap(sceneId => 
+          shotsMap[sceneId] || []
+      );
+      
+      // Gather specifically selected shots
+      const allAvailableShots = getAllShots();
+      const specificShots = Array.from(selectedShotIds).map(id => 
+          allAvailableShots.find(s => s.id === id)
+      ).filter(Boolean) as Shot[];
+
+      // Combine, deduplicate, and sort
+      const combined = [...sceneShots, ...specificShots];
+      const unique = Array.from(new Set(combined.map(s => s.id)))
+          .map(id => combined.find(s => s.id === id)!)
+          .sort((a, b) => {
+              if (a.scene !== b.scene) return a.scene - b.scene; // Approximation, scene order is better but ok
+              return a.order - b.order;
+          });
+
+      // To handle proper scene order sorting:
+      const sortedUnique = unique.sort((a, b) => {
+          const sceneA = scenes.find(s => s.id === a.scene);
+          const sceneB = scenes.find(s => s.id === b.scene);
+          const orderA = sceneA ? sceneA.order : 0;
+          const orderB = sceneB ? sceneB.order : 0;
+          
+          if (orderA !== orderB) return orderA - orderB;
+          return a.order - b.order;
+      });
+
+      return sortedUnique;
+  }, [selectedSceneIds, selectedShotIds, getAllShots, shotsMap, scenes]);
+
   if (loadingScenes) return <div className="h-full flex items-center justify-center bg-gray-950"><Loader2 className="animate-spin h-8 w-8 text-indigo-500" /></div>;
 
   return (
@@ -647,7 +694,16 @@ export default function StoryboardPage() {
                       )}
                   </div>
               </div>
-                            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3">
+                  <button 
+                      onClick={handlePlaySlideshow}
+                      disabled={scenes.length === 0}
+                      className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2 border border-gray-700 hover:border-gray-600"
+                  >
+                      <Play className="w-4 h-4 text-indigo-400" />
+                      Play Slideshow
+                  </button>
+                  
                   {(selectedSceneIds.size > 0 || selectedShotIds.size > 0) && (
                       <>
                         <button 
@@ -725,6 +781,12 @@ export default function StoryboardPage() {
              });
         }}
         showGenerateButton={true}
+      />
+
+      <StoryboardSlideshowModal 
+        isOpen={isSlideshowOpen}
+        onClose={() => setIsSlideshowOpen(false)}
+        shots={getSlideshowShots()}
       />
     </div>
   );
