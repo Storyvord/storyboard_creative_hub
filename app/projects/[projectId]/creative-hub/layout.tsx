@@ -22,7 +22,6 @@ export default function CreativeHubLayout({
     { name: "Characters", href: `/projects/${projectId}/creative-hub/characters`, icon: Users },
     { name: "Wardrobe", href: `/projects/${projectId}/creative-hub/wardrobe`, icon: Shirt },
     { name: "Storyboarding", href: `/projects/${projectId}/creative-hub/storyboard`, icon: Film },
-    { name: "Analytics", href: `/projects/${projectId}/creative-hub/analytics`, icon: BarChart2 },
   ];
 
   return (
