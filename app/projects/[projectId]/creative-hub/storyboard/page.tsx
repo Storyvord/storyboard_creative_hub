@@ -180,14 +180,20 @@ export default function StoryboardPage() {
   const [trackedTasks, setTrackedTasks] = useState<Record<number, string>>({});
   const [retryingTasks, setRetryingTasks] = useState<Record<number, boolean>>({});
   const [shotErrors, setShotErrors] = useState<Record<number, string>>({});
+  const [initializedScriptId, setInitializedScriptId] = useState<number | null>(null);
 
   // Restore Active Tasks on Mount (or when activeScriptId resolves)
   useEffect(() => {
       const initializeActiveTasks = async () => {
-          if (!activeScriptId) return;
+          if (!activeScriptId || activeScriptId === initializedScriptId) return;
+          // Ensure we have loaded shots before we initialize active tasks
+          // so we can properly check if images are already generated
+          if (Object.keys(shotsMap).length === 0) return;
+
           try {
               const data = await getScriptTasks(activeScriptId);
               const { previs } = data;
+              setInitializedScriptId(activeScriptId);
               
               if (previs && previs.length > 0) {
                   const newTracked: Record<number, string> = {};
@@ -195,12 +201,23 @@ export default function StoryboardPage() {
                   
                   previs.forEach((task: any) => {
                       if (task.status === 'processing' || task.status === 'pending' || task.status === 'retrying') {
-                          // The backend doesn't currently store the initial array of tasks spawned in the batch
-                          // but since we only care about restoring the loader, we can just bind tracking to the task_id
-                          newTracked[task.object_id] = task.task_id;
-                          
-                          if (task.status === 'retrying') {
-                              newRetrying[task.object_id] = true;
+                          // Check if shot already has an image
+                          let hasImage = false;
+                          Object.values(shotsMap).forEach(shots => {
+                              const shot = shots.find(s => s.id === task.object_id);
+                              if (shot && shot.image_url) {
+                                  hasImage = true;
+                              }
+                          });
+
+                          // Only track the task if the shot doesn't already have an image URL
+                          // This prevents old stuck tasks from showing loading/errors on completed shots
+                          if (!hasImage) {
+                              newTracked[task.object_id] = task.task_id;
+                              
+                              if (task.status === 'retrying') {
+                                  newRetrying[task.object_id] = true;
+                              }
                           }
                       }
                   });
@@ -216,7 +233,7 @@ export default function StoryboardPage() {
       };
 
       initializeActiveTasks();
-  }, [activeScriptId]);
+  }, [activeScriptId, shotsMap, initializedScriptId]);
 
   // Polling Effect
   useEffect(() => {
@@ -271,6 +288,14 @@ export default function StoryboardPage() {
                             if (shotData && shotData.length > 0) {
                                 const newImageUrl = shotData[0].image_url;
                                 const newPrevizObj = shotData[0];
+                                
+                                // Erase any potential lingering errors for this successful shot
+                                setShotErrors(prev => {
+                                    if (!prev[t.shotId]) return prev;
+                                    const copy = { ...prev };
+                                    delete copy[t.shotId];
+                                    return copy;
+                                });
                                 
                                 setShotsMap(prev => {
                                     const copy = { ...prev };
@@ -518,6 +543,15 @@ export default function StoryboardPage() {
                   const copy = { ...prev };
                   response.shot_ids.forEach((sid: number, i: number) => {
                       copy[sid] = response.task_ids[i];
+                  });
+                  return copy;
+              });
+
+              // Clear out any old persistent errors before fresh generation
+              setShotErrors(prev => {
+                  const copy = { ...prev };
+                  response.shot_ids.forEach((sid: number) => {
+                      delete copy[sid];
                   });
                   return copy;
               });
