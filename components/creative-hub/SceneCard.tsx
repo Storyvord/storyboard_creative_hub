@@ -44,11 +44,11 @@ export default function SceneCard({ scene, onUpdate }: SceneCardProps) {
   };
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 hover:border-gray-700 transition-all group relative overflow-hidden">
+    <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-md p-6 hover:border-[#222] transition-all group relative overflow-hidden">
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="text-lg font-bold text-gray-100 flex items-center gap-2">
-            <span className="bg-gray-800 text-gray-400 text-xs px-2 py-1 rounded">#{scene.order}</span>
+            <span className="bg-[#1a1a1a] text-gray-400 text-xs px-2 py-1 rounded">#{scene.order}</span>
             {scene.scene_name || `Scene ${scene.order}`}
           </h3>
           <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
@@ -68,11 +68,11 @@ export default function SceneCard({ scene, onUpdate }: SceneCardProps) {
         {scene.description}
       </p>
 
-      <div className="flex gap-3 mt-auto pt-4 border-t border-gray-800/50">
+      <div className="flex gap-3 mt-auto pt-4 border-t border-[#1a1a1a]/50">
         <button
           onClick={handleRegenerate}
           disabled={regenerating}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium transition-colors"
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-[#1a1a1a] hover:bg-[#222] text-gray-300 text-sm font-medium transition-colors"
         >
           {regenerating ? <Loader2 className="animate-spin h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
           Regenerate
@@ -80,7 +80,7 @@ export default function SceneCard({ scene, onUpdate }: SceneCardProps) {
         <button
           onClick={handleGenerateShots}
           disabled={generatingShots}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-600/20 text-sm font-medium transition-colors"
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-600/20 text-sm font-medium transition-colors"
         >
           {generatingShots ? <Loader2 className="animate-spin h-4 w-4" /> : <Film className="h-4 w-4" />}
           Gen Shots
@@ -89,7 +89,7 @@ export default function SceneCard({ scene, onUpdate }: SceneCardProps) {
       
       {/* Visual flair for active generating state */}
       {(regenerating || generatingShots) && (
-          <div className="absolute inset-x-0 bottom-0 h-1 bg-indigo-500/50 animate-pulse" />
+          <div className="absolute inset-x-0 bottom-0 h-1 bg-emerald-500/50 animate-pulse" />
       )}
     </div>
   );

@@ -13,18 +13,12 @@ export default function CharactersPage() {
   const projectId = params.projectId as string;
   const [characters, setCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [script, setScript] = useState<Script | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
-  
-  const [globalTask, setGlobalTask] = useState<any>(null); // To store character_generation task
+  const [globalTask, setGlobalTask] = useState<any>(null);
 
-  useEffect(() => {
-    if (projectId) {
-        fetchData();
-    }
-  }, [projectId]);
+  useEffect(() => { if (projectId) fetchData(); }, [projectId]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -40,36 +34,26 @@ export default function CharactersPage() {
         if (!script?.id) return;
         const data = await getScriptTasks(script.id);
         const { characters } = data;
-        
         let activeTask = null;
         if (characters && characters.length > 0) {
             const now = new Date().getTime();
-            const maxAgeMs = 60 * 60 * 1000; // 1 hour threshold
-            
-            // Only care about tasks that are NOT completed/failed to avoid showing old history
-            // AND are not older than maxAge
+            const maxAgeMs = 60 * 60 * 1000;
             const incompleteTasks = characters.filter((t: any) => {
                 const taskAge = now - new Date(t.created_at || new Date()).getTime();
                 return taskAge < maxAgeMs && (t.status === 'processing' || t.status === 'pending' || t.status === 'retrying');
             });
-            
             if (incompleteTasks.length > 0) {
-                activeTask = incompleteTasks[incompleteTasks.length - 1]; // Use most recent incomplete
+                activeTask = incompleteTasks[incompleteTasks.length - 1];
             } else if (globalTask && globalTask.status !== 'completed' && globalTask.status !== 'failed') {
-                // If we WERE tracking a task, and now there are no incomplete tasks, it just finished!
                 const justFinishedTask = characters.find((t: any) => t.task_id === globalTask.task_id);
                 if (justFinishedTask && (justFinishedTask.status === 'completed' || justFinishedTask.status === 'failed')) {
-                    fetchData(); // Refresh list to get new images
-                    if (justFinishedTask.status === 'failed') {
-                         toast.error("Character generation failed: " + (justFinishedTask.error || "Unknown error"));
-                    }
+                    fetchData();
+                    if (justFinishedTask.status === 'failed') toast.error("Character generation failed: " + (justFinishedTask.error || "Unknown error"));
                 }
             }
         }
         setGlobalTask(activeTask);
-    } catch (e) {
-        console.error("Failed to check script tasks", e);
-    }
+    } catch (e) { console.error("Failed to check script tasks", e); }
   };
 
   const fetchData = async () => {
@@ -81,121 +65,88 @@ export default function CharactersPage() {
         const charData = await getCharacters(currentScript.id);
         setCharacters(charData || []);
       }
-    } catch (error) {
-      console.error("Failed to fetch characters", error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { console.error("Failed to fetch characters", error); }
+    finally { setLoading(false); }
   };
 
-  const handleEdit = (char: Character) => {
-      setSelectedCharacter(char);
-      setIsModalOpen(true);
-  }
+  const handleEdit = (char: Character) => { setSelectedCharacter(char); setIsModalOpen(true); };
+  const handleAdd = () => { setSelectedCharacter(null); setIsModalOpen(true); };
 
-  const handleAdd = () => {
-      setSelectedCharacter(null);
-      setIsModalOpen(true);
-  }
-
-  // Import deleteCharacter first to use it
   const handleDelete = async (id: number) => {
-      if (!confirm("Are you sure you want to delete this character?")) return;
+      if (!confirm("Delete this character?")) return;
       try {
-          // Dynamic import or assume it's imported (need to update imports)
           const { deleteCharacter } = await import("@/services/creative-hub");
           await deleteCharacter(id);
           toast.success("Character deleted");
           fetchData();
-      } catch (error) {
-           console.error("Failed to delete", error);
-           toast.error("Failed to delete character");
-      }
-  }
+      } catch (error) { console.error(error); toast.error("Failed to delete character"); }
+  };
 
-  if (loading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin h-8 w-8 text-indigo-500" /></div>;
+  if (loading) return <div className="p-6 flex justify-center"><Loader2 className="animate-spin h-6 w-6 text-[#333]" /></div>;
 
   return (
-    <div className="p-8">
-      <header className="flex justify-between items-center mb-8">
+    <div className="p-6">
+      <header className="flex justify-between items-center mb-6">
         <div>
-           <h1 className="text-3xl font-bold mb-2">Characters</h1>
-           <p className="text-gray-400">Manage cast and character details</p>
+           <h1 className="text-xl font-bold mb-1 text-white">Characters</h1>
+           <p className="text-[#555] text-xs">Manage cast and character details</p>
         </div>
-        <button
-            onClick={handleAdd}
-            disabled={!script}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-            <Plus className="h-5 w-5" />
+        <button onClick={handleAdd} disabled={!script}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-30">
+            <Plus className="h-4 w-4" />
             Add Character
         </button>
       </header>
 
-      {/* Global Generation Loader */}
       {globalTask && (
-          <div className="mb-8 p-4 bg-indigo-900/40 rounded-xl border border-indigo-500/50 flex items-center justify-between">
+          <div className="mb-6 p-3 bg-emerald-950/40 rounded-md border border-emerald-500/30 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                  <div className="bg-indigo-600/30 p-2 rounded-lg text-indigo-400">
-                      <Wand2 className="h-5 w-5 animate-pulse" />
+                  <div className="bg-emerald-600/20 p-1.5 rounded-md text-emerald-400">
+                      <Wand2 className="h-4 w-4 animate-pulse" />
                   </div>
                   <div>
-                      <h4 className="font-semibold text-white">Generating Initial Characters</h4>
-                      <p className="text-sm text-indigo-300">
-                          {globalTask.progress_message || `Task ID: ${globalTask.task_id}`}
-                      </p>
+                      <h4 className="font-semibold text-sm text-white">Generating Characters</h4>
+                      <p className="text-[10px] text-emerald-300/70">{globalTask.progress_message || `Task: ${globalTask.task_id}`}</p>
                   </div>
               </div>
-              <div className="flex items-center gap-3">
-                  <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
-                  <span className="text-sm font-medium text-white">{globalTask.progress_percentage}%</span>
+              <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+                  <span className="text-xs font-medium text-white">{globalTask.progress_percentage}%</span>
               </div>
           </div>
       )}
       
       {characters.length === 0 ? (
-        <div className="text-center py-20 bg-gray-900/50 rounded-xl border border-dashed border-gray-800">
-            <p className="text-gray-500">No characters found. Generate scenes or add manually.</p>
+        <div className="text-center py-16 bg-[#0d0d0d] rounded-md border border-dashed border-[#1a1a1a]">
+            <p className="text-[#555] text-xs">No characters found. Generate scenes or add manually.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {characters.map((char) => (
-            <div key={char.id} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden group hover:border-indigo-500/50 transition-all flex flex-col">
-               <div className="aspect-square bg-gray-800 relative group-hover:opacity-90 transition-opacity">
+            <div key={char.id} className="bg-[#0d0d0d] rounded-md border border-[#1a1a1a] overflow-hidden group hover:border-emerald-500/30 transition-all flex flex-col">
+               <div className="aspect-square bg-[#0a0a0a] relative group-hover:opacity-90 transition-opacity">
                    {char.image_url ? (
                        <img src={char.image_url} alt={char.name} className="w-full h-full object-cover" />
                    ) : (
-                       <div className="w-full h-full flex flex-col items-center justify-center text-gray-700">
-                           <span className="text-4xl font-bold mb-2">{char.name.charAt(0)}</span>
-                           <span className="text-xs uppercase tracking-wider">No Image</span>
+                       <div className="w-full h-full flex flex-col items-center justify-center text-[#333]">
+                           <span className="text-3xl font-bold mb-1">{char.name.charAt(0)}</span>
+                           <span className="text-[9px] uppercase tracking-wider">No Image</span>
                        </div>
                    )}
-                   {/* Overlay Actions */}
                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                       <button 
-                            onClick={() => handleEdit(char)}
-                            className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white backdrop-blur-sm transition-colors" 
-                            title="Edit"
-                       >
-                           <Edit className="h-4 w-4" />
+                       <button onClick={() => handleEdit(char)} className="p-2 bg-white/10 hover:bg-white/20 rounded-md text-white transition-colors" title="Edit">
+                           <Edit className="h-3.5 w-3.5" />
                        </button>
-                       <button 
-                            onClick={() => handleDelete(char.id)}
-                            className="p-2 bg-red-500/20 hover:bg-red-500/40 rounded-full text-red-500 backdrop-blur-sm transition-colors" 
-                            title="Delete"
-                       >
-                           <Trash2 className="h-4 w-4" />
+                       <button onClick={() => handleDelete(char.id)} className="p-2 bg-red-500/20 hover:bg-red-500/40 rounded-md text-red-400 transition-colors" title="Delete">
+                           <Trash2 className="h-3.5 w-3.5" />
                        </button>
                    </div>
                </div>
-               <div className="p-4 flex-1 flex flex-col">
-                   <h3 className="font-bold text-lg mb-1 text-white">{char.name}</h3>
-                   <p className="text-xs text-gray-500 line-clamp-2 mb-4 flex-1">{char.description || "No description."}</p>
-                   
-                   <button 
-                        onClick={() => handleEdit(char)}
-                        className="w-full py-2 text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors border border-gray-700"
-                   >
+               <div className="p-3 flex-1 flex flex-col">
+                   <h3 className="font-bold text-sm mb-0.5 text-white">{char.name}</h3>
+                   <p className="text-[10px] text-[#555] line-clamp-2 mb-3 flex-1">{char.description || "No description."}</p>
+                   <button onClick={() => handleEdit(char)}
+                        className="w-full py-1.5 text-[10px] font-medium bg-[#111] hover:bg-[#161616] text-[#888] rounded-md transition-colors border border-[#1a1a1a]">
                        View Details
                    </button>
                </div>

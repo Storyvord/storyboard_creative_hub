@@ -37,6 +37,7 @@ export interface Cloth {
 
 export interface Shot {
     id: number;
+    scene?: number;
     description: string;
     type: string;
     order: number;

@@ -11,12 +11,17 @@ const api = axios.create({
 });
 
 // Add a request interceptor to include the auth token
+// Skip auth header for public endpoints that don't need (and may reject) Bearer tokens
+const PUBLIC_ENDPOINTS = ["/api/accounts/v2/login/", "/api/accounts/v2/register/", "/auth/jwt/refresh/"];
+
 api.interceptors.request.use(
   (config) => {
-    // We'll store the token in localStorage for simplicity in this MVP
-    const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    const isPublic = PUBLIC_ENDPOINTS.some((ep) => config.url?.includes(ep));
+    if (!isPublic) {
+      const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },

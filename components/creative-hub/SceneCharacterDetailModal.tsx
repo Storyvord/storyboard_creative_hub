@@ -237,19 +237,19 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-5xl h-[85vh] overflow-hidden flex flex-col shadow-2xl"
+          className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-md w-full max-w-5xl h-[85vh] overflow-hidden flex flex-col shadow-2xl"
         >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-gray-800 p-6">
+            <div className="flex items-center justify-between border-b border-[#1a1a1a] p-6">
                 <div>
                     <h3 className="text-xl font-bold leading-6 text-white flex items-center gap-2">
-                    Fitting Room: <span className="text-indigo-400">{sceneCharacter?.character?.name}</span>
+                    Fitting Room: <span className="text-emerald-400">{sceneCharacter?.character?.name}</span>
                     </h3>
                     <p className="text-sm text-gray-400 mt-1">Customize appearance for this scene</p>
                 </div>
                 <button
                 onClick={onClose}
-                className="rounded-lg p-2 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
+                className="rounded-md p-2 text-gray-400 hover:bg-[#1a1a1a] hover:text-white transition-colors"
                 >
                 <X className="h-5 w-5" />
                 </button>
@@ -258,8 +258,8 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
             {/* Content */}
             <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
                 {/* Left: Character Preview */}
-                <div className="w-full lg:w-1/3 bg-black/50 p-6 flex flex-col items-center border-b lg:border-r border-gray-800 overflow-y-auto">
-                    <div className="relative w-full aspect-[3/4] max-w-sm rounded-xl overflow-hidden border border-gray-700 bg-gray-800 flex-shrink-0 group/image">
+                <div className="w-full lg:w-1/3 bg-black/50 p-6 flex flex-col items-center border-b lg:border-r border-[#1a1a1a] overflow-y-auto">
+                    <div className="relative w-full aspect-[3/4] max-w-sm rounded-md overflow-hidden border border-[#222] bg-[#1a1a1a] flex-shrink-0 group/image">
                             {/* Primary Image: Scene Character Image */}
                             {sceneCharacter?.image_url ? (
                                 <img 
@@ -277,7 +277,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                                         className="w-full h-full object-cover opacity-80"
                                     />
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                        <span className="px-3 py-1 bg-black/60 text-white text-xs rounded-full backdrop-blur-md border border-white/10">Base Appearance</span>
+                                        <span className="px-3 py-1 bg-black/60 text-white text-xs rounded-md backdrop-blur-md border border-white/10">Base Appearance</span>
                                     </div>
                                 </div>
                                 ) : (
@@ -291,7 +291,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                             {/* Upload Overlay - Always visible at bottom with high z-index */}
                             <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent flex items-center justify-center gap-3 z-20">
                                 <label className="flex flex-col items-center gap-1 cursor-pointer hover:scale-105 transition-transform group/btn">
-                                    <div className="p-2 bg-indigo-600 rounded-full text-white shadow-lg group-hover/btn:bg-indigo-500 ring-2 ring-black">
+                                    <div className="p-2 bg-emerald-600 rounded-md text-white shadow-lg group-hover/btn:bg-emerald-500 ring-2 ring-black">
                                         <Upload className="h-4 w-4" />
                                     </div>
                                     <span className="text-[10px] font-bold text-white uppercase tracking-wider shadow-sm bg-black/50 px-1 rounded">Scene Look</span>
@@ -306,7 +306,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
 
                             {/* Fallback Reference Overlay (Small) */}
                             {sceneCharacter?.image_url && sceneCharacter?.character?.image_url && (
-                                <div className="absolute bottom-2 right-2 w-16 h-16 rounded-lg border-2 border-gray-700 overflow-hidden shadow-lg z-10">
+                                <div className="absolute bottom-2 right-2 w-16 h-16 rounded-md border-2 border-[#222] overflow-hidden shadow-lg z-10">
                                     <img src={sceneCharacter.character.image_url} alt="Ref" className="w-full h-full object-cover" />
                                 </div>
                             )}
@@ -319,14 +319,14 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                                 value={editPrompt}
                                 onChange={(e) => setEditPrompt(e.target.value)}
                                 placeholder="Describe specific changes for this scene (e.g. 'wearing a red dress', 'dirty face')..."
-                                className="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm text-gray-200 focus:outline-none focus:border-indigo-500 resize-none h-24"
+                                className="w-full bg-[#1a1a1a] border border-[#222] rounded-md p-3 text-sm text-gray-200 focus:outline-none focus:border-emerald-500 resize-none h-24"
                             />
                         </div>
                         
                         <button
                             onClick={handleGenerate}
                             disabled={generating || uploading || saving}
-                            className={`w-full py-3 ${generating ? 'bg-indigo-600/50 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500'} text-white rounded-xl font-bold shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 group`}
+                            className={`w-full py-3 ${generating ? 'bg-emerald-600/50 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'} text-white rounded-md font-bold shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 group`}
                         >
                             {generating ? (
                                 <>
@@ -344,29 +344,29 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                 </div>
 
                 {/* Right: Wardrobe Selection */}
-                <div className="w-full lg:w-2/3 flex flex-col h-full bg-gray-900">
+                <div className="w-full lg:w-2/3 flex flex-col h-full bg-[#0d0d0d]">
                     {/* Slots Navigation */}
-                    <div className="flex overflow-x-auto p-2 border-b border-gray-800 gap-2 hide-scrollbar bg-gray-900">
+                    <div className="flex overflow-x-auto p-2 border-b border-[#1a1a1a] gap-2 hide-scrollbar bg-[#0d0d0d]">
                         {CLOTH_SLOTS.map(slot => (
                             <button
                                 key={slot.id}
                                 onClick={() => setActiveSlot(slot.id)}
-                                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex flex-col items-center gap-1 ${
+                                className={`px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors flex flex-col items-center gap-1 ${
                                     activeSlot === slot.id 
-                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' 
-                                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' 
+                                    : 'bg-[#1a1a1a] text-gray-400 hover:bg-[#222] hover:text-gray-200'
                                 }`}
                             >
                                 {slot.label}
                                 {selectedCloths[slot.id] && (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                                    <span className="w-1.5 h-1.5 rounded-md bg-green-400"></span>
                                 )}
                             </button>
                         ))}
                     </div>
 
                     {/* Cloth Grid */}
-                    <div className="flex-1 overflow-y-auto p-6 bg-gray-900/50">
+                    <div className="flex-1 overflow-y-auto p-6 bg-[#0d0d0d]/50">
                         <input 
                             type="file" 
                             ref={fileInputRef} 
@@ -382,13 +382,13 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                                 {/* Upload New Item Button */}
                                 <div 
                                     onClick={handleUploadClick}
-                                    className="aspect-square rounded-xl border-2 border-dashed border-gray-700 hover:border-indigo-500 hover:bg-gray-800 transition-all cursor-pointer flex flex-col items-center justify-center text-gray-500 hover:text-indigo-400 gap-2 group"
+                                    className="aspect-square rounded-md border-2 border-dashed border-[#222] hover:border-emerald-500 hover:bg-[#1a1a1a] transition-all cursor-pointer flex flex-col items-center justify-center text-gray-500 hover:text-emerald-400 gap-2 group"
                                 >
                                     {uploading ? (
-                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                                        <div className="animate-spin rounded-md h-8 w-8 border-b-2 border-emerald-500"></div>
                                     ) : (
                                         <>
-                                            <div className="p-3 rounded-full bg-gray-800 group-hover:bg-indigo-500/20 transition-colors">
+                                            <div className="p-3 rounded-md bg-[#1a1a1a] group-hover:bg-emerald-500/20 transition-colors">
                                                 <Plus className="h-6 w-6" />
                                             </div>
                                             <span className="text-xs font-medium">Add {CLOTH_SLOTS.find(s => s.id === activeSlot)?.label}</span>
@@ -400,16 +400,16 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                                     <div 
                                         key={cloth.id}
                                         onClick={() => handleClothSelect(cloth)}
-                                        className={`group relative aspect-square rounded-xl overflow-hidden border-2 cursor-pointer transition-all ${
+                                        className={`group relative aspect-square rounded-md overflow-hidden border-2 cursor-pointer transition-all ${
                                             selectedCloths[activeSlot]?.id === cloth.id
-                                            ? 'border-indigo-500 ring-2 ring-indigo-500/30'
-                                            : 'border-gray-700 hover:border-gray-500'
+                                            ? 'border-emerald-500 ring-2 ring-emerald-500/30'
+                                            : 'border-[#222] hover:border-gray-500'
                                         }`}
                                     >
                                         {cloth.image_url ? (
                                             <img src={cloth.image_url} alt={cloth.name} className="w-full h-full object-cover" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-gray-800 text-gray-600">
+                                            <div className="w-full h-full flex items-center justify-center bg-[#1a1a1a] text-gray-600">
                                                 <Shirt className="h-8 w-8" />
                                             </div>
                                         )}
@@ -418,7 +418,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                                         </div>
                                         
                                         {selectedCloths[activeSlot]?.id === cloth.id && (
-                                            <div className="absolute top-2 right-2 bg-indigo-500 text-white p-1 rounded-full shadow-lg">
+                                            <div className="absolute top-2 right-2 bg-emerald-500 text-white p-1 rounded-md shadow-lg">
                                                 <Wand2 className="h-3 w-3" />
                                             </div>
                                         )}
@@ -437,14 +437,14 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                     </div>
 
                     {/* Footer */}
-                    <div className="p-4 border-t border-gray-800 bg-gray-900 flex justify-between items-center bg-gray-900">
+                    <div className="p-4 border-t border-[#1a1a1a] bg-[#0d0d0d] flex justify-between items-center bg-[#0d0d0d]">
                         <div className="text-sm text-gray-400">
                             <span className="text-white font-bold">{Object.keys(selectedCloths).filter(k => selectedCloths[k]).length}</span> items selected
                         </div>
                         <button
                             onClick={handleSave}
                             disabled={saving || generating || uploading}
-                            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md font-bold flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {saving ? (
                                 <>

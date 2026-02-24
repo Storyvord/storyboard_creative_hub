@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/services/auth";
 import { toast } from "react-toastify";
-import { Loader2 } from "lucide-react";
+import { Loader2, Video } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -42,65 +42,55 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-950 p-4">
-      <div className="w-full max-w-md space-y-8 rounded-xl bg-gray-900 p-8 shadow-2xl border border-gray-800">
+    <div className="flex min-h-screen items-center justify-center bg-[#0a0a0a] p-4">
+      <div className="w-full max-w-sm space-y-6 rounded-md bg-[#0d0d0d] p-8 border border-[#1a1a1a]">
         <div className="text-center">
-          <h2 className="mt-6 text-3xl font-bold tracking-tight text-white">
-            Welcome Back
-          </h2>
-          <p className="mt-2 text-sm text-gray-400">
-            Sign in to access your Creative Hub
-          </p>
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <Video className="h-6 w-6 text-emerald-500" />
+            <span className="text-xl font-bold text-white tracking-tight">Storyvord</span>
+          </div>
+          <h2 className="text-lg font-bold text-white">Welcome Back</h2>
+          <p className="mt-1 text-xs text-[#666]">Sign in to access your Creative Hub</p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-          <div className="space-y-4">
+        <form className="space-y-4" onSubmit={handleLogin}>
+          <div className="space-y-3">
             <div>
-              <label htmlFor="email" className="sr-only">
-                Email address
-              </label>
+              <label htmlFor="email" className="block text-[10px] font-bold text-[#555] uppercase tracking-widest mb-1.5">Email</label>
               <input
                 id="email"
                 name="email"
                 type="email"
                 autoComplete="email"
                 required
-                className="relative block w-full rounded-lg border-0 bg-gray-800/50 p-3 text-gray-100 placeholder:text-gray-500 ring-1 ring-inset ring-gray-700 sm:text-sm sm:leading-6 focus:ring-2 focus:ring-indigo-600 focus:outline-none transition-all"
-                placeholder="Email address"
+                className="block w-full rounded-md bg-[#111] p-3 text-white text-sm placeholder:text-[#444] border border-[#222] outline-none focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 transition-all"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="password" className="sr-only">
-                Password
-              </label>
+              <label htmlFor="password" className="block text-[10px] font-bold text-[#555] uppercase tracking-widest mb-1.5">Password</label>
               <input
                 id="password"
                 name="password"
                 type="password"
                 autoComplete="current-password"
                 required
-                className="relative block w-full rounded-lg border-0 bg-gray-800/50 p-3 text-gray-100 placeholder:text-gray-500 ring-1 ring-inset ring-gray-700 sm:text-sm sm:leading-6 focus:ring-2 focus:ring-indigo-600 focus:outline-none transition-all"
-                placeholder="Password"
+                className="block w-full rounded-md bg-[#111] p-3 text-white text-sm placeholder:text-[#444] border border-[#222] outline-none focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 transition-all"
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
           </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative flex w-full justify-center rounded-lg bg-indigo-600 px-3 py-3 text-sm font-semibold text-white hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              {loading ? (
-                <Loader2 className="animate-spin h-5 w-5" />
-              ) : (
-                "Sign in"
-              )}
-            </button>
-          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex w-full justify-center rounded-md bg-emerald-600 hover:bg-emerald-500 px-3 py-3 text-sm font-semibold text-white disabled:opacity-30 transition-all"
+          >
+            {loading ? <Loader2 className="animate-spin h-5 w-5" /> : "Sign in"}
+          </button>
         </form>
       </div>
     </div>

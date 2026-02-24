@@ -107,13 +107,13 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+          className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-md w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
         >
           {/* Header */}
-          <div className="p-6 border-b border-gray-800 flex justify-between items-start">
+          <div className="p-6 border-b border-[#1a1a1a] flex justify-between items-start">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <span className="bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-full text-sm font-medium border border-indigo-500/20">
+                <span className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-md text-sm font-medium border border-emerald-500/20">
                   Scene {scene.order}
                 </span>
                 {isEditing ? (
@@ -122,7 +122,7 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                         name="scene_name"
                         value={formData.scene_name || ""}
                         onChange={handleInputChange}
-                        className="bg-gray-800 border border-gray-700 rounded px-3 py-1 text-white font-bold text-xl focus:outline-none focus:border-indigo-500"
+                        className="bg-[#1a1a1a] border border-[#222] rounded px-3 py-1 text-white font-bold text-xl focus:outline-none focus:border-emerald-500"
                     />
                 ) : (
                     <h2 className="text-2xl font-bold text-white max-w-2xl truncate">{scene.scene_name}</h2>
@@ -137,7 +137,7 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                                 name="int_ext"
                                 value={formData.int_ext || "INT"}
                                 onChange={handleInputChange}
-                                className="bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-white text-xs focus:outline-none"
+                                className="bg-[#1a1a1a] border border-[#222] rounded px-2 py-0.5 text-white text-xs focus:outline-none"
                              >
                                  <option value="INT">INT</option>
                                  <option value="EXT">EXT</option>
@@ -149,7 +149,7 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                                 value={formData.location || ""}
                                 onChange={handleInputChange}
                                 placeholder="Location"
-                                className="bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-white text-xs focus:outline-none w-32"
+                                className="bg-[#1a1a1a] border border-[#222] rounded px-2 py-0.5 text-white text-xs focus:outline-none w-32"
                             />
                         </div>
                     ) : (
@@ -165,7 +165,7 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                             value={formData.time || ""}
                             onChange={handleInputChange}
                             placeholder="Time of day"
-                            className="bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-white text-xs focus:outline-none w-24"
+                            className="bg-[#1a1a1a] border border-[#222] rounded px-2 py-0.5 text-white text-xs focus:outline-none w-24"
                         />
                     ) : (
                         <span>{scene.time}</span>
@@ -175,7 +175,7 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors"
+              className="p-2 hover:bg-[#1a1a1a] rounded-md text-gray-400 hover:text-white transition-colors"
             >
               <X className="h-5 w-5" />
             </button>
@@ -193,10 +193,10 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                         value={formData.description || ""}
                         onChange={handleInputChange}
                         rows={5}
-                        className="w-full bg-gray-800/30 border border-gray-700 rounded-xl p-4 text-gray-300 leading-relaxed focus:outline-none focus:border-indigo-500"
+                        className="w-full bg-[#1a1a1a]/30 border border-[#222] rounded-md p-4 text-gray-300 leading-relaxed focus:outline-none focus:border-emerald-500"
                     />
                 ) : (
-                    <p className="text-gray-300 leading-relaxed bg-gray-800/30 p-4 rounded-xl border border-gray-800">
+                    <p className="text-gray-300 leading-relaxed bg-[#1a1a1a]/30 p-4 rounded-md border border-[#1a1a1a]">
                         {scene.description}
                     </p>
                 )}
@@ -205,7 +205,7 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
              {/* Production Details */}
              <section>
                 <h3 className="text-lg font-semibold text-white mb-3">Production Details</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-800/20 p-4 rounded-xl border border-gray-800">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-[#1a1a1a]/20 p-4 rounded-md border border-[#1a1a1a]">
                     <div>
                         <span className="text-xs text-gray-500 uppercase tracking-wider block mb-1">Set Number</span>
                         {isEditing ? (
@@ -214,7 +214,7 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                                 name="set_number"
                                 value={formData.set_number || ""}
                                 onChange={handleInputChange}
-                                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none"
+                                className="w-full bg-[#1a1a1a] border border-[#222] rounded px-2 py-1 text-white text-sm focus:outline-none"
                             />
                         ) : (
                             <span className="text-gray-200 font-medium">{scene.set_number || "-"}</span>
@@ -228,7 +228,7 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                                 name="environment"
                                 value={formData.environment || ""}
                                 onChange={handleInputChange}
-                                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none"
+                                className="w-full bg-[#1a1a1a] border border-[#222] rounded px-2 py-1 text-white text-sm focus:outline-none"
                             />
                         ) : (
                              <span className="text-gray-200 font-medium">{scene.environment || "-"}</span>
@@ -242,7 +242,7 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                                 name="date"
                                 value={formData.date || ""}
                                 onChange={handleInputChange}
-                                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none"
+                                className="w-full bg-[#1a1a1a] border border-[#222] rounded px-2 py-1 text-white text-sm focus:outline-none"
                             />
                         ) : (
                             <span className="text-gray-200 font-medium">{scene.date || "-"}</span>
@@ -266,9 +266,9 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                             <div 
                                 key={idx} 
                                 onClick={() => setSelectedSceneCharacter(char)}
-                                className="flex items-center gap-3 bg-gray-800/50 p-3 rounded-xl border border-gray-800 min-w-[200px] cursor-pointer hover:bg-gray-800 hover:border-indigo-500/50 transition-all group"
+                                className="flex items-center gap-3 bg-[#1a1a1a]/50 p-3 rounded-md border border-[#1a1a1a] min-w-[200px] cursor-pointer hover:bg-[#1a1a1a] hover:border-emerald-500/50 transition-all group"
                             >
-                                <div className="w-10 h-10 bg-gray-700 rounded-lg overflow-hidden flex-shrink-0 relative">
+                                <div className="w-10 h-10 bg-[#222] rounded-md overflow-hidden flex-shrink-0 relative">
                                      {char.image_url ? (
                                          <img src={char.image_url} alt={char.character_name} className="w-full h-full object-cover" />
                                      ) : char.character?.image_url ? (
@@ -279,7 +279,7 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                                      
                                      {/* Use fallback indicator if scene char doesn't have image but script char does */}
                                      {!char.image_url && char.character?.image_url && (
-                                         <div className="absolute inset-0 bg-indigo-500/20 group-hover:bg-indigo-500/0 transition-colors"></div>
+                                         <div className="absolute inset-0 bg-emerald-500/20 group-hover:bg-emerald-500/0 transition-colors"></div>
                                      )}
                                 </div>
                                 <div>
@@ -288,7 +288,7 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                                     </p>
                                     <div className="flex items-center gap-2">
                                         {char.role && <p className="text-xs text-gray-500">{char.role}</p>}
-                                        {!char.image_url && <span className="text-[10px] text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">Customize</span>}
+                                        {!char.image_url && <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Customize</span>}
                                     </div>
                                 </div>
                             </div>
@@ -303,13 +303,13 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
             <section>
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                        <Film className="h-5 w-5 text-indigo-400" />
+                        <Film className="h-5 w-5 text-emerald-400" />
                         Shots ({shots.length})
                     </h3>
                     <button
                         onClick={handleGenerateShots}
                         disabled={generatingShots}
-                        className="text-sm px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+                        className="text-sm px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md flex items-center gap-2 transition-colors disabled:opacity-50"
                     >
                         {generatingShots ? <Wand2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
                         Generate Shots
@@ -321,20 +321,20 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                 ) : shots.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {shots.map((shot) => (
-                            <div key={shot.id} className="bg-gray-800/50 p-3 rounded-xl border border-gray-800">
+                            <div key={shot.id} className="bg-[#1a1a1a]/50 p-3 rounded-md border border-[#1a1a1a]">
                                 <div className="flex justify-between items-start mb-2">
                                     <span className="text-xs font-mono text-gray-500">Shot {shot.order}</span>
-                                    <span className="text-xs px-2 py-0.5 bg-gray-700 rounded text-gray-300">{shot.type}</span>
+                                    <span className="text-xs px-2 py-0.5 bg-[#222] rounded text-gray-300">{shot.type}</span>
                                 </div>
                                 <p className="text-sm text-gray-300 line-clamp-3 mb-2">{shot.description}</p>
                                 {shot.image_url && (
-                                    <img src={shot.image_url} alt={`Shot ${shot.order}`} className="w-full h-24 object-cover rounded-lg bg-gray-900" />
+                                    <img src={shot.image_url} alt={`Shot ${shot.order}`} className="w-full h-24 object-cover rounded-md bg-[#0d0d0d]" />
                                 )}
                             </div>
                         ))}
                     </div>
                 ) : (
-                    <div className="text-center py-8 border border-dashed border-gray-800 rounded-xl bg-gray-800/20">
+                    <div className="text-center py-8 border border-dashed border-[#1a1a1a] rounded-md bg-[#1a1a1a]/20">
                         <p className="text-gray-500">No shots generated yet</p>
                     </div>
                 )}
@@ -342,12 +342,12 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
           </div>
 
           {/* Footer Actions */}
-          <div className="p-4 border-t border-gray-800 flex justify-end gap-3 bg-gray-900/50 backdrop-blur-xl">
+          <div className="p-4 border-t border-[#1a1a1a] flex justify-end gap-3 bg-[#0d0d0d]/50 backdrop-blur-xl">
              {isEditing ? (
                  <>
                     <button 
                         onClick={() => { setIsEditing(false); setFormData(scene); }}
-                        className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+                        className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] text-white rounded-md text-sm font-medium transition-colors"
                         disabled={saving}
                     >
                         Cancel
@@ -355,7 +355,7 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                     <button 
                         onClick={handleSave}
                         disabled={saving}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                        className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-2"
                     >
                         {saving ? <Wand2 className="h-4 w-4 animate-spin" /> : null} Save Changes
                     </button>
@@ -364,11 +364,11 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                 <>
                     <button 
                         onClick={() => setIsEditing(true)}
-                        className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                        className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] text-white rounded-md text-sm font-medium transition-colors flex items-center gap-2"
                     >
                         <Edit className="h-4 w-4" /> Edit Scene
                     </button>
-                    <button className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 border border-red-500/20">
+                    <button className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-md text-sm font-medium transition-colors flex items-center gap-2 border border-red-500/20">
                         <Trash2 className="h-4 w-4" /> Delete
                     </button>
                 </>

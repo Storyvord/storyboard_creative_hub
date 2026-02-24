@@ -266,6 +266,13 @@ export const bulkGenerateShots = async (sceneIds: number[]): Promise<any> => {
     return response.data;
 }
 
+export const reorderShots = async (shotOrders: { id: number; scene_id: number; order: number }[]): Promise<any> => {
+    const response = await api.post(`/api/creative_hub/shots/reorder/`, {
+        shot_orders: shotOrders
+    });
+    return response.data;
+}
+
 export const bulkGeneratePreviz = async (shotIds: number[], model?: string, provider?: string): Promise<any> => {
     const response = await api.post(`/api/creative_hub/previsualization/bulk-generate/`, {
         shot_ids: shotIds,

@@ -165,7 +165,7 @@ export default function StoryboardSlideshowModal({ isOpen, onClose, shots, initi
                 {/* Progress bar */}
                 <div className="absolute top-0 inset-x-0 h-1 bg-white/20 z-20">
                     <motion.div 
-                        className="h-full bg-indigo-500"
+                        className="h-full bg-emerald-500"
                         style={{ width: `${progress}%` }}
                         transition={{ ease: "linear" }}
                     />
@@ -208,10 +208,10 @@ export default function StoryboardSlideshowModal({ isOpen, onClose, shots, initi
                                 <img 
                                     src={currentShot.image_url} 
                                     alt={`Shot ${currentShot.order}`} 
-                                    className="max-w-full max-h-full object-contain rounded-xl shadow-2xl ring-1 ring-white/10"
+                                    className="max-w-full max-h-full object-contain rounded-md shadow-2xl ring-1 ring-white/10"
                                 />
                             ) : (
-                                <div className="w-full max-w-4xl aspect-video bg-gray-900 border border-gray-800 rounded-2xl flex flex-col items-center justify-center text-gray-500 shadow-2xl">
+                                <div className="w-full max-w-4xl aspect-video bg-gray-900 border border-gray-800 rounded-md flex flex-col items-center justify-center text-gray-500 shadow-2xl">
                                     <ImageIcon className="w-20 h-20 opacity-20 mb-4" />
                                     <p className="text-xl">No Image Generated Yet</p>
                                 </div>
