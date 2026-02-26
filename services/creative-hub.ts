@@ -60,6 +60,11 @@ export const getScriptDetail = async (scriptId: number): Promise<Script> => {
     return response.data;
 }
 
+export const updateScript = async (scriptId: number, data: Partial<Script>): Promise<Script> => {
+    const response = await api.patch(`/api/creative_hub/scripts/${scriptId}/`, data);
+    return response.data;
+}
+
 // Scenes
 export const getScenes = async (scriptId: number): Promise<Scene[]> => {
   const response = await api.get(`/api/creative_hub/scenes/${scriptId}/`);
@@ -208,11 +213,12 @@ export const getCloths = async (scriptId: number): Promise<Cloth[]> => {
      return [];
 }
 
-export const createCloth = async (scriptId: number, data: { name: string, cloth_type: string, image: File }): Promise<Cloth> => {
+export const createCloth = async (scriptId: number, data: { name: string, cloth_type: string, image?: File, description?: string }): Promise<Cloth> => {
     const formData = new FormData();
     formData.append("name", data.name);
     formData.append("cloth_type", data.cloth_type);
-    formData.append("image_url", data.image);
+    if (data.description) formData.append("description", data.description);
+    if (data.image) formData.append("image_url", data.image);
 
     const response = await api.post(`/api/creative_hub/scripts/${scriptId}/cloths/`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -250,13 +256,14 @@ export const generateShots = async (sceneId: number): Promise<void> => {
     await api.post(`/api/creative_hub/scenes/${sceneId}/shots/`);
 }
 
-export const generateShotImage = async (shotId: number, model?: string, provider?: string): Promise<void> => {
+export const generateShotImage = async (shotId: number, model?: string, provider?: string): Promise<any> => {
     // Reuse the bulk endpoint for single generation as it handles async properly
-    await api.post(`/api/creative_hub/previsualization/bulk-generate/`, {
+    const response = await api.post(`/api/creative_hub/previsualization/bulk-generate/`, {
         shot_ids: [shotId],
         model,
         provider
     });
+    return response.data;
 }
 
 export const bulkGenerateShots = async (sceneIds: number[]): Promise<any> => {
@@ -279,6 +286,19 @@ export const bulkGeneratePreviz = async (shotIds: number[], model?: string, prov
         model,
         provider
     });
+    return response.data;
+}
+
+export const setActivePreviz = async (shotId: number, previzId: number): Promise<any> => {
+    // According to ShotSerializer, we update the shot to set active_previz
+    const response = await api.put(`/api/creative_hub/shots/${shotId}/detail/`, {
+        active_previz: previzId
+    });
+    return response.data;
+}
+
+export const createScriptPrevisualization = async (data: { script: number, description: string, aspect_ratio: string, camera_angle?: string, shot_type?: string, generate_ai_image: boolean; model?: string; provider?: string; }): Promise<any> => {
+    const response = await api.post(`/api/creative_hub/previsualization/create/`, data);
     return response.data;
 }
 

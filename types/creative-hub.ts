@@ -5,6 +5,7 @@ export interface Script {
   file: string; // URL
   suggestions: any[];
   analysis?: any;
+  aspect_ratio?: string;
   uploaded_at: string;
 }
 
@@ -35,6 +36,23 @@ export interface Cloth {
   image_url?: string;
 }
 
+export interface Previsualization {
+  id: number;
+  script?: number;
+  description?: string;
+  image_url?: string;
+  audio_url?: string;
+  aspect_ratio?: string;
+  camera_angle?: string;
+  added_by?: {
+      id: number;
+      name: string;
+      email: string;
+  } | null;
+  assignment_date?: string | null;
+  [key: string]: any;
+}
+
 export interface Shot {
     id: number;
     scene?: number;
@@ -48,6 +66,6 @@ export interface Shot {
     lighting?: string;
     rationale?: string;
     timeline?: any;
-    previz?: any; // Nested previz object
+    previz?: Previsualization; // Nested previz object
     [key: string]: any;
 }

@@ -73,8 +73,8 @@ export default function SceneItem({
                                 className="flex-shrink-0 w-64 group cursor-pointer"
                             >
                                 <div className="aspect-video bg-[#0d0d0d] rounded-md overflow-hidden border border-[#1a1a1a] group-hover:border-emerald-500/50 transition-all relative">
-                                    {shot.image_url ? (
-                                        <img src={shot.image_url} alt={`Shot ${shot.order}`} className="w-full h-full object-cover" />
+                                    {(shot.previz && shot.previz.image_url) || shot.image_url ? (
+                                        <img src={(shot.previz && shot.previz.image_url) || shot.image_url} alt={`Shot ${shot.order}`} className="w-full h-full object-cover" />
                                     ) : (
                                         <div className="w-full h-full flex flex-col items-center justify-center text-[#222] gap-2">
                                             <ImageIcon className="w-8 h-8 opacity-20" />

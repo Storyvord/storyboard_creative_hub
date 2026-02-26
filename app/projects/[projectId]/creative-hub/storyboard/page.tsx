@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardData, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus } from "@/services/creative-hub";
+import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardData, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
-import { Scene, Shot } from "@/types/creative-hub";
+import { Scene, Shot, Script } from "@/types/creative-hub";
 import { Loader2, Film, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon, CheckCircle, Circle, AlertTriangle, GripVertical } from "lucide-react";
 import { clsx } from "clsx";
 import { useParams } from "next/navigation";
@@ -11,17 +11,32 @@ import ShotDetailModal from "@/components/creative-hub/ShotDetailModal";
 import StoryboardSlideshowModal from "@/components/creative-hub/StoryboardSlideshowModal";
 import { toast } from "react-toastify";
 
-// Shot type abbreviation map
+// Shot type abbreviation map — aligned with backend shot_types choices
 const SHOT_TYPE_MAP: Record<string, string> = {
-  "Wide Shot": "WS", "Medium Shot": "MS", "Close-Up": "CU", "Close Up": "CU",
-  "Extreme Close-Up": "ECU", "Extreme Close Up": "ECU", "Over the Shoulder": "OTS",
-  "Extreme Wide Shot": "EWS", "Medium Close-Up": "MCU", "Medium Close Up": "MCU",
-  "Insert": "INS", "Two Shot": "2S", "Full Shot": "FS", "Establishing Shot": "EST",
-  "POV": "POV", "Aerial": "AER", "Dutch Angle": "DA",
+  "Close-Up": "CU",
+  "Wide Shot": "WS",
+  "Tracking Shot": "TRK",
+  "Over-The-Shoulder": "OTS",
+  "Medium Shot": "MS",
+  "Medium Close-Up": "MCU",
+  "Medium Two-Shot": "2S",
+  "Other": "OTH",
 };
 
+// Camera angle choices — aligned with backend camera_angles choices
+export const CAMERA_ANGLES = [
+  "Eye Level",
+  "High Angle",
+  "Low Angle",
+  "Dutch Angle",
+  "Bird's Eye View",
+  "Worm's Eye View",
+  "Overhead",
+  "Other",
+];
+
 const SHOT_TYPES = Object.keys(SHOT_TYPE_MAP);
-const ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3", "3:4", "2.35:1", "21:9", "3:2"];
+export const ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3", "3:4", "2.35:1", "21:9", "3:2"];
 
 function getAbbrev(type: string): string {
   return SHOT_TYPE_MAP[type] || type?.substring(0, 3)?.toUpperCase() || "—";
@@ -41,10 +56,10 @@ interface ShotCardProps {
   onDragStart: (e: React.DragEvent, shotId: number) => void;
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent, targetShotId: number) => void;
-  isDragTarget: boolean;
+  isDragging: boolean;
 }
 
-function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isRetrying, error, onUpdateShot, onDragStart, onDragOver, onDrop, isDragTarget }: ShotCardProps) {
+function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isRetrying, error, onUpdateShot, onDragStart, onDragOver, onDrop, isDragging }: ShotCardProps) {
   const [desc, setDesc] = useState(shot.description || "");
 
   useEffect(() => { setDesc(shot.description || ""); }, [shot.description]);
@@ -60,9 +75,13 @@ function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isR
       onDragOver={onDragOver}
       onDrop={(e) => onDrop(e, shot.id)}
       className={clsx(
-        "flex-shrink-0 w-56 bg-[#111] border rounded-md overflow-hidden transition-all group flex flex-col",
-        isSelected ? "border-emerald-500/40 ring-1 ring-emerald-500/20" : "border-[#222] hover:border-[#333]",
-        isDragTarget && "border-emerald-400 border-dashed bg-emerald-500/5"
+        "flex-shrink-0 w-56 bg-[#111] border rounded-md overflow-hidden group flex flex-col",
+        "transition-[border-color,box-shadow,background-color,opacity]",
+        isDragging
+          ? "border-emerald-400 ring-2 ring-emerald-400/30 bg-emerald-950/20 opacity-90"
+          : isSelected
+            ? "border-emerald-500/40 ring-1 ring-emerald-500/20 hover:border-emerald-500/60"
+            : "border-[#222] hover:border-[#333]"
       )}
     >
       {/* Image */}
@@ -116,10 +135,6 @@ function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isR
           value={shot.type || ""} onChange={(e) => onUpdateShot(shot.id, "type", e.target.value)} onClick={(e) => e.stopPropagation()}>
           {SHOT_TYPES.map(t => <option key={t} value={t}>{getAbbrev(t)} — {t}</option>)}
         </select>
-        <select className="shot-select bg-[#0a0a0a] border border-[#222] rounded text-[9px] text-[#999] px-1.5 py-1 outline-none focus:border-emerald-500/40 transition-colors w-14"
-          value={shot.previz?.aspect_ratio || "16:9"} onChange={(e) => onUpdateShot(shot.id, "aspect_ratio", e.target.value)} onClick={(e) => e.stopPropagation()}>
-          {ASPECT_RATIOS.map(ar => <option key={ar} value={ar}>{ar}</option>)}
-        </select>
       </div>
 
       {/* Description */}
@@ -151,17 +166,26 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
   retryingTasks, onUpdateShot, onReorderShots }: SceneItemProps) {
 
   const [dragOverShotId, setDragOverShotId] = useState<number | null>(null);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
   const draggedShotIdRef = useRef<number | null>(null);
+
+  // Compute live reorder preview: only applies to same-scene shots
+  const displayShots = (() => {
+    if (!draggingId || !dragOverShotId || draggingId === dragOverShotId) return shots;
+    const fromIdx = shots.findIndex(s => s.id === draggingId);
+    const toIdx = shots.findIndex(s => s.id === dragOverShotId);
+    if (fromIdx === -1 || toIdx === -1) return shots; // cross-scene drag — no preview
+    const reordered = [...shots];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    return reordered;
+  })();
 
   const handleDragStart = (e: React.DragEvent, shotId: number) => {
     draggedShotIdRef.current = shotId;
+    setDraggingId(shotId);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(shotId));
-    // Add drag styling with timeout so it doesn't affect the drag image
-    setTimeout(() => {
-      const el = e.target as HTMLElement;
-      el.style.opacity = '0.4';
-    }, 0);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -183,15 +207,13 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
       onReorderShots(scene.id, draggedId, targetShotId);
     }
     setDragOverShotId(null);
+    setDraggingId(null);
     draggedShotIdRef.current = null;
-    // Reset opacity on all cards
-    const cards = document.querySelectorAll('[draggable="true"]');
-    cards.forEach(c => (c as HTMLElement).style.opacity = '1');
   };
 
-  const handleDragEnd = (e: React.DragEvent) => {
-    (e.target as HTMLElement).style.opacity = '1';
+  const handleDragEnd = () => {
     setDragOverShotId(null);
+    setDraggingId(null);
     draggedShotIdRef.current = null;
   };
 
@@ -235,14 +257,14 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
           <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-[#333]" /></div>
         ) : shots.length > 0 ? (
           <div className="flex gap-3 overflow-x-auto pb-2 scroll-smooth">
-            {shots.map((shot) => (
+            {displayShots.map((shot) => (
               <ShotCard
                 key={shot.id} shot={shot} onClick={() => onShotClick(shot)}
                 isSelected={selectedShotIds.has(shot.id)} onToggleSelect={() => onToggleSelectShot(shot.id)}
                 isGenerating={!!trackedTasks[shot.id]} isRetrying={!!retryingTasks[shot.id]}
                 error={shotErrors[shot.id]} onUpdateShot={onUpdateShot}
                 onDragStart={handleDragStart} onDragOver={(e) => handleDragEnter(e, shot.id)}
-                onDrop={handleDrop} isDragTarget={dragOverShotId === shot.id}
+                onDrop={handleDrop} isDragging={draggingId === shot.id}
               />
             ))}
           </div>
@@ -281,6 +303,7 @@ export default function StoryboardPage() {
   
   const [isBulkGenerating, setIsBulkGenerating] = useState(false);
   const [activeScriptId, setActiveScriptId] = useState<number | null>(null);
+  const [activeScript, setActiveScript] = useState<Script | null>(null);
   const [trackedTasks, setTrackedTasks] = useState<Record<number, string>>({});
   const [trackedShotTasks, setTrackedShotTasks] = useState<Record<number, string>>({});
   const [retryingTasks, setRetryingTasks] = useState<Record<number, boolean>>({});
@@ -435,16 +458,25 @@ export default function StoryboardPage() {
       initializeActiveTasks();
   }, [activeScriptId, shotsMap, initializedScriptId]);
 
-  // Polling
+  // Polling with Exponential Backoff
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
+    let timeoutId: NodeJS.Timeout;
+    let consecutivePolls = 0;
+    let isCancelled = false;
+
     const fetchTasks = async () => {
+        if (isCancelled) return;
         const allTaskIds = [...Object.values(trackedTasks), ...Object.values(trackedShotTasks)];
-        if (!activeScriptId || allTaskIds.length === 0) return;
+        if (!activeScriptId || allTaskIds.length === 0) {
+            consecutivePolls = 0;
+            return;
+        }
+        
         try {
             const data = await getBulkTaskStatus(allTaskIds);
             const returnedTasks = data?.tasks || [];
             const tasksToComplete: {shotId: number, status: string, error?: string}[] = [];
+            
             Object.entries(trackedTasks).forEach(([shotIdStr, taskId]) => {
                 const shotId = Number(shotIdStr);
                 const task = returnedTasks.find((t: any) => t.task_id === taskId);
@@ -454,6 +486,7 @@ export default function StoryboardPage() {
                     else if (['processing','started'].includes(task.status)) setRetryingTasks(prev => { if (!prev[shotId]) return prev; const c = { ...prev }; delete c[shotId]; return c; });
                 }
             });
+            
             const shotsToRefresh: number[] = [];
             const newLoadingShots: Record<number, boolean> = {};
             Object.entries(trackedShotTasks).forEach(([sceneIdStr, taskId]) => {
@@ -464,11 +497,13 @@ export default function StoryboardPage() {
                     else if (['processing','pending','started'].includes(task.status)) newLoadingShots[sceneId] = true;
                 }
             });
+            
             if (Object.keys(newLoadingShots).some(id => newLoadingShots[Number(id)] !== loadingShotsMap[Number(id)])) {
                  setLoadingShotsMap(prev => { const c = { ...prev }; Object.entries(newLoadingShots).forEach(([k, v]) => { if (v) c[Number(k)] = true; else delete c[Number(k)]; }); return c; });
                  setTrackedShotTasks(prev => { const c = { ...prev }; shotsToRefresh.forEach(id => delete c[id]); Object.entries(newLoadingShots).forEach(([k, v]) => { if (!v) delete c[Number(k)]; }); return c; });
                  shotsToRefresh.forEach(id => fetchShots(id));
             }
+            
             if (tasksToComplete.length > 0) {
                 setTrackedTasks(prev => { const c = { ...prev }; tasksToComplete.forEach(t => delete c[t.shotId]); return c; });
                 setRetryingTasks(prev => { const c = { ...prev }; tasksToComplete.forEach(t => delete c[t.shotId]); return c; });
@@ -480,16 +515,46 @@ export default function StoryboardPage() {
                                 const last = shotData[shotData.length - 1];
                                 setShotErrors(prev => { if (!prev[t.shotId]) return prev; const c = { ...prev }; delete c[t.shotId]; return c; });
                                 setShotsMap(prev => { const copy = { ...prev }; for (const [sid, shots] of Object.entries(copy)) { const idx = shots.findIndex(s => s.id === t.shotId); if (idx !== -1) { copy[parseInt(sid,10)] = [...shots.slice(0,idx), { ...shots[idx], image_url: last.image_url, previz: last }, ...shots.slice(idx+1)]; break; } } return copy; });
+                                // Automatically update active selected shot if it finished
+                                setSelectedShot(prev => prev && prev.id === t.shotId ? { ...prev, image_url: last.image_url, previz: last } : prev);
                             }
                         } catch (err) { console.error(err); }
-                    } else if (t.status === 'failed') { toast.error(t.error || "Task failed."); setShotErrors(prev => ({ ...prev, [t.shotId]: t.error || "Unknown Error" })); }
+                    } else if (t.status === 'failed') { 
+                        toast.error(t.error || "Task failed."); 
+                        setShotErrors(prev => ({ ...prev, [t.shotId]: t.error || "Unknown Error" })); 
+                    }
                 });
             }
-        } catch (e) { console.error("Polling error", e); }
+            
+            // Schedule the next poll with exponential backoff if there are still tasks
+            const remainingTasksCount = allTaskIds.length - tasksToComplete.length - shotsToRefresh.length;
+            if (remainingTasksCount > 0 && !isCancelled) {
+                consecutivePolls++;
+                // Exponential backoff: 3s, 4.5s, 6.75s... max 30s
+                const delay = Math.min(3000 * Math.pow(1.5, consecutivePolls), 30000);
+                timeoutId = setTimeout(fetchTasks, delay);
+            } else {
+                consecutivePolls = 0;
+            }
+            
+        } catch (e) {
+             console.error("Polling error", e);
+             if (!isCancelled) {
+                 // Retry after 10s on error
+                 timeoutId = setTimeout(fetchTasks, 10000);
+             }
+        }
     };
-    if (Object.keys(trackedTasks).length > 0 || Object.keys(trackedShotTasks).length > 0) { fetchTasks(); intervalId = setInterval(fetchTasks, 3000); }
-    return () => { if (intervalId) clearInterval(intervalId); };
-  }, [activeScriptId, trackedTasks, trackedShotTasks, scenes, shotsMap]);
+    
+    if (Object.keys(trackedTasks).length > 0 || Object.keys(trackedShotTasks).length > 0) { 
+        fetchTasks(); 
+    }
+    
+    return () => { 
+        isCancelled = true;
+        if (timeoutId) clearTimeout(timeoutId); 
+    };
+  }, [activeScriptId, trackedTasks, trackedShotTasks, scenes, shotsMap, loadingShotsMap]);
 
   useEffect(() => { if (projectId) fetchScenes(); }, [projectId]);
 
@@ -497,17 +562,37 @@ export default function StoryboardPage() {
     try {
       setLoadingScenes(true);
       let scriptId: number | null = null;
-      try { const scripts = await getScripts(projectId); if (scripts?.length > 0) { scriptId = scripts[0].id; setActiveScriptId(scriptId); } } catch (e) { console.error(e); }
+      try { 
+        const scripts = await getScripts(projectId); 
+        if (scripts?.length > 0) { 
+          scriptId = scripts[0].id; 
+          setActiveScriptId(scriptId); 
+          setActiveScript(scripts[0]);
+        } 
+      } catch (e) { console.error(e); }
       if (!scriptId) { setLoadingScenes(false); return; }
       const storyboardData = await getStoryboardData(scriptId);
       const parsedScenes: Scene[] = [];
       const parsedShotsMap: Record<number, Shot[]> = {};
       storyboardData.forEach((sceneData: any) => {
-          parsedScenes.push({ id: sceneData.id, script_id: scriptId!, scene_name: sceneData.scene_name, description: sceneData.description, order: sceneData.order, location: "", set_number: "", environment: "", int_ext: "", date: "", timeline: [], scene_characters: [], created_at: "", updated_at: "" });
+          parsedScenes.push({ id: sceneData.id, script_id: scriptId!, scene_name: sceneData.scene_name, description: sceneData.description, order: sceneData.order, location: "", set_number: "", environment: "", int_ext: "", date: "", timeline: [], scene_characters: sceneData.scene_characters || [], created_at: "", updated_at: "" });
           const shots: Shot[] = (sceneData.shots || []).map((sd: any) => {
               let imageUrl = null;
-              if (sd.previz?.length > 0) imageUrl = sd.previz[sd.previz.length - 1].image_url;
-              return { id: sd.id, scene: sceneData.id, description: sd.description, type: sd.type || "Wide Shot", order: sd.order, done: false, timeline: {}, movement: "", camera_angle: "", lighting: "", rationale: "", created_at: "", updated_at: "", image_url: imageUrl, previz: sd.previz?.length > 0 ? sd.previz[sd.previz.length - 1] : null } as Shot;
+              let activePreviz = null;
+              
+              if (sd.previz?.length > 0) {
+                  // If active_previz is set, try to find it
+                  if (sd.active_previz) {
+                      activePreviz = sd.previz.find((p: any) => p.id === sd.active_previz) || null;
+                  }
+                  // Fallback to the latest previz if none is set or active one isn't in the list
+                  if (!activePreviz) {
+                      activePreviz = sd.previz[sd.previz.length - 1];
+                  }
+                  imageUrl = activePreviz?.image_url || null;
+              }
+
+              return { id: sd.id, scene: sceneData.id, description: sd.description, type: sd.type || "Wide Shot", order: sd.order, done: false, timeline: {}, movement: "", camera_angle: "", lighting: "", rationale: "", created_at: "", updated_at: "", image_url: imageUrl, active_previz: sd.active_previz, previz: activePreviz } as Shot;
           });
           parsedShotsMap[sceneData.id] = shots.sort((a, b) => a.order - b.order);
       });
@@ -524,8 +609,19 @@ export default function StoryboardPage() {
         if (sceneData?.shots) {
              const shots: Shot[] = sceneData.shots.map((sd: any) => {
                   let imageUrl = null;
-                  if (sd.previz?.length > 0) imageUrl = sd.previz[sd.previz.length - 1].image_url;
-                  return { id: sd.id, scene: sceneId, description: sd.description, type: sd.type || "Wide Shot", order: sd.order, image_url: imageUrl, previz: sd.previz?.length > 0 ? sd.previz[sd.previz.length - 1] : null } as Shot;
+                  let activePreviz = null;
+
+                  if (sd.previz?.length > 0) {
+                      if (sd.active_previz) {
+                          activePreviz = sd.previz.find((p: any) => p.id === sd.active_previz) || null;
+                      }
+                      if (!activePreviz) {
+                          activePreviz = sd.previz[sd.previz.length - 1];
+                      }
+                      imageUrl = activePreviz?.image_url || null;
+                  }
+
+                  return { id: sd.id, scene: sceneId, description: sd.description, type: sd.type || "Wide Shot", order: sd.order, image_url: imageUrl, active_previz: sd.active_previz, previz: activePreviz } as Shot;
              });
              setShotsMap(prev => ({ ...prev, [sceneId]: shots.sort((a, b) => a.order - b.order) }));
         } else setShotsMap(prev => ({ ...prev, [sceneId]: [] }));
@@ -605,6 +701,31 @@ export default function StoryboardPage() {
             <h1 className="text-base font-bold text-white">Storyboard</h1>
             <span className="text-[#333]">|</span>
 
+            {/* Script Aspect Ratio */}
+            {activeScript && (
+              <div className="flex items-center gap-2 mr-2">
+                <span className="text-[11px] font-medium text-[#888]">Aspect Ratio:</span>
+                <select 
+                  className="bg-[#161616] hover:bg-[#1a1a1a] border border-[#222] rounded-md text-[11px] font-medium transition-colors text-white px-2 py-1.5 outline-none focus:border-emerald-500/40"
+                  value={activeScript.aspect_ratio || "16:9"}
+                  onChange={async (e) => {
+                    const newValue = e.target.value;
+                    setActiveScript({ ...activeScript, aspect_ratio: newValue });
+                    try {
+                      await updateScript(activeScript.id, { aspect_ratio: newValue });
+                      toast.success("Default aspect ratio updated.");
+                    } catch(err) {
+                      toast.error("Failed to update aspect ratio.");
+                    }
+                  }}
+                >
+                  {ASPECT_RATIOS.map(ar => <option key={ar} value={ar}>{ar}</option>)}
+                </select>
+              </div>
+            )}
+
+            <span className="text-[#333]">|</span>
+
             {/* Quick Jump */}
             <div className="relative group">
               <button className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#161616] hover:bg-[#1a1a1a] rounded-md text-[11px] font-medium transition-colors text-[#888] border border-[#222]">
@@ -635,6 +756,13 @@ export default function StoryboardPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.location.href = `/projects/${projectId}/creative-hub/creative-space`}
+              className="bg-[#161616] hover:bg-[#1a1a1a] text-white px-3 py-2 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5 border border-[#222]"
+            >
+              <ImageIcon className="w-3.5 h-3.5 text-indigo-400" /> Creative Space
+            </button>
+
             <button onClick={() => setIsSlideshowOpen(true)} disabled={scenes.length === 0}
               className="bg-[#161616] hover:bg-[#1a1a1a] text-white px-3 py-2 rounded-md text-[11px] font-medium transition-colors disabled:opacity-30 flex items-center gap-1.5 border border-[#222]">
               <Play className="w-3.5 h-3.5 text-emerald-400" /> Slideshow
@@ -677,11 +805,21 @@ export default function StoryboardPage() {
 
       <ShotDetailModal isOpen={!!selectedShot} onClose={() => setSelectedShot(null)} shot={selectedShot}
         error={selectedShot ? shotErrors[selectedShot.id] : undefined}
+        isGenerating={selectedShot ? !!trackedTasks[selectedShot.id] : false}
         scene={selectedShot ? scenes.find(s => shotsMap[s.id]?.some(shot => shot.id === selectedShot.id)) || null : null}
         onPrev={getAllShots().findIndex(s => s.id === selectedShot?.id) > 0 ? handlePrevShot : undefined}
         onNext={getAllShots().findIndex(s => s.id === selectedShot?.id) < getAllShots().length - 1 ? handleNextShot : undefined}
-        onGeneratePreviz={(shotId) => { generateShotImage(shotId).then(() => { toast.info("Previz started."); const scene = scenes.find(s => shotsMap[s.id]?.some(shot => shot.id === shotId)); if (scene) refreshPreviz(scene.id); }).catch(e => { console.error(e); toast.error("Failed"); }); }}
+        onGeneratePreviz={(shotId) => { 
+            setPendingPrevizShotIds([shotId]); 
+            setIsModelSelectorOpen(true); 
+        }}
         showGenerateButton={true}
+        onUpdateShot={(shotId, field, value) => {
+           handleUpdateShot(shotId, field, value);
+           if (selectedShot && selectedShot.id === shotId) {
+               setSelectedShot(prev => prev ? { ...prev, [field]: value } : null);
+           }
+        }}
       />
 
       <StoryboardSlideshowModal isOpen={isSlideshowOpen} onClose={() => setIsSlideshowOpen(false)} shots={getSlideshowShots()} />
@@ -691,6 +829,8 @@ export default function StoryboardPage() {
         onConfirm={handleModelConfirm} itemCount={pendingPrevizShotIds.length}
         title="Select Model for Previz" confirmLabel="Generate Previz"
       />
+
+      {/* Modal deprecated in favor of route */}
     </div>
   );
 }
