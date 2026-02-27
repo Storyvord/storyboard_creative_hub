@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardData, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript } from "@/services/creative-hub";
+import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardData, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, createShot, reorderShots as reorderShotsApi } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { Scene, Shot, Script } from "@/types/creative-hub";
-import { Loader2, Film, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon, CheckCircle, Circle, AlertTriangle, GripVertical } from "lucide-react";
+import { Loader2, Film, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon, CheckCircle, Circle, AlertTriangle, GripVertical, Plus, X } from "lucide-react";
 import { clsx } from "clsx";
 import { useParams } from "next/navigation";
 import ShotDetailModal from "@/components/creative-hub/ShotDetailModal";
@@ -58,9 +58,12 @@ interface ShotCardProps {
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent, targetShotId: number) => void;
   isDragging: boolean;
+  onGeneratePreviz?: (shotId: number) => void;
+  isGhost?: boolean;
+  onDragEnterCard?: (e: React.DragEvent) => void;
 }
 
-function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isRetrying, error, onUpdateShot, onDragStart, onDragOver, onDrop, isDragging }: ShotCardProps) {
+function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isRetrying, error, onUpdateShot, onDragStart, onDragOver, onDrop, isDragging, onGeneratePreviz, isGhost, onDragEnterCard }: ShotCardProps) {
   const [desc, setDesc] = useState(shot.description || "");
 
   useEffect(() => { setDesc(shot.description || ""); }, [shot.description]);
@@ -71,18 +74,21 @@ function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isR
 
   return (
     <div
-      draggable
+      draggable={!isGhost}
       onDragStart={(e) => onDragStart(e, shot.id)}
       onDragOver={onDragOver}
+      onDragEnter={onDragEnterCard}
       onDrop={(e) => onDrop(e, shot.id)}
       className={clsx(
-        "flex-shrink-0 w-56 bg-[#111] border rounded-md overflow-hidden group flex flex-col",
+        "flex-shrink-0 w-56 border rounded-md overflow-hidden flex flex-col",
         "transition-[border-color,box-shadow,background-color,opacity]",
-        isDragging
-          ? "border-emerald-400 ring-2 ring-emerald-400/30 bg-emerald-950/20 opacity-90"
-          : isSelected
-            ? "border-emerald-500/40 ring-1 ring-emerald-500/20 hover:border-emerald-500/60"
-            : "border-[#222] hover:border-[#333]"
+        isGhost
+          ? "border-emerald-400/50 border-dashed bg-emerald-950/10 opacity-60 pointer-events-none"
+          : isDragging
+            ? "border-emerald-400 ring-2 ring-emerald-400/30 bg-emerald-950/20 opacity-50"
+            : isSelected
+              ? "border-emerald-500/40 ring-1 ring-emerald-500/20 hover:border-emerald-500/60 bg-[#111] group"
+              : "border-[#222] hover:border-[#333] bg-[#111] group"
       )}
     >
       {/* Image */}
@@ -103,8 +109,16 @@ function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isR
         )}
 
         {error && !isGenerating && (
-          <div className="absolute bottom-0 inset-x-0 bg-red-900/90 px-2 py-1 z-10">
+          <div className="absolute bottom-0 inset-x-0 bg-red-900/90 px-2 py-1.5 z-10 flex items-center justify-between">
             <span className="text-[9px] text-red-200 font-medium flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Failed</span>
+            {onGeneratePreviz && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onGeneratePreviz(shot.id); }}
+                className="text-[9px] font-medium text-white bg-emerald-600 hover:bg-emerald-500 px-2 py-0.5 rounded transition-colors flex items-center gap-1"
+              >
+                <Play className="w-2.5 h-2.5" /> Retry
+              </button>
+            )}
           </div>
         )}
 
@@ -151,6 +165,133 @@ function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isR
   );
 }
 
+// ─── Insert Zone (hover-to-reveal + button between shots) ────
+function InsertZone({ onInsert }: { onInsert: () => void }) {
+  return (
+    <div className="flex-shrink-0 w-4 flex items-center justify-center self-stretch group/insert relative">
+      {/* Thin line always visible */}
+      <div className="w-px h-full bg-transparent group-hover/insert:bg-emerald-500/30 transition-colors" />
+      {/* + button on hover */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onInsert(); }}
+        className="absolute z-20 opacity-0 group-hover/insert:opacity-100 transition-all duration-150 w-6 h-6 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-900/40 hover:scale-110"
+        title="Insert shot here"
+      >
+        <Plus className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
+// ─── Add Shot card (end of row) ──────────────────────────────
+function AddShotCard({ onAdd }: { onAdd: () => void }) {
+  return (
+    <button
+      onClick={onAdd}
+      className="flex-shrink-0 w-56 min-h-[200px] border border-dashed border-[#222] hover:border-emerald-500/40 rounded-md flex flex-col items-center justify-center gap-2 bg-[#0a0a0a] hover:bg-emerald-500/5 transition-all group/add"
+    >
+      <div className="w-8 h-8 rounded-full border border-[#333] group-hover/add:border-emerald-500/50 flex items-center justify-center transition-colors">
+        <Plus className="w-4 h-4 text-[#555] group-hover/add:text-emerald-400 transition-colors" />
+      </div>
+      <span className="text-[11px] text-[#555] group-hover/add:text-emerald-400 font-medium transition-colors">Add Shot</span>
+    </button>
+  );
+}
+
+// ─── Add Shot Modal ──────────────────────────────────────────
+interface AddShotModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: { description: string; type: string; camera_angle: string; movement: string }) => void;
+  insertOrder: number;
+  sceneName: string;
+  isSubmitting: boolean;
+}
+
+function AddShotModal({ isOpen, onClose, onSubmit, insertOrder, sceneName, isSubmitting }: AddShotModalProps) {
+  const [description, setDescription] = useState("");
+  const [shotType, setShotType] = useState("Wide Shot");
+  const [cameraAngle, setCameraAngle] = useState("Eye Level");
+  const [movement, setMovement] = useState("");
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!description.trim()) return;
+    onSubmit({ description: description.trim(), type: shotType, camera_angle: cameraAngle, movement: movement.trim() });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md rounded-lg border border-[#2a2a2a] bg-[#101010]">
+        <div className="p-4 border-b border-[#1f1f1f] flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-white">Add Shot #{insertOrder}</h3>
+            <p className="text-[10px] text-[#666] mt-0.5">{sceneName}</p>
+          </div>
+          <button onClick={onClose} className="text-[#888] hover:text-white"><X className="h-4 w-4" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+          <div>
+            <label className="text-[10px] text-[#888] uppercase tracking-wider block mb-1">Description *</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full bg-[#0a0a0a] border border-[#222] rounded-md px-3 py-2 text-xs text-white placeholder-[#444] focus:outline-none focus:border-emerald-500/40 resize-none"
+              rows={3}
+              placeholder="Describe the shot..."
+              autoFocus
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] text-[#888] uppercase tracking-wider block mb-1">Shot Type</label>
+              <select
+                value={shotType}
+                onChange={(e) => setShotType(e.target.value)}
+                className="w-full bg-[#0a0a0a] border border-[#222] rounded-md px-2 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/40"
+              >
+                {SHOT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-[#888] uppercase tracking-wider block mb-1">Camera Angle</label>
+              <select
+                value={cameraAngle}
+                onChange={(e) => setCameraAngle(e.target.value)}
+                className="w-full bg-[#0a0a0a] border border-[#222] rounded-md px-2 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/40"
+              >
+                {CAMERA_ANGLES.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-[#888] uppercase tracking-wider block mb-1">Camera Movement (optional)</label>
+            <input
+              value={movement}
+              onChange={(e) => setMovement(e.target.value)}
+              className="w-full bg-[#0a0a0a] border border-[#222] rounded-md px-3 py-2 text-xs text-white placeholder-[#444] focus:outline-none focus:border-emerald-500/40"
+              placeholder="e.g. Pan left, Dolly in..."
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose}
+              className="px-3 py-1.5 text-xs text-[#888] hover:text-white rounded border border-[#222] hover:bg-[#1a1a1a] transition-colors">
+              Cancel
+            </button>
+            <button type="submit" disabled={!description.trim() || isSubmitting}
+              className="px-4 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors disabled:opacity-50 flex items-center gap-1.5">
+              {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+              Add Shot
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Scene Row (horizontal scroll) ───────────────────────────
 interface SceneItemProps {
   scene: Scene; shots: Shot[]; isSelected: boolean;
@@ -160,22 +301,31 @@ interface SceneItemProps {
   selectedShotIds: Set<number>; onToggleSelectShot: (shotId: number) => void;
   retryingTasks: Record<number, boolean>; onUpdateShot: (shotId: number, field: string, value: string) => void;
   onReorderShots: (sceneId: number, fromShotId: number, toShotId: number | null) => void;
+  onInsertShot: (sceneId: number, atOrder: number) => void;
+  scriptId: number | null;
+  onGeneratePreviz: (shotId: number) => void;
+  globalDraggingId: number | null;
+  onGlobalDragStart: (shotId: number) => void;
+  onGlobalDragEnd: () => void;
 }
 
 function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, loadingShots,
   onGenerateShots, trackedTasks, shotErrors, selectedShotIds, onToggleSelectShot,
-  retryingTasks, onUpdateShot, onReorderShots }: SceneItemProps) {
+  retryingTasks, onUpdateShot, onReorderShots, onInsertShot, scriptId, onGeneratePreviz,
+  globalDraggingId, onGlobalDragStart, onGlobalDragEnd }: SceneItemProps) {
 
   const [dragOverShotId, setDragOverShotId] = useState<number | null>(null);
-  const [draggingId, setDraggingId] = useState<number | null>(null);
-  const draggedShotIdRef = useRef<number | null>(null);
 
-  // Compute live reorder preview: only applies to same-scene shots
+  // Is the dragged shot from THIS scene?
+  const isDragSource = globalDraggingId ? shots.some(s => s.id === globalDraggingId) : false;
+
+  // Same-scene reorder preview only — no ghost card insertion for cross-scene
   const displayShots = (() => {
-    if (!draggingId || !dragOverShotId || draggingId === dragOverShotId) return shots;
-    const fromIdx = shots.findIndex(s => s.id === draggingId);
+    if (!globalDraggingId || !dragOverShotId || globalDraggingId === dragOverShotId) return shots;
+    if (!isDragSource) return shots; // cross-scene: don't mutate the array, use indicator line instead
+    const fromIdx = shots.findIndex(s => s.id === globalDraggingId);
     const toIdx = shots.findIndex(s => s.id === dragOverShotId);
-    if (fromIdx === -1 || toIdx === -1) return shots; // cross-scene drag — no preview
+    if (fromIdx === -1 || toIdx === -1) return shots;
     const reordered = [...shots];
     const [moved] = reordered.splice(fromIdx, 1);
     reordered.splice(toIdx, 0, moved);
@@ -183,39 +333,47 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
   })();
 
   const handleDragStart = (e: React.DragEvent, shotId: number) => {
-    draggedShotIdRef.current = shotId;
-    setDraggingId(shotId);
+    onGlobalDragStart(shotId);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(shotId));
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleContainerDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDragEnter = (e: React.DragEvent, targetShotId: number) => {
+  const handleShotDragEnter = (e: React.DragEvent, targetShotId: number) => {
     e.preventDefault();
-    if (draggedShotIdRef.current !== targetShotId) {
+    e.stopPropagation();
+    if (globalDraggingId !== targetShotId) {
       setDragOverShotId(targetShotId);
+    }
+  };
+
+  const handleContainerDragLeave = (e: React.DragEvent) => {
+    // Only clear if leaving the container entirely (not entering a child)
+    const container = e.currentTarget as HTMLElement;
+    const related = e.relatedTarget as HTMLElement | null;
+    if (!related || !container.contains(related)) {
+      setDragOverShotId(null);
     }
   };
 
   const handleDrop = (e: React.DragEvent, targetShotId: number | null) => {
     e.preventDefault();
+    e.stopPropagation();
     const draggedId = Number(e.dataTransfer.getData('text/plain'));
     if (draggedId && draggedId !== targetShotId) {
       onReorderShots(scene.id, draggedId, targetShotId);
     }
     setDragOverShotId(null);
-    setDraggingId(null);
-    draggedShotIdRef.current = null;
+    onGlobalDragEnd();
   };
 
   const handleDragEnd = () => {
     setDragOverShotId(null);
-    setDraggingId(null);
-    draggedShotIdRef.current = null;
+    onGlobalDragEnd();
   };
 
   return (
@@ -244,12 +402,7 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
 
         <span className="text-[10px] text-[#444] ml-2">{shots.length} shot{shots.length !== 1 ? 's' : ''}</span>
 
-        {shots.length === 0 && !loadingShots && (
-          <button onClick={() => onGenerateShots(scene.id)}
-            className="ml-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5 flex-shrink-0">
-            <Film className="w-3 h-3" /> Generate Shots
-          </button>
-        )}
+
       </div>
 
       {/* Shot Horizontal Scroll */}
@@ -257,31 +410,62 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
         {loadingShots ? (
           <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-[#333]" /></div>
         ) : shots.length > 0 ? (
-          <div className="flex gap-3 overflow-x-auto pb-2 scroll-smooth">
-            {displayShots.map((shot) => (
-              <ShotCard
-                key={shot.id} shot={shot} onClick={() => onShotClick(shot)}
-                isSelected={selectedShotIds.has(shot.id)} onToggleSelect={() => onToggleSelectShot(shot.id)}
-                isGenerating={!!trackedTasks[shot.id]} isRetrying={!!retryingTasks[shot.id]}
-                error={shotErrors[shot.id]} onUpdateShot={onUpdateShot}
-                onDragStart={handleDragStart} onDragOver={(e) => handleDragEnter(e, shot.id)}
-                onDrop={handleDrop} isDragging={draggingId === shot.id}
-              />
-            ))}
+          <div className="flex items-center gap-0 overflow-x-auto pb-2 scroll-smooth"
+            onDragOver={handleContainerDragOver}
+            onDragLeave={handleContainerDragLeave}
+            onDrop={(e) => handleDrop(e, dragOverShotId)}
+          >
+            {/* Insert zone before first shot */}
+            <InsertZone onInsert={() => onInsertShot(scene.id, 1)} />
+
+            {displayShots.map((shot, idx) => {
+              // Show a drop indicator line before this shot when cross-scene dragging
+              const showDropIndicator = !isDragSource && globalDraggingId && dragOverShotId === shot.id;
+              return (
+                <div key={shot.id} className="flex items-center flex-shrink-0">
+                  {showDropIndicator && (
+                    <div className="flex-shrink-0 w-1 self-stretch bg-emerald-400 rounded-full mx-0.5 shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
+                  )}
+                  <ShotCard
+                    shot={shot} onClick={() => onShotClick(shot)}
+                    isSelected={selectedShotIds.has(shot.id)} onToggleSelect={() => onToggleSelectShot(shot.id)}
+                    isGenerating={!!trackedTasks[shot.id]} isRetrying={!!retryingTasks[shot.id]}
+                    error={shotErrors[shot.id]} onUpdateShot={onUpdateShot}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleContainerDragOver}
+                    onDrop={handleDrop}
+                    isDragging={globalDraggingId === shot.id}
+                    onGeneratePreviz={onGeneratePreviz}
+                    onDragEnterCard={(e) => handleShotDragEnter(e, shot.id)}
+                  />
+                  {/* Insert zone after each shot */}
+                  <InsertZone onInsert={() => onInsertShot(scene.id, (displayShots[idx]?.order ?? idx) + 1)} />
+                </div>
+              );
+            })}
+
+            {/* Add Shot card at end */}
+            <AddShotCard onAdd={() => onInsertShot(scene.id, shots.length + 1)} />
           </div>
         ) : (
-          <div 
+          <div
             className={clsx(
-              "py-8 text-center border border-dashed rounded-md transition-colors",
-              dragOverShotId === -1 
-                ? "border-emerald-500 bg-emerald-500/5" 
-                : "border-[#1a1a1a]"
+              "flex items-center gap-4 py-4 rounded-md transition-colors",
+              globalDraggingId ? "border border-dashed border-[#333] bg-[#0a0a0a]" : ""
             )}
-            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverShotId(-1); }}
-            onDragLeave={() => setDragOverShotId(null)}
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
             onDrop={(e) => handleDrop(e, null)}
           >
-            <p className="text-[#444] text-xs">No shots generated yet. Drag a shot here or generate new ones.</p>
+            <AddShotCard onAdd={() => onInsertShot(scene.id, 1)} />
+            <div className="flex flex-col items-start gap-2">
+              <p className="text-[#444] text-xs">{globalDraggingId ? "Drop shot here" : "Add your first shot manually or generate with AI"}</p>
+              {!globalDraggingId && (
+                <button onClick={() => onGenerateShots(scene.id)}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5">
+                  <Film className="w-3 h-3" /> Generate Shots
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -314,6 +498,7 @@ export default function StoryboardPage() {
   const [isSlideshowOpen, setIsSlideshowOpen] = useState(false);
   const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
   const [pendingPrevizShotIds, setPendingPrevizShotIds] = useState<number[]>([]);
+  const [globalDraggingId, setGlobalDraggingId] = useState<number | null>(null);
 
   // Inline shot update (local)
   const handleUpdateShot = useCallback((shotId: number, field: string, value: string) => {
@@ -441,6 +626,7 @@ export default function StoryboardPage() {
               if (previs && previs.length > 0) {
                   const newTracked: Record<number, string> = {};
                   const newRetrying: Record<number, boolean> = {};
+                  const newErrors: Record<number, string> = {};
                   previs.forEach((task: any) => {
                       let hasImage = false;
                       for (const sceneShots of Object.values(shotsMap)) {
@@ -451,8 +637,13 @@ export default function StoryboardPage() {
                           newTracked[task.object_id] = task.task_id;
                           if (task.status === 'retrying') newRetrying[task.object_id] = true;
                       }
+                      // Restore errors from recently failed tasks so user sees "Failed" + Retry
+                      if (!hasImage && taskAge < maxAgeMs && ['failed','failure'].includes(task.status) && task.error) {
+                          newErrors[task.object_id] = task.error;
+                      }
                   });
                   if (Object.keys(newTracked).length > 0) { setTrackedTasks(newTracked); setRetryingTasks(newRetrying); }
+                  if (Object.keys(newErrors).length > 0) { setShotErrors(prev => ({ ...prev, ...newErrors })); }
               }
           } catch (e) { console.error("Failed to initialize active tasks", e); }
       };
@@ -478,13 +669,24 @@ export default function StoryboardPage() {
             const returnedTasks = data?.tasks || [];
             const tasksToComplete: {shotId: number, status: string, error?: string}[] = [];
             
+            const KNOWN_PENDING_STATUSES = ['processing','pending','retrying','started'];
             Object.entries(trackedTasks).forEach(([shotIdStr, taskId]) => {
                 const shotId = Number(shotIdStr);
                 const task = returnedTasks.find((t: any) => t.task_id === taskId);
-                if (task) {
-                    if (['completed','failed','success','failure'].includes(task.status)) tasksToComplete.push({ shotId, status: task.status, error: task.error });
-                    else if (task.status === 'retrying') setRetryingTasks(prev => ({ ...prev, [shotId]: true }));
-                    else if (['processing','started'].includes(task.status)) setRetryingTasks(prev => { if (!prev[shotId]) return prev; const c = { ...prev }; delete c[shotId]; return c; });
+                if (!task) {
+                    // Task not found in response — backend lost it, treat as failed
+                    tasksToComplete.push({ shotId, status: 'failed', error: 'Task not found. It may have expired.' });
+                } else if (['completed','success'].includes(task.status)) {
+                    tasksToComplete.push({ shotId, status: task.status, error: task.error });
+                } else if (['failed','failure','revoked'].includes(task.status)) {
+                    tasksToComplete.push({ shotId, status: 'failed', error: task.error || 'Generation failed.' });
+                } else if (task.status === 'retrying') {
+                    setRetryingTasks(prev => ({ ...prev, [shotId]: true }));
+                } else if (KNOWN_PENDING_STATUSES.includes(task.status)) {
+                    setRetryingTasks(prev => { if (!prev[shotId]) return prev; const c = { ...prev }; delete c[shotId]; return c; });
+                } else {
+                    // Unknown status — treat as failed to prevent stuck spinners
+                    tasksToComplete.push({ shotId, status: 'failed', error: task.error || `Unexpected status: ${task.status}` });
                 }
             });
             
@@ -493,9 +695,22 @@ export default function StoryboardPage() {
             Object.entries(trackedShotTasks).forEach(([sceneIdStr, taskId]) => {
                 const sceneId = Number(sceneIdStr);
                 const task = returnedTasks.find((t: any) => t.task_id === taskId);
-                if (task) {
-                    if (['completed','failed','success','failure'].includes(task.status)) { if (loadingShotsMap[sceneId]) shotsToRefresh.push(sceneId); newLoadingShots[sceneId] = false; }
-                    else if (['processing','pending','started'].includes(task.status)) newLoadingShots[sceneId] = true;
+                if (!task) {
+                    // Task lost — clear loading
+                    if (loadingShotsMap[sceneId]) shotsToRefresh.push(sceneId);
+                    newLoadingShots[sceneId] = false;
+                } else if (['completed','failed','success','failure','revoked'].includes(task.status)) {
+                    if (loadingShotsMap[sceneId]) shotsToRefresh.push(sceneId);
+                    newLoadingShots[sceneId] = false;
+                    if (['failed','failure','revoked'].includes(task.status)) {
+                        toast.error(task.error || 'Shot generation failed.');
+                    }
+                } else if (KNOWN_PENDING_STATUSES.includes(task.status)) {
+                    newLoadingShots[sceneId] = true;
+                } else {
+                    // Unknown status — clear loading
+                    if (loadingShotsMap[sceneId]) shotsToRefresh.push(sceneId);
+                    newLoadingShots[sceneId] = false;
                 }
             });
             
@@ -672,6 +887,53 @@ export default function StoryboardPage() {
       catch (error) { console.error(error); toast.error(extractApiError(error, "Failed to generate shots.")); }
   };
 
+  // ─── Manual shot insertion ──────────────────────────────
+  const [addShotModal, setAddShotModal] = useState<{ sceneId: number; order: number } | null>(null);
+  const [isAddingShotSubmitting, setIsAddingShotSubmitting] = useState(false);
+
+  const handleInsertShot = (sceneId: number, atOrder: number) => {
+    setAddShotModal({ sceneId, order: atOrder });
+  };
+
+  const handleAddShotSubmit = async (data: { description: string; type: string; camera_angle: string; movement: string }) => {
+    if (!addShotModal || !activeScriptId) return;
+    const { sceneId, order } = addShotModal;
+    setIsAddingShotSubmitting(true);
+
+    try {
+      // 1. Create the new shot at the target order
+      await createShot(activeScriptId, {
+        scene: sceneId,
+        description: data.description,
+        type: data.type,
+        order,
+        camera_angle: data.camera_angle,
+        movement: data.movement,
+      });
+
+      // 2. Bump the order of all shots at or after this position (except the new one)
+      const existingShots = shotsMap[sceneId] || [];
+      const reorderPayload = existingShots
+        .filter(s => s.order >= order)
+        .map(s => ({ id: s.id, scene_id: sceneId, order: s.order + 1 }));
+
+      if (reorderPayload.length > 0) {
+        await reorderShotsApi(reorderPayload);
+      }
+
+      toast.success(`Shot #${order} added!`);
+      setAddShotModal(null);
+
+      // 3. Refresh shots for this scene
+      await fetchShots(sceneId);
+    } catch (error) {
+      console.error(error);
+      toast.error(extractApiError(error, "Failed to add shot."));
+    } finally {
+      setIsAddingShotSubmitting(false);
+    }
+  };
+
   const getAllShots = useCallback(() => scenes.flatMap(scene => shotsMap[scene.id] || []), [scenes, shotsMap]);
   const handleNextShot = () => { const all = getAllShots(); if (!selectedShot || all.length === 0) return; const i = all.findIndex(s => s.id === selectedShot.id); if (i < all.length - 1) setSelectedShot(all[i + 1]); };
   const handlePrevShot = () => { const all = getAllShots(); if (!selectedShot || all.length === 0) return; const i = all.findIndex(s => s.id === selectedShot.id); if (i > 0) setSelectedShot(all[i - 1]); };
@@ -796,6 +1058,11 @@ export default function StoryboardPage() {
                   onGenerateShots={handleGenerateShots} trackedTasks={trackedTasks} shotErrors={shotErrors}
                   selectedShotIds={selectedShotIds} onToggleSelectShot={handleToggleSelectShotId}
                   retryingTasks={retryingTasks} onUpdateShot={handleUpdateShot} onReorderShots={handleReorderShots}
+                  onInsertShot={handleInsertShot} scriptId={activeScriptId}
+                  onGeneratePreviz={(shotId) => { setShotErrors(prev => { const c = { ...prev }; delete c[shotId]; return c; }); setPendingPrevizShotIds([shotId]); setIsModelSelectorOpen(true); }}
+                  globalDraggingId={globalDraggingId}
+                  onGlobalDragStart={(shotId) => setGlobalDraggingId(shotId)}
+                  onGlobalDragEnd={() => setGlobalDraggingId(null)}
                 />
               </div>
             )) : <div className="text-center py-20"><p className="text-[#444]">No scenes found.</p></div>}
@@ -829,6 +1096,15 @@ export default function StoryboardPage() {
         onClose={() => { setIsModelSelectorOpen(false); setPendingPrevizShotIds([]); }}
         onConfirm={handleModelConfirm} itemCount={pendingPrevizShotIds.length}
         title="Select Model for Previz" confirmLabel="Generate Previz"
+      />
+
+      <AddShotModal
+        isOpen={!!addShotModal}
+        onClose={() => setAddShotModal(null)}
+        onSubmit={handleAddShotSubmit}
+        insertOrder={addShotModal?.order ?? 1}
+        sceneName={scenes.find(s => s.id === addShotModal?.sceneId)?.scene_name || "Scene"}
+        isSubmitting={isAddingShotSubmitting}
       />
 
       {/* Modal deprecated in favor of route */}

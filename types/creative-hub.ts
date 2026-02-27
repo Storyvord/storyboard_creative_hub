@@ -7,6 +7,9 @@ export interface Script {
   analysis?: any;
   aspect_ratio?: string;
   uploaded_at: string;
+  task_id?: string;
+  requires_confirmation?: boolean;
+  review_status?: string;
 }
 
 export interface Scene {

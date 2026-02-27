@@ -15,13 +15,25 @@ export interface ImageModel {
 export const uploadScript = async (projectId: string, file: File): Promise<Script> => {
   const formData = new FormData();
   formData.append("file", file);
-  // V1 endpoint uses query param for project_id as well
-  const response = await api.post(`/api/creative_hub/scripts/upload/?project_id=${projectId}`, formData, {
+    const response = await api.post(`/api/creative_hub/scripts/upload/v3/?project_id=${projectId}`, formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
   });
   return response.data;
+};
+
+export const getScriptConversionReview = async (scriptId: number): Promise<any> => {
+    const response = await api.get(`/api/creative_hub/scripts/${scriptId}/conversion/review/`);
+    return response.data;
+};
+
+export const confirmScriptConversion = async (
+    scriptId: number,
+    payload: { action: "confirm" | "reject"; scenes?: any[]; screenplay_text?: string }
+): Promise<any> => {
+    const response = await api.post(`/api/creative_hub/scripts/${scriptId}/conversion/confirm/`, payload);
+    return response.data;
 };
 
 export const deleteScript = async (scriptId: number): Promise<void> => {
@@ -62,6 +74,11 @@ export const getScriptDetail = async (scriptId: number): Promise<Script> => {
 
 export const updateScript = async (scriptId: number, data: Partial<Script>): Promise<Script> => {
     const response = await api.patch(`/api/creative_hub/scripts/${scriptId}/`, data);
+    return response.data;
+}
+
+export const reparseScript = async (scriptId: number): Promise<any> => {
+    const response = await api.post(`/api/creative_hub/scripts/${scriptId}/reparse/`);
     return response.data;
 }
 
@@ -250,6 +267,20 @@ export const generateClothImage = async (clothId: number, model?: string, provid
 }
 
 // Shots/Previz
+export const createShot = async (
+  scriptId: number,
+  data: { scene: number; description: string; type: string; order: number; camera_angle?: string; movement?: string; lighting?: string }
+): Promise<Shot> => {
+    const response = await api.post(`/api/creative_hub/shots/${scriptId}/`, [data]);
+    // Backend returns an array; return the first item
+    const result = Array.isArray(response.data) ? response.data[0] : response.data;
+    return result;
+};
+
+export const deleteShot = async (shotId: number): Promise<void> => {
+    await api.delete(`/api/creative_hub/shots/${shotId}/detail/`);
+};
+
 export const getShots = async (sceneId: number): Promise<Shot[]> => {
     const response = await api.get(`/api/creative_hub/shots/scene/${sceneId}/`);
     if (Array.isArray(response.data)) return response.data;
