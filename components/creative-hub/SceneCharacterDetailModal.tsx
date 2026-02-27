@@ -5,6 +5,7 @@ import { Cloth, Script } from "@/types/creative-hub";
 import { getCloths, updateSceneCharacter, generateSceneCharacterImage, createCloth, updateCharacter, getBulkTaskStatus } from "@/services/creative-hub";
 import { toast } from "react-toastify";
 import { Loader2 } from "lucide-react";
+import { extractApiError } from "@/lib/extract-api-error";
 
 interface SceneCharacterDetailModalProps {
   sceneCharacter: any;
@@ -87,7 +88,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                   if (activeTask.status === 'success' || activeTask.status === 'completed') {
                       onUpdate(); // refresh data
                   } else if (activeTask.status === 'failed' || activeTask.status === 'failure') {
-                      toast.error(`Generation failed: ${activeTask.error || "Unknown error"}`);
+                      toast.error(activeTask.error || "Generation failed. Please try again.");
                   }
               }
           }
@@ -103,7 +104,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
       setAvailableCloths(data || []);
     } catch (error) {
       console.error("Failed to fetch cloths", error);
-      toast.error("Failed to load wardrobe");
+      toast.error(extractApiError(error, "Failed to load wardrobe"));
     } finally {
       setLoadingCloths(false);
     }
@@ -133,7 +134,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
           handleClothSelect(newCloth);
       } catch (error) {
           console.error("Failed to upload cloth", error);
-          toast.error("Failed to upload item");
+          toast.error(extractApiError(error, "Failed to upload item"));
       } finally {
           setUploading(false);
           // Reset input
@@ -169,7 +170,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
           onUpdate();
       } catch (error) {
           console.error(`Failed to upload ${type} image`, error);
-          toast.error("Failed to upload image");
+          toast.error(extractApiError(error, "Failed to upload image"));
       } finally {
           setUploading(false);
           // Reset input logic if needed, though inputs are inline
@@ -198,8 +199,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
           onUpdate();
       } catch (error: any) {
           console.error("Failed to update character", error);
-          const errorMsg = error?.response?.data?.error || error?.message || "Failed to update character";
-          toast.error(errorMsg);
+          toast.error(extractApiError(error, "Failed to update character"));
       } finally {
           setSaving(false);
       }
@@ -215,8 +215,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
           }
       } catch (error: any) {
           console.error("Failed to generate image", error);
-          const errorMsg = error?.response?.data?.error || error?.message || "Failed to trigger generation. Please check your credits or try again.";
-          toast.error(errorMsg);
+          toast.error(extractApiError(error, "Failed to trigger generation. Please check your credits or try again."));
           setGenerating(false);
       }
   };

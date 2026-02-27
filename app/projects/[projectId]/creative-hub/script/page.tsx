@@ -6,6 +6,7 @@ import { Script, Scene, Character } from "@/types/creative-hub";
 import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Trash2, BarChart2 } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { toast } from "react-toastify";
+import { extractApiError } from "@/lib/extract-api-error";
 import { useParams } from "next/navigation";
 
 export default function ScriptPage() {
@@ -45,7 +46,7 @@ export default function ScriptPage() {
       setScript(newScript);
       toast.success("Script uploaded successfully!");
       fetchScript();
-    } catch (error: any) { console.error("Upload failed", error); toast.error("Failed to upload script. " + (error.response?.data?.message || "")); }
+    } catch (error: any) { console.error("Upload failed", error); toast.error(extractApiError(error, "Failed to upload script.")); }
     finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
   };
 
@@ -53,7 +54,7 @@ export default function ScriptPage() {
     if (!script || !confirm("Are you sure you want to delete this script?")) return;
     setDeleting(true);
     try { await deleteScript(script.id); setScript(null); toast.success("Script deleted"); }
-    catch (error) { console.error("Delete failed", error); toast.error("Failed to delete script"); }
+    catch (error) { console.error("Delete failed", error); toast.error(extractApiError(error, "Failed to delete script.")); }
     finally { setDeleting(false); }
   };
 

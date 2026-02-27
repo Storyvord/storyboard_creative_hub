@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { createCharacter, updateCharacter, generateCharacterImage } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { toast } from "react-toastify";
+import { extractApiError } from "@/lib/extract-api-error";
 
 interface CharacterModalProps {
   character?: Character | null;
@@ -46,7 +47,7 @@ export default function CharacterModal({ character, scriptId, isOpen, onClose, o
         onClose();
     } catch (error) {
         console.error("Failed to save character", error);
-        toast.error("Failed to save character");
+        toast.error(extractApiError(error, "Failed to save character."));
     } finally {
         setLoading(false);
     }
@@ -67,7 +68,7 @@ export default function CharacterModal({ character, scriptId, isOpen, onClose, o
           setTimeout(onUpdate, 3000);
       } catch (error) {
           console.error("Failed to generate image", error);
-          toast.error("Failed to generate image");
+          toast.error(extractApiError(error, "Failed to generate image."));
       } finally {
           setGenerating(false);
       }
@@ -153,7 +154,7 @@ export default function CharacterModal({ character, scriptId, isOpen, onClose, o
                                                    onUpdate();
                                                } catch (error) {
                                                    console.error("Failed to upload image", error);
-                                                   toast.error("Failed to upload image");
+                                                   toast.error(extractApiError(error, "Failed to upload image."));
                                                } finally {
                                                    setLoading(false);
                                                }

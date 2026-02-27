@@ -8,6 +8,7 @@ import { useParams } from "next/navigation";
 import WardrobeModal from "@/components/creative-hub/WardrobeModal";
 import FittingRoom from "@/components/creative-hub/FittingRoom";
 import { toast } from "react-toastify";
+import { extractApiError } from "@/lib/extract-api-error";
 
 export default function WardrobePage() {
   const params = useParams();
@@ -46,7 +47,7 @@ export default function WardrobePage() {
           await deleteCloth(id);
           toast.success("Item deleted");
           fetchData();
-      } catch (error) { console.error(error); toast.error("Failed to delete item"); }
+      } catch (error) { console.error(error); toast.error(extractApiError(error, "Failed to delete item.")); }
   };
 
   if (loading) return <div className="p-6 flex justify-center"><Loader2 className="animate-spin h-6 w-6 text-[#333]" /></div>;

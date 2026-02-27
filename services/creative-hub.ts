@@ -182,16 +182,21 @@ export const updateCharacter = async (characterId: number, data: Partial<Charact
 export const uploadPreviz = async (shotId: number, file: File, sceneId?: number): Promise<any> => {
     const formData = new FormData();
     formData.append('image_file', file);
-    formData.append('shot', shotId.toString());
+    formData.append('description', 'Manual Upload');
+    formData.append('generate_ai_image', 'false');
     if (sceneId) {
         formData.append('scene', sceneId.toString());
     }
-    formData.append('description', 'Manual Upload'); 
-    // Use List V2 endpoint to create new Previz
-    const response = await api.post(`/api/creative_hub/previsualization/list/v2/`, formData, {
+
+    const response = await api.post(`/api/creative_hub/previsualization/create/`, formData, {
         headers: { "Content-Type": "multipart/form-data" }
     });
-    return response.data;
+
+    const createdPreviz = response.data;
+    if (createdPreviz?.id) {
+        await setActivePreviz(shotId, createdPreviz.id);
+    }
+    return createdPreviz;
 }
 
 export const deleteCharacter = async (characterId: number): Promise<void> => {
@@ -297,6 +302,11 @@ export const setActivePreviz = async (shotId: number, previzId: number): Promise
     return response.data;
 }
 
+export const updateShotDetails = async (shotId: number, data: Partial<Shot>): Promise<Shot> => {
+    const response = await api.put(`/api/creative_hub/shots/${shotId}/detail/`, data);
+    return response.data;
+}
+
 export const createScriptPrevisualization = async (data: { script: number, description: string, aspect_ratio: string, camera_angle?: string, shot_type?: string, generate_ai_image: boolean; model?: string; provider?: string; }): Promise<any> => {
     const response = await api.post(`/api/creative_hub/previsualization/create/`, data);
     return response.data;
@@ -358,4 +368,60 @@ export const getShotPreviz = async (shotId: number): Promise<any[]> => {
         console.warn("Failed to fetch previz via list endpoint", e);
     }
     return [];
+}
+
+export const regeneratePreviz = async (previzId: number, editPrompt?: string, model?: string, provider?: string): Promise<any> => {
+    const response = await api.post(`/api/creative_hub/previsualization/${previzId}/regenerate/`, {
+        edit_prompt: editPrompt,
+        model,
+        provider
+    });
+    return response.data;
+}
+
+/**
+ * Creates a new Previz using the current active Previz image as reference,
+ * then applies an edit prompt via image-to-image regeneration.
+ * 
+ * Flow:
+ * 1. Download the active previz image as a blob
+ * 2. Create a new previz via /previsualization/create/ with the image_file
+ * 3. Regenerate the new previz with the edit prompt (image-to-image edit)
+ */
+export const editPrevizWithPrompt = async (
+    shotId: number,
+    activePrevizImageUrl: string,
+    editPrompt: string,
+    sceneId?: number,
+    scriptId?: number,
+    model?: string,
+    provider?: string
+): Promise<any> => {
+    // Step 1: Download the active previz image
+    const imageResponse = await fetch(activePrevizImageUrl);
+    if (!imageResponse.ok) throw new Error("Failed to fetch reference image for editing.");
+    const blob = await imageResponse.blob();
+    const file = new File([blob], 'reference.png', { type: blob.type || 'image/png' });
+
+    // Step 2: Create a new previz from the current image (do not set active yet)
+    const formData = new FormData();
+    formData.append('image_file', file);
+    formData.append('description', editPrompt);
+    formData.append('generate_ai_image', 'false');
+    if (scriptId) {
+        formData.append('script', String(scriptId));
+    }
+
+    const createRes = await api.post(`/api/creative_hub/previsualization/create/`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    const newPreviz = createRes.data;
+
+    // Step 3: Regenerate the new previz with the edit prompt (image-to-image)
+    const regeneratedPreviz = await regeneratePreviz(newPreviz.id, editPrompt, model, provider);
+
+    // Step 4: Only after successful regeneration, set it as active for the shot
+    await setActivePreviz(shotId, newPreviz.id);
+
+    return regeneratedPreviz;
 }

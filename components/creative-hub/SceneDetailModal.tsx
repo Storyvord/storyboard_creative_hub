@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { getShots, generateShots, updateScene, getSceneCharacters } from "@/services/creative-hub";
 import { toast } from "react-toastify";
+import { extractApiError } from "@/lib/extract-api-error";
 import SceneCharacterDetailModal from "./SceneCharacterDetailModal";
 
 interface SceneDetailModalProps {
@@ -48,7 +49,7 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
             onUpdate(); // Refresh parent data
         } catch (error) {
             console.error("Failed to update scene", error);
-            toast.error("Failed to update scene");
+            toast.error(extractApiError(error, "Failed to update scene."));
         } finally {
             setSaving(false);
         }

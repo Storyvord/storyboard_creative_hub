@@ -5,6 +5,8 @@ import { X, Image as ImageIcon, Loader2, Sparkles, Wand2 } from "lucide-react";
 import { ASPECT_RATIOS } from "@/app/projects/[projectId]/creative-hub/storyboard/page";
 
 import { createScriptPrevisualization } from "@/services/creative-hub";
+import { toast } from "react-toastify";
+import { extractApiError } from "@/lib/extract-api-error";
 
 interface CreativePageModalProps {
   isOpen: boolean;
@@ -37,6 +39,7 @@ export default function CreativePageModal({ isOpen, onClose, scriptId }: Creativ
       }
     } catch (error) {
       console.error("Failed to generate script previsualization:", error);
+      toast.error(extractApiError(error, "Image generation failed. Please try again."));
     } finally {
       setIsGenerating(false);
     }

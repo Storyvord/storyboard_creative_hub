@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, Send, LayoutPanelTop, MonitorPlay } from "lucide-react";
+import { Loader2, Send, LayoutPanelTop, MonitorPlay, AlertTriangle } from "lucide-react";
 import { useParams } from "next/navigation";
 import { getScripts, createScriptPrevisualization, getImageModels, ImageModel } from "@/services/creative-hub";
+import { toast } from "react-toastify";
+import { extractApiError } from "@/lib/extract-api-error";
 import { ASPECT_RATIOS, CAMERA_ANGLES } from "@/app/projects/[projectId]/creative-hub/storyboard/page";
 
 const SHOT_TYPES = [
@@ -108,7 +110,15 @@ export default function CreativeSpacePage() {
       }
     } catch (error) {
       console.error("Failed to generate script previsualization:", error);
-      setHistory(prev => prev.filter(item => item.id !== tempId));
+      const msg = extractApiError(error, "Image generation failed. Please try again.");
+      toast.error(msg);
+      setHistory(prev =>
+        prev.map(item =>
+          item.id === tempId
+            ? { ...item, isGenerating: false, isError: true, errorMessage: msg }
+            : item
+        )
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -146,6 +156,11 @@ export default function CreativeSpacePage() {
                       <div className="flex flex-col items-center justify-center">
                         <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mb-3" />
                         <span className="text-emerald-400 text-xs font-medium animate-pulse">Generating Vision...</span>
+                      </div>
+                    ) : item.isError ? (
+                      <div className="flex flex-col items-center justify-center gap-3 px-6 text-center">
+                        <AlertTriangle className="w-8 h-8 text-red-500/70 shrink-0" />
+                        <p className="text-red-400 text-xs leading-relaxed">{item.errorMessage}</p>
                       </div>
                     ) : item.image_url ? (
                       <img src={item.image_url} alt="Generated Previz" className="w-full h-full object-cover" />

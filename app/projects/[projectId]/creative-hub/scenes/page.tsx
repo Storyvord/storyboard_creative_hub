@@ -6,6 +6,7 @@ import { Script, Scene } from "@/types/creative-hub";
 import SceneDetailModal from "@/components/creative-hub/SceneDetailModal";
 import { Loader2, Plus, AlertCircle, MapPin, ChevronRight, Wand2 } from "lucide-react";
 import { toast } from "react-toastify";
+import { extractApiError } from "@/lib/extract-api-error";
 import { useParams } from "next/navigation";
 
 export default function ScenesPage() {
@@ -43,7 +44,7 @@ export default function ScenesPage() {
       await generateScenes(script.id);
       toast.success("Scene generation started.");
       setTimeout(fetchData, 5000); 
-    } catch (error: any) { console.error(error); toast.error("Failed to generate scenes."); }
+    } catch (error: any) { console.error(error); toast.error(extractApiError(error, "Failed to generate scenes.")); }
     finally { setGenerating(false); }
   };
 

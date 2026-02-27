@@ -5,6 +5,7 @@ import { Scene } from "@/types/creative-hub";
 import { regenerateScene, generateShots } from "@/services/creative-hub";
 import { Loader2, RefreshCw, Film, MapPin, Clock } from "lucide-react";
 import { toast } from "react-toastify";
+import { extractApiError } from "@/lib/extract-api-error";
 import { clsx } from "clsx";
 
 interface SceneCardProps {
@@ -24,7 +25,7 @@ export default function SceneCard({ scene, onUpdate }: SceneCardProps) {
       onUpdate?.();
     } catch (error) {
       console.error("Failed to regenerate scene", error);
-      toast.error("Failed to regenerate scene.");
+      toast.error(extractApiError(error, "Failed to regenerate scene."));
     } finally {
       setRegenerating(false);
     }
@@ -37,7 +38,7 @@ export default function SceneCard({ scene, onUpdate }: SceneCardProps) {
       toast.success("Shot generation started.");
     } catch (error) {
       console.error("Failed to generate shots", error);
-      toast.error("Failed to generate shots.");
+      toast.error(extractApiError(error, "Failed to generate shots."));
     } finally {
       setGeneratingShots(false);
     }

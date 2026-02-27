@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { createCloth, updateCloth, generateClothImage } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { toast } from "react-toastify";
+import { extractApiError } from "@/lib/extract-api-error";
 import { Loader2 } from "lucide-react";
 
 interface WardrobeModalProps {
@@ -59,7 +60,7 @@ export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpda
         onClose();
     } catch (error) {
         console.error("Failed to save item", error);
-        toast.error("Failed to save item");
+        toast.error(extractApiError(error, "Failed to save item."));
     } finally {
         setLoading(false);
     }
@@ -80,7 +81,7 @@ export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpda
           setTimeout(onUpdate, 3000);
       } catch (error) {
           console.error("Failed to generate image", error);
-          toast.error("Failed to generate image");
+          toast.error(extractApiError(error, "Failed to generate image."));
       } finally {
           setGenerating(false);
       }

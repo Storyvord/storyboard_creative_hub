@@ -7,6 +7,7 @@ import { Loader2, AlertCircle, Plus, Edit, Trash2, Wand2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import CharacterModal from "@/components/creative-hub/CharacterModal";
 import { toast } from "react-toastify";
+import { extractApiError } from "@/lib/extract-api-error";
 
 export default function CharactersPage() {
   const params = useParams();
@@ -48,7 +49,7 @@ export default function CharactersPage() {
                 const justFinishedTask = characters.find((t: any) => t.task_id === globalTask.task_id);
                 if (justFinishedTask && (justFinishedTask.status === 'completed' || justFinishedTask.status === 'failed')) {
                     fetchData();
-                    if (justFinishedTask.status === 'failed') toast.error("Character generation failed: " + (justFinishedTask.error || "Unknown error"));
+                    if (justFinishedTask.status === 'failed') toast.error(justFinishedTask.error || "Character generation failed. Please try again.");
                 }
             }
         }
@@ -79,7 +80,7 @@ export default function CharactersPage() {
           await deleteCharacter(id);
           toast.success("Character deleted");
           fetchData();
-      } catch (error) { console.error(error); toast.error("Failed to delete character"); }
+      } catch (error) { console.error(error); toast.error(extractApiError(error, "Failed to delete character.")); }
   };
 
   if (loading) return <div className="p-6 flex justify-center"><Loader2 className="animate-spin h-6 w-6 text-[#333]" /></div>;

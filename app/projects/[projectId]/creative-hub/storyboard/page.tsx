@@ -10,6 +10,7 @@ import { useParams } from "next/navigation";
 import ShotDetailModal from "@/components/creative-hub/ShotDetailModal";
 import StoryboardSlideshowModal from "@/components/creative-hub/StoryboardSlideshowModal";
 import { toast } from "react-toastify";
+import { extractApiError } from "@/lib/extract-api-error";
 
 // Shot type abbreviation map — aligned with backend shot_types choices
 const SHOT_TYPE_MAP: Record<string, string> = {
@@ -402,7 +403,7 @@ export default function StoryboardPage() {
             .then(() => toast.success("Shot order updated", { autoClose: 1500 }))
             .catch(e => {
                 console.error("Reorder failed", e);
-                toast.error("Failed to save new shot order");
+                toast.error(extractApiError(e, "Failed to save new shot order."));
             });
       });
 
@@ -640,7 +641,7 @@ export default function StoryboardPage() {
           const res = await bulkGenerateShots(Array.from(selectedSceneIds));
           if (res?.task_ids) { const newTasks: Record<number, string> = {}; Array.from(selectedSceneIds).forEach((sceneId, idx) => { if (res.task_ids[idx]) newTasks[sceneId] = res.task_ids[idx]; setLoadingShotsMap(prev => ({ ...prev, [sceneId]: true })); }); setTrackedShotTasks(prev => ({ ...prev, ...newTasks })); }
           toast.success("Bulk shot generation started!");
-      } catch (error) { console.error(error); toast.error("Failed."); } finally { setIsBulkGenerating(false); }
+      } catch (error) { console.error(error); toast.error(extractApiError(error, "Failed to generate shots.")); } finally { setIsBulkGenerating(false); }
   };
 
   const handleBulkGeneratePreviz = async () => {
@@ -663,12 +664,12 @@ export default function StoryboardPage() {
               setShotErrors(prev => { const c = { ...prev }; response.shot_ids.forEach((sid: number) => { delete c[sid]; }); return c; });
           }
           toast.success("Bulk previz generation started!");
-      } catch (error) { console.error(error); toast.error("Failed."); } finally { setIsBulkGenerating(false); setPendingPrevizShotIds([]); }
+      } catch (error) { console.error(error); toast.error(extractApiError(error, "Failed to start previz generation.")); } finally { setIsBulkGenerating(false); setPendingPrevizShotIds([]); }
   };
 
   const handleGenerateShots = async (sceneId: number) => {
       try { toast.info("Generating shots..."); await generateShots(sceneId); fetchShots(sceneId); }
-      catch (error) { console.error(error); toast.error("Failed to generate shots."); }
+      catch (error) { console.error(error); toast.error(extractApiError(error, "Failed to generate shots.")); }
   };
 
   const getAllShots = useCallback(() => scenes.flatMap(scene => shotsMap[scene.id] || []), [scenes, shotsMap]);
@@ -715,7 +716,7 @@ export default function StoryboardPage() {
                       await updateScript(activeScript.id, { aspect_ratio: newValue });
                       toast.success("Default aspect ratio updated.");
                     } catch(err) {
-                      toast.error("Failed to update aspect ratio.");
+                      toast.error(extractApiError(err, "Failed to update aspect ratio."));
                     }
                   }}
                 >
