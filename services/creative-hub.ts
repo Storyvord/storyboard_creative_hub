@@ -359,18 +359,41 @@ export const getBulkTaskStatus = async (taskIds: string[]): Promise<any> => {
     return response.data;
 }
 
-// Fetches scenes with nested shots and previsualizations
-// Returns raw structure from PrevisualizationListV2APIView
-// Fetches scenes with nested shots and previsualizations
-// Returns raw structure from PrevisualizationListV2APIView
-export const getStoryboardData = async (scriptId: string | number): Promise<any[]> => {
-    const response = await api.get(`/api/creative_hub/previsualization/list/v2/?script_id=${scriptId}`);
-    
-    // The API might return paginated response or direct list depending on implementation
-    if (response.data.results) return response.data.results;
-    if (Array.isArray(response.data)) return response.data;
-    return [];
+// Fetches scenes with nested shots and previsualizations (paginated)
+// Returns { results, count, next } from PrevisualizationListV2APIView
+export interface StoryboardPageResponse {
+    results: any[];
+    count: number;
+    next: string | null;
 }
+
+export const getStoryboardDataPaginated = async (
+    scriptId: string | number,
+    page: number = 1,
+): Promise<StoryboardPageResponse> => {
+    const response = await api.get(
+        `/api/creative_hub/previsualization/list/v2/?script_id=${scriptId}&page=${page}`,
+    );
+    // Paginated response
+    if (response.data.results) {
+        return {
+            results: response.data.results,
+            count: response.data.count ?? response.data.results.length,
+            next: response.data.next ?? null,
+        };
+    }
+    // Fallback: non-paginated array
+    if (Array.isArray(response.data)) {
+        return { results: response.data, count: response.data.length, next: null };
+    }
+    return { results: [], count: 0, next: null };
+};
+
+// Legacy wrapper – returns flat array (first page only)
+export const getStoryboardData = async (scriptId: string | number): Promise<any[]> => {
+    const { results } = await getStoryboardDataPaginated(scriptId, 1);
+    return results;
+};
 
 // Fetches a single scene with nested shots and previsualizations
 export const getSceneStoryboardData = async (sceneId: number): Promise<any> => {

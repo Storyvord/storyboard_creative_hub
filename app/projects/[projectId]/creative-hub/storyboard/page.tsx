@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardData, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, createShot, reorderShots as reorderShotsApi } from "@/services/creative-hub";
+import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardDataPaginated, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, createShot, reorderShots as reorderShotsApi } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { Scene, Shot, Script } from "@/types/creative-hub";
 import { Loader2, Film, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon, CheckCircle, Circle, AlertTriangle, GripVertical, Plus, X } from "lucide-react";
@@ -500,6 +500,113 @@ export default function StoryboardPage() {
   const [pendingPrevizShotIds, setPendingPrevizShotIds] = useState<number[]>([]);
   const [globalDraggingId, setGlobalDraggingId] = useState<number | null>(null);
 
+  // ─── Paginated progressive loading ────────────────────────────
+  const [allScenesMeta, setAllScenesMeta] = useState<Scene[]>([]);   // lightweight list for Jump dropdown
+  const [nextPage, setNextPage] = useState<number | null>(null);     // next page to fetch (null = all loaded)
+  const [totalSceneCount, setTotalSceneCount] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // Helper: parse one page of storyboard data into scenes + shotsMap entries
+  const parseStoryboardPage = useCallback((data: any[], scriptId: number) => {
+    const parsedScenes: Scene[] = [];
+    const parsedShotsMap: Record<number, Shot[]> = {};
+    data.forEach((sceneData: any) => {
+      parsedScenes.push({ id: sceneData.id, script_id: scriptId, scene_name: sceneData.scene_name, description: sceneData.description, order: sceneData.order, location: "", set_number: "", environment: "", int_ext: "", date: "", timeline: [], scene_characters: sceneData.scene_characters || [], created_at: "", updated_at: "" });
+      const shots: Shot[] = (sceneData.shots || []).map((sd: any) => {
+        let imageUrl = null;
+        let activePreviz = null;
+        if (sd.previz?.length > 0) {
+          if (sd.active_previz) activePreviz = sd.previz.find((p: any) => p.id === sd.active_previz) || null;
+          if (!activePreviz) activePreviz = sd.previz[sd.previz.length - 1];
+          imageUrl = activePreviz?.image_url || null;
+        }
+        return { id: sd.id, scene: sceneData.id, description: sd.description, type: sd.type || "Wide Shot", order: sd.order, done: false, timeline: {}, movement: "", camera_angle: "", lighting: "", rationale: "", created_at: "", updated_at: "", image_url: imageUrl, active_previz: sd.active_previz, previz: activePreviz } as Shot;
+      });
+      parsedShotsMap[sceneData.id] = shots.sort((a, b) => a.order - b.order);
+    });
+    return { parsedScenes, parsedShotsMap };
+  }, []);
+
+  // Fetch the next page and APPEND to existing state
+  const fetchNextPage = useCallback(async () => {
+    if (!activeScriptId || nextPage === null || isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const { results, next } = await getStoryboardDataPaginated(activeScriptId, nextPage);
+      const { parsedScenes, parsedShotsMap } = parseStoryboardPage(results, activeScriptId);
+      setScenes(prev => {
+        const existingIds = new Set(prev.map(s => s.id));
+        const newScenes = parsedScenes.filter(s => !existingIds.has(s.id));
+        return [...prev, ...newScenes].sort((a, b) => a.order - b.order);
+      });
+      setShotsMap(prev => ({ ...prev, ...parsedShotsMap }));
+      setNextPage(next ? nextPage + 1 : null);
+    } catch (error) {
+      console.error("Failed to fetch next storyboard page:", error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [activeScriptId, nextPage, isLoadingMore, parseStoryboardPage]);
+
+  // IntersectionObserver: when sentinel comes into view, load next API page
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && nextPage !== null && !isLoadingMore) {
+          fetchNextPage();
+        }
+      },
+      { rootMargin: "400px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [fetchNextPage, nextPage, isLoadingMore]);
+
+  // Jump: fetch all pages up to the one containing the target scene, then scroll
+  const handleJumpToScene = useCallback(
+    async (sceneId: number) => {
+      // If the scene is already loaded, just scroll
+      if (scenes.some(s => s.id === sceneId)) {
+        document.getElementById(`scene-${sceneId}`)?.scrollIntoView({ behavior: "smooth" });
+        return;
+      }
+      // Otherwise, keep fetching pages until the scene appears
+      if (!activeScriptId || nextPage === null) return;
+      setIsLoadingMore(true);
+      let page: number | null = nextPage;
+      try {
+        while (page !== null) {
+          const { results, next } = await getStoryboardDataPaginated(activeScriptId, page);
+          const { parsedScenes, parsedShotsMap } = parseStoryboardPage(results, activeScriptId);
+          setScenes(prev => {
+            const existingIds = new Set(prev.map(s => s.id));
+            const newScenes = parsedScenes.filter(s => !existingIds.has(s.id));
+            return [...prev, ...newScenes].sort((a, b) => a.order - b.order);
+          });
+          setShotsMap(prev => ({ ...prev, ...parsedShotsMap }));
+          const found = parsedScenes.some(s => s.id === sceneId);
+          page = next ? page + 1 : null;
+          setNextPage(page);
+          if (found) break;
+        }
+      } catch (error) {
+        console.error("Failed to fetch pages for jump:", error);
+      } finally {
+        setIsLoadingMore(false);
+      }
+      // Wait for React to render, then scroll
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          document.getElementById(`scene-${sceneId}`)?.scrollIntoView({ behavior: "smooth" });
+        }, 80);
+      });
+    },
+    [scenes, activeScriptId, nextPage, parseStoryboardPage],
+  );
+
   // Inline shot update (local)
   const handleUpdateShot = useCallback((shotId: number, field: string, value: string) => {
     setShotsMap(prev => {
@@ -787,33 +894,20 @@ export default function StoryboardPage() {
         } 
       } catch (e) { console.error(e); }
       if (!scriptId) { setLoadingScenes(false); return; }
-      const storyboardData = await getStoryboardData(scriptId);
-      const parsedScenes: Scene[] = [];
-      const parsedShotsMap: Record<number, Shot[]> = {};
-      storyboardData.forEach((sceneData: any) => {
-          parsedScenes.push({ id: sceneData.id, script_id: scriptId!, scene_name: sceneData.scene_name, description: sceneData.description, order: sceneData.order, location: "", set_number: "", environment: "", int_ext: "", date: "", timeline: [], scene_characters: sceneData.scene_characters || [], created_at: "", updated_at: "" });
-          const shots: Shot[] = (sceneData.shots || []).map((sd: any) => {
-              let imageUrl = null;
-              let activePreviz = null;
-              
-              if (sd.previz?.length > 0) {
-                  // If active_previz is set, try to find it
-                  if (sd.active_previz) {
-                      activePreviz = sd.previz.find((p: any) => p.id === sd.active_previz) || null;
-                  }
-                  // Fallback to the latest previz if none is set or active one isn't in the list
-                  if (!activePreviz) {
-                      activePreviz = sd.previz[sd.previz.length - 1];
-                  }
-                  imageUrl = activePreviz?.image_url || null;
-              }
 
-              return { id: sd.id, scene: sceneData.id, description: sd.description, type: sd.type || "Wide Shot", order: sd.order, done: false, timeline: {}, movement: "", camera_angle: "", lighting: "", rationale: "", created_at: "", updated_at: "", image_url: imageUrl, active_previz: sd.active_previz, previz: activePreviz } as Shot;
-          });
-          parsedShotsMap[sceneData.id] = shots.sort((a, b) => a.order - b.order);
-      });
+      // Fetch lightweight scene list (all scenes) for Jump dropdown
+      try {
+        const allScenes = await getScenes(scriptId);
+        setAllScenesMeta(allScenes.sort((a, b) => a.order - b.order));
+      } catch (e) { console.error("Failed to fetch scene list:", e); }
+
+      // Fetch page 1 of heavy storyboard data (scenes + shots + previz)
+      const { results, count, next } = await getStoryboardDataPaginated(scriptId, 1);
+      const { parsedScenes, parsedShotsMap } = parseStoryboardPage(results, scriptId);
       setScenes(parsedScenes.sort((a, b) => a.order - b.order));
       setShotsMap(parsedShotsMap);
+      setTotalSceneCount(count);
+      setNextPage(next ? 2 : null);
     } catch (error) { console.error(error); }
     finally { setLoadingScenes(false); }
   };
@@ -995,13 +1089,17 @@ export default function StoryboardPage() {
                 Jump <ChevronRight className="w-3 h-3 rotate-90" />
               </button>
               <div className="absolute top-full left-0 mt-1.5 w-56 max-h-80 overflow-y-auto bg-[#111] border border-[#222] rounded-md shadow-xl p-1.5 hidden group-hover:block z-50">
-                {scenes.map(scene => (
-                  <button key={scene.id} onClick={() => document.getElementById(`scene-${scene.id}`)?.scrollIntoView({ behavior: 'smooth' })}
-                    className="w-full text-left px-2.5 py-2 rounded text-[11px] text-[#888] hover:bg-[#1a1a1a] hover:text-white truncate transition-colors flex items-center gap-2">
-                    <span className="flex-shrink-0 text-[9px] font-mono text-[#555]">{String(scene.order).padStart(2,'0')}</span>
-                    <span className="truncate">{scene.scene_name || "Untitled"}</span>
-                  </button>
-                ))}
+                {allScenesMeta.map(scene => {
+                  const isLoaded = scenes.some(s => s.id === scene.id);
+                  return (
+                    <button key={scene.id} onClick={() => handleJumpToScene(scene.id)}
+                      className="w-full text-left px-2.5 py-2 rounded text-[11px] text-[#888] hover:bg-[#1a1a1a] hover:text-white truncate transition-colors flex items-center gap-2">
+                      <span className="flex-shrink-0 text-[9px] font-mono text-[#555]">{String(scene.order).padStart(2,'0')}</span>
+                      <span className="truncate">{scene.scene_name || "Untitled"}</span>
+                      {!isLoaded && <span className="ml-auto text-[8px] text-[#444]">⏳</span>}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1050,22 +1148,36 @@ export default function StoryboardPage() {
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-5 scroll-smooth">
           <div className="max-w-[1800px] mx-auto">
-            {scenes.length > 0 ? scenes.map(scene => (
-              <div id={`scene-${scene.id}`} key={scene.id} className="scroll-mt-6">
-                <SceneItem scene={scene} shots={shotsMap[scene.id] || []}
-                  isSelected={selectedSceneIds.has(scene.id)} onToggleSelect={handleToggleSelectId}
-                  onShotClick={setSelectedShot} loadingShots={loadingShotsMap[scene.id]}
-                  onGenerateShots={handleGenerateShots} trackedTasks={trackedTasks} shotErrors={shotErrors}
-                  selectedShotIds={selectedShotIds} onToggleSelectShot={handleToggleSelectShotId}
-                  retryingTasks={retryingTasks} onUpdateShot={handleUpdateShot} onReorderShots={handleReorderShots}
-                  onInsertShot={handleInsertShot} scriptId={activeScriptId}
-                  onGeneratePreviz={(shotId) => { setShotErrors(prev => { const c = { ...prev }; delete c[shotId]; return c; }); setPendingPrevizShotIds([shotId]); setIsModelSelectorOpen(true); }}
-                  globalDraggingId={globalDraggingId}
-                  onGlobalDragStart={(shotId) => setGlobalDraggingId(shotId)}
-                  onGlobalDragEnd={() => setGlobalDraggingId(null)}
-                />
-              </div>
-            )) : <div className="text-center py-20"><p className="text-[#444]">No scenes found.</p></div>}
+            {scenes.length > 0 ? (
+              <>
+                {scenes.map(scene => (
+                  <div id={`scene-${scene.id}`} key={scene.id} className="scroll-mt-6">
+                    <SceneItem scene={scene} shots={shotsMap[scene.id] || []}
+                      isSelected={selectedSceneIds.has(scene.id)} onToggleSelect={handleToggleSelectId}
+                      onShotClick={setSelectedShot} loadingShots={loadingShotsMap[scene.id]}
+                      onGenerateShots={handleGenerateShots} trackedTasks={trackedTasks} shotErrors={shotErrors}
+                      selectedShotIds={selectedShotIds} onToggleSelectShot={handleToggleSelectShotId}
+                      retryingTasks={retryingTasks} onUpdateShot={handleUpdateShot} onReorderShots={handleReorderShots}
+                      onInsertShot={handleInsertShot} scriptId={activeScriptId}
+                      onGeneratePreviz={(shotId) => { setShotErrors(prev => { const c = { ...prev }; delete c[shotId]; return c; }); setPendingPrevizShotIds([shotId]); setIsModelSelectorOpen(true); }}
+                      globalDraggingId={globalDraggingId}
+                      onGlobalDragStart={(shotId) => setGlobalDraggingId(shotId)}
+                      onGlobalDragEnd={() => setGlobalDraggingId(null)}
+                    />
+                  </div>
+                ))}
+                {/* Sentinel – triggers fetching the next API page when scrolled near */}
+                {nextPage !== null && (
+                  <div ref={sentinelRef} className="flex items-center justify-center py-6 text-[11px] text-[#555]">
+                    {isLoadingMore ? (
+                      <><Loader2 className="w-4 h-4 animate-spin mr-2 text-[#444]" /> Loading more scenes…</>
+                    ) : (
+                      <span className="text-[#444]">{scenes.length} of {totalSceneCount} scenes loaded</span>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : <div className="text-center py-20"><p className="text-[#444]">No scenes found.</p></div>}
             <div className="h-20" />
           </div>
         </div>
