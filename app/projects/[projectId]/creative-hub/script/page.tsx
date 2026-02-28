@@ -28,11 +28,14 @@ import {
   Cell,
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
   Legend,
+  CartesianGrid,
 } from "recharts";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
@@ -536,6 +539,67 @@ export default function ScriptPage() {
       .slice(0, 10);
   }, [scenes]);
 
+  const characterData = useMemo(() => {
+    const m: Record<string, number> = {};
+    scenes.forEach((s) => {
+      const seen = new Set<string>();
+      (s.scene_characters || []).forEach((sc: any) => {
+        const name = (typeof sc === "string" ? sc : sc?.name || sc?.character?.name || "").toUpperCase().trim();
+        if (name) seen.add(name);
+      });
+      seen.forEach((name) => {
+        m[name] = (m[name] || 0) + 1;
+      });
+    });
+    return Object.entries(m)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [scenes]);
+
+  const sceneBreakdownData = useMemo(() => {
+    // Prefer backend-computed scene_breakdown (has accurate dialogue counts)
+    const backendBreakdown: any[] = script?.analysis?.scene_breakdown || [];
+    if (backendBreakdown.length > 0) {
+      return backendBreakdown.map((sb: any, idx: number) => ({
+        label: sb.scene_label || `S${idx + 1}`,
+        scene: sb.heading || `Scene ${idx + 1}`,
+        characters: sb.characters ?? 0,
+        dialogues: sb.dialogues ?? 0,
+      }));
+    }
+
+    // Fallback: compute from frontend scene data
+    if (!scenes.length) return [];
+    return scenes
+      .slice()
+      .sort((a, b) => (a.order || 0) - (b.order || 0))
+      .map((s, idx) => {
+        const chars = (s.scene_characters || []).length;
+        return {
+          label: `S${idx + 1}`,
+          scene: s.scene_name || `Scene ${idx + 1}`,
+          characters: chars,
+          dialogues: (s as any).dialog_count ?? 0,
+        };
+      });
+  }, [scenes, script]);
+
+  /** Dialogue distribution per character — from backend analysis */
+  const dialogueDistData = useMemo(() => {
+    const dist: Record<string, number> = script?.analysis?.dialogue_distribution || {};
+    const entries = Object.entries(dist).filter(([, v]) => v > 0);
+    if (!entries.length) return [];
+    return entries
+      .map(([name, pct]) => ({ name, value: pct }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+  }, [script]);
+
+  /** INT / EXT counts as numbers for stat cards */
+  const intCount = useMemo(() => intExtData.find((d) => d.name === "INT")?.value ?? 0, [intExtData]);
+  const extCount = useMemo(() => intExtData.find((d) => d.name === "EXT")?.value ?? 0, [intExtData]);
+
   /* ═══════════════════ Helpers for view ═══════════════════ */
 
   const isEditorVisible = !!script && !isConverting && !loading;
@@ -944,134 +1008,159 @@ export default function ScriptPage() {
               </button>
             </div>
             <div className="p-5">
-              {/* Stat cards */}
-              <div className="grid grid-cols-3 gap-3 mb-6">
-                <div className="p-4 bg-[#111] rounded-md border border-[#1a1a1a] text-center">
-                  <span className="text-[9px] text-[#555] uppercase tracking-wider">
-                    Scenes
-                  </span>
-                  <p className="text-2xl font-bold text-emerald-400 mt-1">
+              {/* Stat cards — 5 cols */}
+              <div className="grid grid-cols-5 gap-3 mb-6">
+                <div className="p-3 bg-[#111] rounded-md border border-[#1a1a1a] text-center">
+                  <span className="text-[9px] text-[#555] uppercase tracking-wider">Scenes</span>
+                  <p className="text-xl font-bold text-emerald-400 mt-1">
                     {script.analysis?.scene_count || scenes.length || scriptHeadings.length}
                   </p>
                 </div>
-                <div className="p-4 bg-[#111] rounded-md border border-[#1a1a1a] text-center">
-                  <span className="text-[9px] text-[#555] uppercase tracking-wider">
-                    Characters
-                  </span>
-                  <p className="text-2xl font-bold text-emerald-400 mt-1">
-                    {characters.length ||
-                      script.analysis?.character_count ||
-                      0}
+                <div className="p-3 bg-[#111] rounded-md border border-[#1a1a1a] text-center">
+                  <span className="text-[9px] text-[#555] uppercase tracking-wider">Characters</span>
+                  <p className="text-xl font-bold text-emerald-400 mt-1">
+                    {characters.length || script.analysis?.character_count || 0}
                   </p>
                 </div>
-                <div className="p-4 bg-[#111] rounded-md border border-[#1a1a1a] text-center">
-                  <span className="text-[9px] text-[#555] uppercase tracking-wider">
-                    Lines
-                  </span>
-                  <p className="text-2xl font-bold text-emerald-400 mt-1">
+                <div className="p-3 bg-[#111] rounded-md border border-[#1a1a1a] text-center">
+                  <span className="text-[9px] text-[#555] uppercase tracking-wider">Interior</span>
+                  <p className="text-xl font-bold text-emerald-400 mt-1">{intCount}</p>
+                </div>
+                <div className="p-3 bg-[#111] rounded-md border border-[#1a1a1a] text-center">
+                  <span className="text-[9px] text-[#555] uppercase tracking-wider">Exterior</span>
+                  <p className="text-xl font-bold text-emerald-400 mt-1">{extCount}</p>
+                </div>
+                <div className="p-3 bg-[#111] rounded-md border border-[#1a1a1a] text-center">
+                  <span className="text-[9px] text-[#555] uppercase tracking-wider">Lines</span>
+                  <p className="text-xl font-bold text-emerald-400 mt-1">
                     {editorContent.split("\n").length}
                   </p>
                 </div>
               </div>
 
-              {/* Charts */}
               {scenes.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {intExtData.length > 0 && (
-                    <div className="bg-[#111] p-4 rounded-md border border-[#1a1a1a]">
-                      <h4 className="text-xs font-semibold text-[#999] mb-3 text-center">
-                        INT / EXT Breakdown
-                      </h4>
-                      <div className="h-52">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={intExtData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={45}
-                              outerRadius={65}
-                              paddingAngle={5}
-                              dataKey="value"
-                              stroke="none"
-                            >
-                              {intExtData.map((_, idx) => (
-                                <Cell
-                                  key={idx}
-                                  fill={COLORS[idx % COLORS.length]}
-                                />
-                              ))}
-                            </Pie>
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: "#111",
-                                borderColor: "#222",
-                                borderRadius: "6px",
-                                fontSize: "12px",
-                              }}
-                              itemStyle={{ color: "#fff" }}
-                            />
-                            <Legend verticalAlign="bottom" height={36} />
-                          </PieChart>
-                        </ResponsiveContainer>
+                <>
+                  {/* Row 1 — Scene-by-Scene line chart (full width) */}
+                  {sceneBreakdownData.length > 1 && (
+                    <div className="mb-4">
+                      <div className="bg-[#111] p-4 rounded-md border border-[#1a1a1a]">
+                        <h4 className="text-xs font-semibold text-[#999] mb-3 text-center">
+                          Scene-by-Scene Breakdown
+                        </h4>
+                        <div className="h-64">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={sceneBreakdownData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
+                              <XAxis dataKey="label" tick={{ fill: "#666", fontSize: 9 }} axisLine={{ stroke: "#222" }} tickLine={false} />
+                              <YAxis tick={{ fill: "#666", fontSize: 9 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                              <Tooltip
+                                contentStyle={{ backgroundColor: "#111", borderColor: "#222", borderRadius: "6px", fontSize: "12px" }}
+                                labelFormatter={(label) => {
+                                  const item = sceneBreakdownData.find((d) => d.label === String(label));
+                                  return item ? item.scene : String(label);
+                                }}
+                              />
+                              <Legend verticalAlign="top" height={30} wrapperStyle={{ fontSize: "10px" }} />
+                              <Line type="monotone" dataKey="characters" name="Characters" stroke="#22c55e" strokeWidth={2} dot={{ r: 3, fill: "#22c55e" }} activeDot={{ r: 5 }} />
+                              <Line type="monotone" dataKey="dialogues" name="Dialogues" stroke="#6ee7b7" strokeWidth={2} dot={{ r: 3, fill: "#6ee7b7" }} activeDot={{ r: 5 }} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {locationData.length > 0 && (
-                    <div className="bg-[#111] p-4 rounded-md border border-[#1a1a1a]">
-                      <h4 className="text-xs font-semibold text-[#999] mb-3 text-center">
-                        Top Locations
-                      </h4>
-                      <div className="h-52">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart
-                            data={locationData}
-                            margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
-                          >
-                            <XAxis
-                              dataKey="name"
-                              tick={{ fill: "#666", fontSize: 9 }}
-                              axisLine={{ stroke: "#222" }}
-                              tickLine={false}
-                              tickFormatter={(v: string) =>
-                                v.length > 8 ? v.substring(0, 8) + ".." : v
-                              }
-                            />
-                            <YAxis
-                              tick={{ fill: "#666", fontSize: 9 }}
-                              axisLine={false}
-                              tickLine={false}
-                              allowDecimals={false}
-                            />
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: "#111",
-                                borderColor: "#222",
-                                borderRadius: "6px",
-                                fontSize: "12px",
-                              }}
-                              cursor={{ fill: "#1a1a1a", opacity: 0.6 }}
-                            />
-                            <Bar
-                              dataKey="count"
-                              fill="#22c55e"
-                              radius={[3, 3, 0, 0]}
-                              maxBarSize={35}
-                            >
-                              {locationData.map((_, idx) => (
-                                <Cell
-                                  key={idx}
-                                  fill={COLORS[idx % COLORS.length]}
-                                />
-                              ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
+                  {/* Row 2 — Characters bar (left) + Locations bar (right) */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                    {characterData.length > 0 && (
+                      <div className="bg-[#111] p-4 rounded-md border border-[#1a1a1a]">
+                        <h4 className="text-xs font-semibold text-[#999] mb-3 text-center">Top Characters</h4>
+                        <div className="h-52">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={characterData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                              <XAxis dataKey="name" tick={{ fill: "#666", fontSize: 9 }} axisLine={{ stroke: "#222" }} tickLine={false} tickFormatter={(v: string) => (v.length > 8 ? v.substring(0, 8) + ".." : v)} />
+                              <YAxis tick={{ fill: "#666", fontSize: 9 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                              <Tooltip contentStyle={{ backgroundColor: "#111", borderColor: "#222", borderRadius: "6px", fontSize: "12px" }} cursor={{ fill: "#1a1a1a", opacity: 0.6 }} />
+                              <Bar dataKey="count" fill="#22c55e" radius={[3, 3, 0, 0]} maxBarSize={35}>
+                                {characterData.map((_, idx) => (
+                                  <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
                       </div>
+                    )}
+
+                    {locationData.length > 0 && (
+                      <div className="bg-[#111] p-4 rounded-md border border-[#1a1a1a]">
+                        <h4 className="text-xs font-semibold text-[#999] mb-3 text-center">Top Locations</h4>
+                        <div className="h-52">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={locationData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                              <XAxis dataKey="name" tick={{ fill: "#666", fontSize: 9 }} axisLine={{ stroke: "#222" }} tickLine={false} tickFormatter={(v: string) => (v.length > 8 ? v.substring(0, 8) + ".." : v)} />
+                              <YAxis tick={{ fill: "#666", fontSize: 9 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                              <Tooltip contentStyle={{ backgroundColor: "#111", borderColor: "#222", borderRadius: "6px", fontSize: "12px" }} cursor={{ fill: "#1a1a1a", opacity: 0.6 }} />
+                              <Bar dataKey="count" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={35}>
+                                {locationData.map((_, idx) => (
+                                  <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Row 3 — Dialogue Distribution pie (left) + Action vs Dialogue pie (right) */}
+                  {(dialogueDistData.length > 0 || script?.analysis?.action_vs_dialogue) && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {dialogueDistData.length > 0 && (
+                        <div className="bg-[#111] p-4 rounded-md border border-[#1a1a1a]">
+                          <h4 className="text-xs font-semibold text-[#999] mb-3 text-center">Dialogue Distribution</h4>
+                          <div className="h-52">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie data={dialogueDistData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={4} dataKey="value" stroke="none">
+                                  {dialogueDistData.map((_, idx) => (
+                                    <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                                  ))}
+                                </Pie>
+                                <Tooltip contentStyle={{ backgroundColor: "#111", borderColor: "#222", borderRadius: "6px", fontSize: "12px" }} itemStyle={{ color: "#fff" }} formatter={(value) => `${value}%`} />
+                                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: "10px" }} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      )}
+
+                      {script?.analysis?.action_vs_dialogue && (
+                        <div className="bg-[#111] p-4 rounded-md border border-[#1a1a1a]">
+                          <h4 className="text-xs font-semibold text-[#999] mb-3 text-center">Action vs Dialogue</h4>
+                          <div className="h-52">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={[
+                                    { name: "Action", value: script.analysis.action_vs_dialogue.Action || 0 },
+                                    { name: "Dialogue", value: script.analysis.action_vs_dialogue.Dialogue || 0 },
+                                  ].filter((d) => d.value > 0)}
+                                  cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={4} dataKey="value" stroke="none"
+                                >
+                                  <Cell fill="#22c55e" />
+                                  <Cell fill="#6ee7b7" />
+                                </Pie>
+                                <Tooltip contentStyle={{ backgroundColor: "#111", borderColor: "#222", borderRadius: "6px", fontSize: "12px" }} itemStyle={{ color: "#fff" }} formatter={(value) => `${value}%`} />
+                                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: "10px" }} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+                </>
               )}
             </div>
           </div>
