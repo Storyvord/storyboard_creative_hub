@@ -90,12 +90,8 @@ export const getScenes = async (scriptId: number): Promise<Scene[]> => {
   return [];
 };
 
-export const generateScenes = async (scriptId: number): Promise<void> => {
+export const syncScenes = async (scriptId: number): Promise<void> => {
     await api.post(`/api/creative_hub/scripts/${scriptId}/scenes/`);
-}
-
-export const regenerateScene = async (sceneId: number): Promise<void> => {
-    await api.post(`/api/creative_hub/scenes/${sceneId}/regenerate/`);
 }
 
 export const updateScene = async (sceneId: number, data: Partial<Scene>): Promise<Scene> => {

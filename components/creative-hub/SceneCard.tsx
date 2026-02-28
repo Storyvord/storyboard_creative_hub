@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Scene } from "@/types/creative-hub";
-import { regenerateScene, generateShots } from "@/services/creative-hub";
-import { Loader2, RefreshCw, Film, MapPin, Clock } from "lucide-react";
+import { generateShots } from "@/services/creative-hub";
+import { Loader2, Film, MapPin, Clock } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import { clsx } from "clsx";
@@ -14,22 +14,7 @@ interface SceneCardProps {
 }
 
 export default function SceneCard({ scene, onUpdate }: SceneCardProps) {
-  const [regenerating, setRegenerating] = useState(false);
   const [generatingShots, setGeneratingShots] = useState(false);
-
-  const handleRegenerate = async () => {
-    setRegenerating(true);
-    try {
-      await regenerateScene(scene.id);
-      toast.success("Scene regeneration started.");
-      onUpdate?.();
-    } catch (error) {
-      console.error("Failed to regenerate scene", error);
-      toast.error(extractApiError(error, "Failed to regenerate scene."));
-    } finally {
-      setRegenerating(false);
-    }
-  };
 
   const handleGenerateShots = async () => {
     setGeneratingShots(true);
@@ -71,14 +56,6 @@ export default function SceneCard({ scene, onUpdate }: SceneCardProps) {
 
       <div className="flex gap-3 mt-auto pt-4 border-t border-[#1a1a1a]/50">
         <button
-          onClick={handleRegenerate}
-          disabled={regenerating}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-[#1a1a1a] hover:bg-[#222] text-gray-300 text-sm font-medium transition-colors"
-        >
-          {regenerating ? <Loader2 className="animate-spin h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
-          Regenerate
-        </button>
-        <button
           onClick={handleGenerateShots}
           disabled={generatingShots}
           className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-600/20 text-sm font-medium transition-colors"
@@ -89,7 +66,7 @@ export default function SceneCard({ scene, onUpdate }: SceneCardProps) {
       </div>
       
       {/* Visual flair for active generating state */}
-      {(regenerating || generatingShots) && (
+      {generatingShots && (
           <div className="absolute inset-x-0 bottom-0 h-1 bg-emerald-500/50 animate-pulse" />
       )}
     </div>

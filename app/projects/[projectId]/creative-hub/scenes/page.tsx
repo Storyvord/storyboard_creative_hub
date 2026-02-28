@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getScripts, getScenes, generateScenes } from "@/services/creative-hub";
+import { getScripts, getScenes, syncScenes } from "@/services/creative-hub";
 import { Script, Scene } from "@/types/creative-hub";
 import SceneDetailModal from "@/components/creative-hub/SceneDetailModal";
-import { Loader2, Plus, AlertCircle, MapPin, ChevronRight, Wand2 } from "lucide-react";
+import { Loader2, RefreshCw, AlertCircle, MapPin, ChevronRight } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import { useParams } from "next/navigation";
@@ -15,7 +15,7 @@ export default function ScenesPage() {
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [script, setScript] = useState<Script | null>(null);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
 
   useEffect(() => { if (projectId) fetchData(); }, [projectId]);
@@ -37,15 +37,15 @@ export default function ScenesPage() {
     finally { setLoading(false); }
   };
 
-  const handleGenerateScenes = async () => {
+  const handleSyncScenes = async () => {
     if (!script) return;
-    setGenerating(true);
+    setSyncing(true);
     try {
-      await generateScenes(script.id);
-      toast.success("Scene generation started.");
-      setTimeout(fetchData, 5000); 
-    } catch (error: any) { console.error(error); toast.error(extractApiError(error, "Failed to generate scenes.")); }
-    finally { setGenerating(false); }
+      await syncScenes(script.id);
+      toast.success("Scenes synced from script.");
+      await fetchData();
+    } catch (error: any) { console.error(error); toast.error(extractApiError(error, "Failed to sync scenes.")); }
+    finally { setSyncing(false); }
   };
 
   if (loading) return <div className="flex justify-center items-center h-full"><Loader2 className="animate-spin h-6 w-6 text-[#333]" /></div>;
@@ -67,18 +67,18 @@ export default function ScenesPage() {
         </div>
         
         {scenes.length === 0 ? (
-             <button onClick={handleGenerateScenes} disabled={generating}
+             <button onClick={handleSyncScenes} disabled={syncing}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-medium transition-all flex items-center gap-2">
-                {generating ? <Loader2 className="animate-spin h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                Generate Scenes
+                {syncing ? <Loader2 className="animate-spin h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
+                Sync Scenes
              </button>
         ) : (
             <div className="flex items-center gap-3">
                  <span className="text-xs text-[#555]">{scenes.length} Scenes</span>
-                 <button onClick={handleGenerateScenes} disabled={generating}
+                 <button onClick={handleSyncScenes} disabled={syncing}
                      className="px-3 py-2 bg-[#161616] hover:bg-[#1a1a1a] text-white rounded-md text-xs font-medium transition-all flex items-center gap-1.5 border border-[#222]">
-                     {generating ? <Loader2 className="animate-spin h-3.5 w-3.5" /> : <Wand2 className="h-3.5 w-3.5 text-emerald-400" />}
-                     Regenerate
+                     {syncing ? <Loader2 className="animate-spin h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5 text-emerald-400" />}
+                     Re-sync
                  </button>
             </div>
         )}
@@ -121,8 +121,8 @@ export default function ScenesPage() {
         </div>
       ) : (
         <div className="text-center py-16 bg-[#0d0d0d] rounded-md border border-dashed border-[#1a1a1a]">
-           <p className="text-[#555] text-xs">No scenes generated yet.</p>
-           {!generating && <p className="text-[10px] text-[#444] mt-1">Click "Generate Scenes" to analyze your script.</p>}
+           <p className="text-[#555] text-xs">No scenes synced yet.</p>
+           {!syncing && <p className="text-[10px] text-[#444] mt-1">Click &quot;Sync Scenes&quot; to parse your script.</p>}
         </div>
       )}
 

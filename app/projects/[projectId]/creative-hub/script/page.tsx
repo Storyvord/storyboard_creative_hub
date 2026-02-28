@@ -147,6 +147,56 @@ function fdxToText(xml: string): string {
   }
 }
 
+/** Map LineType → FDX Paragraph Type */
+const LINE_TO_FDX_TYPE: Record<LineType, string> = {
+  blank: "",
+  scene_heading: "Scene Heading",
+  action: "Action",
+  character: "Character",
+  parenthetical: "Parenthetical",
+  dialogue: "Dialogue",
+  transition: "Transition",
+  shot: "Action",
+};
+
+/** Escape XML special characters */
+function escapeXml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/**
+ * Convert plain screenplay text → FDX XML.
+ * Uses classifyLine to determine paragraph types, producing a valid
+ * FinalDraft-compatible XML string that can be stored in script.content.
+ */
+function textToFdx(text: string, title?: string): string {
+  const lines = text.split("\n");
+  const paras: string[] = [];
+  let prevType: LineType | null = null;
+
+  for (const raw of lines) {
+    const trimmed = raw.trim();
+    const lt = classifyLine(trimmed, prevType);
+    prevType = lt;
+
+    if (lt === "blank") continue; // skip blank lines
+
+    const fdxType = LINE_TO_FDX_TYPE[lt] || "Action";
+    paras.push(`<Paragraph Type="${fdxType}"><Text>${escapeXml(trimmed)}</Text></Paragraph>`);
+  }
+
+  const safeTitle = escapeXml(title || "Untitled");
+  return [
+    `<?xml version="1.0" encoding="UTF-8"?>`,
+    `<FinalDraft DocumentType="Script" Template="No" Version="1">`,
+    `<TitlePage><Content Type="Title"><Text>${safeTitle}</Text></Content></TitlePage>`,
+    `<Content>`,
+    ...paras,
+    `</Content>`,
+    `</FinalDraft>`,
+  ].join("\n");
+}
+
 /** Convert draft scene objects → formatted screenplay text */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function scenesToText(scenes: Record<string, any>[]): string {
@@ -191,6 +241,8 @@ export default function ScriptPage() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editorContent, setEditorContent] = useState("");
+  const [isDirty, setIsDirty] = useState(false);
+  const originalFdxRef = useRef<string>(""); // The real FDX stored in DB
 
   /* ── Conversion flow state ──────────────────────────────── */
   const [pendingScriptId, setPendingScriptId] = useState<number | null>(null);
@@ -236,7 +288,9 @@ export default function ScriptPage() {
         const s = scripts[0];
         setScript(s);
         const raw = s.content || "";
+        originalFdxRef.current = raw;
         setEditorContent(isFdxXml(raw) ? fdxToText(raw) : raw);
+        setIsDirty(false);
 
         // Check if this script is mid-conversion
         if (s.requires_confirmation && s.review_status === "processing") {
@@ -249,8 +303,12 @@ export default function ScriptPage() {
           // Try to load draft immediately
           try {
             const review = await getScriptConversionReview(s.id);
+            const draftFdx = review?.draft?.fdx_preview || '';
             const draftScenes = review?.draft?.scenes || [];
-            if (draftScenes.length) {
+            if (draftFdx && isFdxXml(draftFdx)) {
+              setEditorContent(fdxToText(draftFdx));
+              setIsAwaitingConfirm(true);
+            } else if (draftScenes.length) {
               setEditorContent(scenesToText(draftScenes));
               setIsAwaitingConfirm(true);
             } else {
@@ -291,8 +349,13 @@ export default function ScriptPage() {
     const timer = setInterval(async () => {
       try {
         const review = await getScriptConversionReview(pendingScriptId);
+        const draftFdx = review?.draft?.fdx_preview || '';
         const draftScenes = review?.draft?.scenes || [];
-        if (draftScenes.length) {
+        if (draftFdx && isFdxXml(draftFdx)) {
+          setEditorContent(fdxToText(draftFdx));
+          setIsConverting(false);
+          setIsAwaitingConfirm(true);
+        } else if (draftScenes.length) {
           setEditorContent(scenesToText(draftScenes));
           setIsConverting(false);
           setIsAwaitingConfirm(true);
@@ -352,24 +415,30 @@ export default function ScriptPage() {
     if (!script) return;
     setSaving(true);
     try {
-      const updated = await updateScript(script.id, { content: editorContent });
-      setScript(updated);
-      toast.success("Script saved — reparsing scenes…");
+      if (isDirty) {
+        // User edited the text — convert back to FDX before saving
+        const newFdx = textToFdx(editorContent, script.title);
+        const updated = await updateScript(script.id, { content: newFdx });
+        setScript(updated);
+        originalFdxRef.current = newFdx;
+        setIsDirty(false);
+        toast.success("Script saved.");
+      } else {
+        toast.info("No changes — syncing scenes from script…");
+      }
 
-      // Trigger reparse to regenerate scenes from updated content
+      // Always sync scenes from the (possibly updated) FDX content
       try {
         await reparseScript(script.id);
-        // Refresh scenes & characters after reparse
         const [newScenes, newChars] = await Promise.all([
           getScenes(script.id).catch(() => []),
           getCharacters(script.id).catch(() => []),
         ]);
         setScenes(newScenes);
         setCharacters(newChars);
-        toast.success("Scenes updated from script.");
+        toast.success("Scenes synced from script.");
       } catch {
-        // Reparse may be async — scenes will update on next load
-        toast.info("Reparse queued — scenes will update shortly.");
+        toast.info("Scene sync in progress — scenes will update shortly.");
       }
     } catch (err: unknown) {
       toast.error(extractApiError(err as Error, "Save failed."));
@@ -382,14 +451,24 @@ export default function ScriptPage() {
     if (!script) return;
     setConfirming(true);
     try {
-      await confirmScriptConversion(script.id, {
-        action: "confirm",
-        screenplay_text: editorContent,
-      });
-      toast.success("Script confirmed — generating scenes & characters…");
+      if (isDirty) {
+        // User edited the draft — send screenplay_text for re-conversion
+        await confirmScriptConversion(script.id, {
+          action: "confirm",
+          screenplay_text: editorContent,
+        });
+        toast.success("Script confirmed — re-converting with edits…");
+      } else {
+        // User didn't edit — confirm as-is (no LLM re-conversion)
+        await confirmScriptConversion(script.id, {
+          action: "confirm",
+        });
+        toast.success("Script confirmed — syncing scenes…");
+      }
       setIsAwaitingConfirm(false);
       setIsConverting(false);
       setPendingScriptId(null);
+      setIsDirty(false);
       await fetchScript();
     } catch (err: unknown) {
       toast.error(extractApiError(err as Error, "Confirmation failed."));
@@ -467,6 +546,7 @@ export default function ScriptPage() {
 
     const next = text.slice(0, lineStart) + transformed + text.slice(lineEnd);
     setEditorContent(next);
+    setIsDirty(true);
     setActiveElement(element);
   };
 
@@ -811,7 +891,7 @@ export default function ScriptPage() {
                     <textarea
                       ref={editorRef}
                       value={editorContent}
-                      onChange={(e) => setEditorContent(e.target.value)}
+                      onChange={(e) => { setEditorContent(e.target.value); setIsDirty(true); }}
                       onKeyDown={handleEditorKeyDown}
                       spellCheck={false}
                       className="absolute inset-0 w-full h-full opacity-0 resize-none z-10 cursor-text"
