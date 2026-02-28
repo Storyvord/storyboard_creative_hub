@@ -206,13 +206,13 @@ export default function ScriptPage() {
 
   /* ── Derived: scene headings from the editor text ───────── */
   const scriptHeadings = useMemo(() => {
-    const headings: { text: string; index: number }[] = [];
+    const headings: { text: string; index: number; lineIndex: number }[] = [];
     const lines = editorContent.split("\n");
     let charIdx = 0;
     for (let i = 0; i < lines.length; i++) {
       const trimmed = lines[i].trim();
       if (SCENE_HEADING_RE.test(trimmed)) {
-        headings.push({ text: trimmed.toUpperCase(), index: charIdx });
+        headings.push({ text: trimmed.toUpperCase(), index: charIdx, lineIndex: i });
       }
       charIdx += lines[i].length + 1; // +1 for \n
     }
@@ -396,15 +396,25 @@ export default function ScriptPage() {
   };
 
   const jumpToHeading = useCallback(
-    (heading: { text: string; index: number }) => {
+    (heading: { text: string; index: number; lineIndex: number }) => {
+      // Scroll the visible rendered line into view with a smooth animation
+      const el = document.getElementById(`script-line-${heading.lineIndex}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Brief highlight flash so the user sees where they landed
+        el.classList.add('ring-1', 'ring-emerald-400/60');
+        setTimeout(() => el.classList.remove('ring-1', 'ring-emerald-400/60'), 1200);
+      }
+
+      // Also place the caret in the hidden textarea for editing continuity
       const ta = editorRef.current;
-      if (!ta) return;
-      ta.focus();
-      ta.setSelectionRange(heading.index, heading.index + heading.text.length);
-      const linesBefore = editorContent.slice(0, heading.index).split("\n").length;
-      ta.scrollTop = Math.max(0, (linesBefore - 3) * 22);
+      if (ta) {
+        ta.focus();
+        ta.setSelectionRange(heading.index, heading.index + heading.text.length);
+      }
     },
-    [editorContent]
+    []
   );
 
   /* ═══════════════════ Celtx shortcuts ════════════════════ */
@@ -764,7 +774,7 @@ export default function ScriptPage() {
                           }
                           if (type === "scene_heading") {
                             return (
-                              <div key={idx} className="text-[#f0f0f0] font-bold uppercase tracking-wide text-left">
+                              <div key={idx} id={`script-line-${idx}`} className="text-[#f0f0f0] font-bold uppercase tracking-wide text-left transition-all duration-500 rounded">
                                 {trimmed}
                               </div>
                             );
