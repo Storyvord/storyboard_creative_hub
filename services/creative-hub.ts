@@ -288,13 +288,17 @@ export const generateShots = async (sceneId: number): Promise<void> => {
     await api.post(`/api/creative_hub/scenes/${sceneId}/shots/`);
 }
 
-export const generateShotImage = async (shotId: number, model?: string, provider?: string): Promise<any> => {
+export const generateShotImage = async (shotId: number, model?: string, provider?: string, characterIds?: number[]): Promise<any> => {
     // Reuse the bulk endpoint for single generation as it handles async properly
-    const response = await api.post(`/api/creative_hub/previsualization/bulk-generate/`, {
+    const body: Record<string, any> = {
         shot_ids: [shotId],
         model,
         provider
-    });
+    };
+    if (characterIds && characterIds.length > 0) {
+        body.scene_character_ids = characterIds;
+    }
+    const response = await api.post(`/api/creative_hub/previsualization/bulk-generate/`, body);
     return response.data;
 }
 
@@ -312,12 +316,25 @@ export const reorderShots = async (shotOrders: { id: number; scene_id: number; o
     return response.data;
 }
 
-export const bulkGeneratePreviz = async (shotIds: number[], model?: string, provider?: string): Promise<any> => {
-    const response = await api.post(`/api/creative_hub/previsualization/bulk-generate/`, {
+export const bulkGeneratePreviz = async (
+    shotIds: number[],
+    model?: string,
+    provider?: string,
+    sceneCharacterIds?: number[],
+    globalCharacterIds?: number[]
+): Promise<any> => {
+    const body: Record<string, any> = {
         shot_ids: shotIds,
         model,
         provider
-    });
+    };
+    if (sceneCharacterIds && sceneCharacterIds.length > 0) {
+        body.scene_character_ids = sceneCharacterIds;
+    }
+    if (globalCharacterIds && globalCharacterIds.length > 0) {
+        body.character_ids = globalCharacterIds;
+    }
+    const response = await api.post(`/api/creative_hub/previsualization/bulk-generate/`, body);
     return response.data;
 }
 

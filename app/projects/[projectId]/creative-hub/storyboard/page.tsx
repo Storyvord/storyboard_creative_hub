@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardDataPaginated, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, createShot, reorderShots as reorderShotsApi } from "@/services/creative-hub";
+import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardDataPaginated, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, createShot, reorderShots as reorderShotsApi, getCharacters, updateShotDetails } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { Scene, Shot, Script } from "@/types/creative-hub";
 import { Loader2, Film, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon, CheckCircle, Circle, AlertTriangle, GripVertical, Plus, X } from "lucide-react";
@@ -11,6 +11,7 @@ import ShotDetailModal from "@/components/creative-hub/ShotDetailModal";
 import StoryboardSlideshowModal from "@/components/creative-hub/StoryboardSlideshowModal";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
+import MentionTextarea, { TaggedCharacter, SceneCharacterItem, GlobalCharacterItem } from "@/components/creative-hub/MentionTextarea";
 
 // Shot type abbreviation map — aligned with backend shot_types choices
 const SHOT_TYPE_MAP: Record<string, string> = {
@@ -53,6 +54,9 @@ interface ShotCardProps {
   isRetrying: boolean;
   error?: string;
   onUpdateShot: (shotId: number, field: string, value: string) => void;
+  onTagsChange: (shotId: number, tags: TaggedCharacter[]) => void;
+  sceneCharacters: SceneCharacterItem[];
+  globalCharacters: GlobalCharacterItem[];
   // Drag-and-drop
   onDragStart: (e: React.DragEvent, shotId: number) => void;
   onDragOver: (e: React.DragEvent) => void;
@@ -63,7 +67,7 @@ interface ShotCardProps {
   onDragEnterCard?: (e: React.DragEvent) => void;
 }
 
-function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isRetrying, error, onUpdateShot, onDragStart, onDragOver, onDrop, isDragging, onGeneratePreviz, isGhost, onDragEnterCard }: ShotCardProps) {
+function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isRetrying, error, onUpdateShot, onTagsChange, sceneCharacters, globalCharacters, onDragStart, onDragOver, onDrop, isDragging, onGeneratePreviz, isGhost, onDragEnterCard }: ShotCardProps) {
   const [desc, setDesc] = useState(shot.description || "");
 
   useEffect(() => { setDesc(shot.description || ""); }, [shot.description]);
@@ -152,13 +156,19 @@ function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isR
         </select>
       </div>
 
-      {/* Description */}
-      <div className="px-2.5 pb-2.5 flex-1">
-        <textarea
+      {/* Description — @mention textarea */}
+      <div className="px-2.5 pb-2.5 flex-1" onClick={(e) => e.stopPropagation()}>
+        <MentionTextarea
+          value={desc}
+          onChange={(val) => setDesc(val)}
+          onTagsChange={(tags) => onTagsChange(shot.id, tags)}
+          sceneCharacters={sceneCharacters}
+          globalCharacters={globalCharacters}
+          placeholder="Shot description... (type @ to tag characters)"
           className="w-full bg-transparent text-[11px] text-[#999] leading-[1.4] outline-none resize-none overflow-y-auto focus:text-white transition-colors"
           style={{ minHeight: '3em', maxHeight: '4.2em' }}
-          value={desc} onChange={(e) => setDesc(e.target.value)} onBlur={handleDescBlur}
-          onClick={(e) => e.stopPropagation()} placeholder="Shot description..."
+          rows={2}
+          onBlur={handleDescBlur as any}
         />
       </div>
     </div>
@@ -307,12 +317,14 @@ interface SceneItemProps {
   globalDraggingId: number | null;
   onGlobalDragStart: (shotId: number) => void;
   onGlobalDragEnd: () => void;
+  onTagsChange: (shotId: number, tags: TaggedCharacter[]) => void;
+  globalCharacters: GlobalCharacterItem[];
 }
 
 function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, loadingShots,
   onGenerateShots, trackedTasks, shotErrors, selectedShotIds, onToggleSelectShot,
   retryingTasks, onUpdateShot, onReorderShots, onInsertShot, scriptId, onGeneratePreviz,
-  globalDraggingId, onGlobalDragStart, onGlobalDragEnd }: SceneItemProps) {
+  globalDraggingId, onGlobalDragStart, onGlobalDragEnd, onTagsChange, globalCharacters }: SceneItemProps) {
 
   const [dragOverShotId, setDragOverShotId] = useState<number | null>(null);
 
@@ -431,6 +443,15 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
                     isSelected={selectedShotIds.has(shot.id)} onToggleSelect={() => onToggleSelectShot(shot.id)}
                     isGenerating={!!trackedTasks[shot.id]} isRetrying={!!retryingTasks[shot.id]}
                     error={shotErrors[shot.id]} onUpdateShot={onUpdateShot}
+                    onTagsChange={onTagsChange}
+                    sceneCharacters={(scene.scene_characters || []).map((sc: any) => ({
+                      id: sc.id,
+                      character_id: sc.character?.id || sc.character_id,
+                      character_name: sc.character?.name || sc.character_name || "",
+                      image_url: sc.image_url,
+                      character_image_url: sc.character?.image_url,
+                    }))}
+                    globalCharacters={globalCharacters}
                     onDragStart={handleDragStart}
                     onDragOver={handleContainerDragOver}
                     onDrop={handleDrop}
@@ -494,6 +515,15 @@ export default function StoryboardPage() {
   const [retryingTasks, setRetryingTasks] = useState<Record<number, boolean>>({});
   const [shotErrors, setShotErrors] = useState<Record<number, string>>({});
   const [initializedScriptId, setInitializedScriptId] = useState<number | null>(null);
+
+  // @ Character tagging
+  const [globalCharacters, setGlobalCharacters] = useState<GlobalCharacterItem[]>([]);
+  // shotTaggedCharacters: shotId -> list of TaggedCharacter (from @mention tags)
+  const [shotTaggedCharacters, setShotTaggedCharacters] = useState<Record<number, TaggedCharacter[]>>({});
+
+  const handleTagsChange = useCallback((shotId: number, tags: TaggedCharacter[]) => {
+    setShotTaggedCharacters(prev => ({ ...prev, [shotId]: tags }));
+  }, []);
   
   const [isSlideshowOpen, setIsSlideshowOpen] = useState(false);
   const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
@@ -607,8 +637,9 @@ export default function StoryboardPage() {
     [scenes, activeScriptId, nextPage, parseStoryboardPage],
   );
 
-  // Inline shot update (local)
+  // Inline shot update — updates local state immediately and persists to API
   const handleUpdateShot = useCallback((shotId: number, field: string, value: string) => {
+    // 1. Optimistic local update
     setShotsMap(prev => {
       const copy = { ...prev };
       for (const [sceneIdStr, shots] of Object.entries(copy)) {
@@ -621,6 +652,10 @@ export default function StoryboardPage() {
       }
       return copy;
     });
+    // 2. Persist to backend (fire-and-forget; silently logs errors)
+    updateShotDetails(shotId, { [field]: value } as any).catch(
+      (err) => console.error(`[handleUpdateShot] Failed to save ${field}:`, err)
+    );
   }, []);
 
   // Drag-and-drop reorder (supports cross-scene)
@@ -901,6 +936,18 @@ export default function StoryboardPage() {
         setAllScenesMeta(allScenes.sort((a, b) => a.order - b.order));
       } catch (e) { console.error("Failed to fetch scene list:", e); }
 
+      // Fetch global characters for @mention tagging
+      try {
+        const chars = await getCharacters(scriptId);
+        setGlobalCharacters(
+          (chars || []).map((c: any) => ({
+            id: c.id,
+            name: c.name || c.character_name || "Character",
+            image_url: c.image_url,
+          }))
+        );
+      } catch (e) { console.error("Failed to fetch global characters:", e); }
+
       // Fetch page 1 of heavy storyboard data (scenes + shots + previz)
       const { results, count, next } = await getStoryboardDataPaginated(scriptId, 1);
       const { parsedScenes, parsedShotsMap } = parseStoryboardPage(results, scriptId);
@@ -967,7 +1014,25 @@ export default function StoryboardPage() {
       if (pendingPrevizShotIds.length === 0) return;
       setIsBulkGenerating(true);
       try {
-          const response = await bulkGeneratePreviz(pendingPrevizShotIds, model, provider);
+          const allTags = pendingPrevizShotIds.flatMap(shotId => shotTaggedCharacters[shotId] || []);
+
+          // SceneCharacter IDs (characters assigned to this scene)
+          const sceneCharIds = Array.from(new Set(
+            allTags.filter(t => t.type === "scene_character").map(t => t.id)
+          ));
+
+          // Global Character IDs (characters from across the script, not in this scene)
+          const globalCharIds = Array.from(new Set(
+            allTags.filter(t => t.type === "global_character").map(t => t.id)
+          ));
+
+          const response = await bulkGeneratePreviz(
+            pendingPrevizShotIds,
+            model,
+            provider,
+            sceneCharIds.length > 0 ? sceneCharIds : undefined,
+            globalCharIds.length > 0 ? globalCharIds : undefined
+          );
           if (response?.shot_ids && response?.task_ids) {
               setTrackedTasks(prev => { const c = { ...prev }; response.shot_ids.forEach((sid: number, i: number) => { c[sid] = response.task_ids[i]; }); return c; });
               setShotErrors(prev => { const c = { ...prev }; response.shot_ids.forEach((sid: number) => { delete c[sid]; }); return c; });
@@ -1163,6 +1228,8 @@ export default function StoryboardPage() {
                       globalDraggingId={globalDraggingId}
                       onGlobalDragStart={(shotId) => setGlobalDraggingId(shotId)}
                       onGlobalDragEnd={() => setGlobalDraggingId(null)}
+                      onTagsChange={handleTagsChange}
+                      globalCharacters={globalCharacters}
                     />
                   </div>
                 ))}
@@ -1194,6 +1261,8 @@ export default function StoryboardPage() {
             setIsModelSelectorOpen(true); 
         }}
         showGenerateButton={true}
+        globalCharacters={globalCharacters}
+        onTagsChange={handleTagsChange}
         onUpdateShot={(shotId, field, value) => {
            handleUpdateShot(shotId, field, value);
            if (selectedShot && selectedShot.id === shotId) {

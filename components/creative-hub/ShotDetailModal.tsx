@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { uploadPreviz, getShotPreviz, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails } from "@/services/creative-hub";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
+import MentionTextarea, { TaggedCharacter, SceneCharacterItem, GlobalCharacterItem } from "@/components/creative-hub/MentionTextarea";
 
 const SHOT_TYPE_OPTIONS = [
     "Close-Up",
@@ -70,13 +71,16 @@ interface ShotDetailModalProps {
   showGenerateButton?: boolean;
   onRefresh?: () => void;
   onUpdateShot?: (shotId: number, field: string, value: any) => void;
+  onTagsChange?: (shotId: number, tags: TaggedCharacter[]) => void;
   error?: string;
   isGenerating?: boolean;
+  globalCharacters?: GlobalCharacterItem[];
 }
 
 export default function ShotDetailModal({ 
     shot, scene, isOpen, onClose, onPrev, onNext, 
-    onGeneratePreviz, showGenerateButton, onRefresh, onUpdateShot, error, isGenerating
+    onGeneratePreviz, showGenerateButton, onRefresh, onUpdateShot, onTagsChange, error, isGenerating,
+    globalCharacters = []
 }: ShotDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'shot' | 'script'>('shot');
   const [previzHistory, setPrevizHistory] = useState<any[]>([]);
@@ -94,6 +98,7 @@ export default function ShotDetailModal({
     });
   const [editPrompt, setEditPrompt] = useState('');
   const [isEditingPreviz, setIsEditingPreviz] = useState(false);
+  const [taggedCharacterIds, setTaggedCharacterIds] = useState<TaggedCharacter[]>([]);
 
   const hasActivePrevizImage = !!shot?.image_url;
     const hasEditPrompt = !!editPrompt.trim();
@@ -296,13 +301,22 @@ export default function ShotDetailModal({
       }
   };
 
+  // Auto-save a single field silently (used by selects on change and description on blur)
+  const autoSaveField = async (field: string, value: string | null) => {
+      if (!shot) return;
+      try {
+          await updateShotDetails(shot.id, { [field]: value } as any);
+          if (onUpdateShot) onUpdateShot(shot.id, field, value as any);
+      } catch (error) {
+          console.error(`[autoSaveField] Failed to save ${field}:`, error);
+          toast.error(extractApiError(error, 'Failed to save changes.'));
+      }
+  };
+
   const handleMainGenerateClick = async () => {
       if (hasEditPrompt) {
           await handleEditPromptSubmit();
           return;
-      }
-      if (isDetailsDirty) {
-          await handleSaveDetails();
       }
       if (onGeneratePreviz && shot) {
           onGeneratePreviz(shot.id);
@@ -418,14 +432,32 @@ export default function ShotDetailModal({
                                 </div>
                             )}
 
-                            {/* Description */}
-                            <section>
+                                <section>
                                 <h3 className="text-[10px] font-bold text-[#555] uppercase tracking-widest mb-2">Description</h3>
-                                <textarea
+                                <MentionTextarea
                                     value={detailsForm.description}
-                                    onChange={(e) => setDetailsForm((prev) => ({ ...prev, description: e.target.value }))}
+                                    onChange={(val) => setDetailsForm((prev) => ({ ...prev, description: val }))}
+                                    onTagsChange={(tags) => {
+                                        setTaggedCharacterIds(tags);
+                                        if (onTagsChange && shot) onTagsChange(shot.id, tags);
+                                    }}
+                                    sceneCharacters={(scene?.scene_characters || []).map((sc: any) => ({
+                                        id: sc.id,
+                                        character_id: sc.character?.id || sc.character_id,
+                                        character_name: sc.character?.name || sc.character_name || "",
+                                        image_url: sc.image_url,
+                                        character_image_url: sc.character?.image_url,
+                                    }))}
+                                    globalCharacters={globalCharacters}
                                     className={`w-full leading-relaxed text-sm bg-[#111] p-3 rounded-md border border-[#1a1a1a] resize-none min-h-[84px] focus:outline-none focus:border-emerald-500/40 ${disableDetails ? 'text-[#555] opacity-60 cursor-not-allowed' : 'text-[#999]'}`}
                                     disabled={disableDetails || savingDetails}
+                                    placeholder="Shot description... (type @ to tag characters)"
+                                    rows={4}
+                                    onBlur={() => {
+                                        if (detailsForm.description !== (shot?.description || "")) {
+                                            autoSaveField('description', detailsForm.description);
+                                        }
+                                    }}
                                 />
 
                                 <div className={`mt-3 space-y-2 ${disableDetails ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -435,7 +467,11 @@ export default function ShotDetailModal({
                                             <span className="text-[9px] text-[#555] uppercase block mb-1">Shot Type</span>
                                             <select
                                                 value={detailsForm.type}
-                                                onChange={(e) => setDetailsForm((prev) => ({ ...prev, type: e.target.value }))}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setDetailsForm((prev) => ({ ...prev, type: val }));
+                                                    autoSaveField('type', val);
+                                                }}
                                                 className="w-full bg-[#111] border border-[#222] rounded-md text-xs text-[#ccc] px-2 py-2 outline-none focus:border-emerald-500/40"
                                                 disabled={disableDetails || savingDetails}
                                             >
@@ -448,7 +484,11 @@ export default function ShotDetailModal({
                                             <span className="text-[9px] text-[#555] uppercase block mb-1">Movement</span>
                                             <select
                                                 value={detailsForm.movement || ""}
-                                                onChange={(e) => setDetailsForm((prev) => ({ ...prev, movement: e.target.value }))}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setDetailsForm((prev) => ({ ...prev, movement: val }));
+                                                    autoSaveField('movement', val || null);
+                                                }}
                                                 className="w-full bg-[#111] border border-[#222] rounded-md text-xs text-[#ccc] px-2 py-2 outline-none focus:border-emerald-500/40"
                                                 disabled={disableDetails || savingDetails}
                                             >
@@ -462,7 +502,11 @@ export default function ShotDetailModal({
                                             <span className="text-[9px] text-[#555] uppercase block mb-1">Camera Angle</span>
                                             <select
                                                 value={detailsForm.camera_angle || ""}
-                                                onChange={(e) => setDetailsForm((prev) => ({ ...prev, camera_angle: e.target.value }))}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setDetailsForm((prev) => ({ ...prev, camera_angle: val }));
+                                                    autoSaveField('camera_angle', val || null);
+                                                }}
                                                 className="w-full bg-[#111] border border-[#222] rounded-md text-xs text-[#ccc] px-2 py-2 outline-none focus:border-emerald-500/40"
                                                 disabled={disableDetails || savingDetails}
                                             >
@@ -476,7 +520,11 @@ export default function ShotDetailModal({
                                             <span className="text-[9px] text-[#555] uppercase block mb-1">Lighting</span>
                                             <select
                                                 value={detailsForm.lighting || ""}
-                                                onChange={(e) => setDetailsForm((prev) => ({ ...prev, lighting: e.target.value }))}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setDetailsForm((prev) => ({ ...prev, lighting: val }));
+                                                    autoSaveField('lighting', val || null);
+                                                }}
                                                 className="w-full bg-[#111] border border-[#222] rounded-md text-xs text-[#ccc] px-2 py-2 outline-none focus:border-emerald-500/40"
                                                 disabled={disableDetails || savingDetails}
                                             >
@@ -487,14 +535,8 @@ export default function ShotDetailModal({
                                             </select>
                                         </div>
                                     </div>
-                                    {isDetailsDirty && !disableDetails && (
-                                        <button
-                                            onClick={handleSaveDetails}
-                                            disabled={savingDetails}
-                                            className="w-full bg-[#1f2937] hover:bg-[#374151] text-white py-2 rounded-md text-xs font-medium transition-colors disabled:opacity-50"
-                                        >
-                                            {savingDetails ? 'Saving...' : 'Save Details'}
-                                        </button>
+                                    {savingDetails && (
+                                        <p className="text-[9px] text-[#555] text-center animate-pulse">Saving...</p>
                                     )}
                                 </div>
 
