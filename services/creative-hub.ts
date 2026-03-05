@@ -223,7 +223,53 @@ export const generateCharacterImage = async (characterId: number, model?: string
     });
 }
 
-// Wardrobe/Cloths
+// Locations
+export const getLocations = async (scriptId: number): Promise<any[]> => {
+    const response = await api.get(`/api/creative_hub/scripts/${scriptId}/locations/`);
+    if (Array.isArray(response.data)) return response.data;
+    if (response.data.results) return response.data.results;
+    return [];
+}
+
+export const createLocation = async (scriptId: number, data: { name: string; description?: string; time?: string; image_url?: File }): Promise<any> => {
+    const formData = new FormData();
+    formData.append('name', data.name);
+    formData.append('script', String(scriptId));
+    if (data.description) formData.append('description', data.description);
+    if (data.time) formData.append('time', data.time);
+    if (data.image_url) formData.append('image_url', data.image_url);
+    const response = await api.post(`/api/creative_hub/scripts/${scriptId}/locations/`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+}
+
+export const updateLocation = async (locationId: number, data: { name?: string; description?: string; time?: string; image_url?: File | null }): Promise<any> => {
+    const hasFile = data.image_url instanceof File;
+    if (hasFile) {
+        const formData = new FormData();
+        Object.entries(data).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) formData.append(key, value as string | Blob);
+        });
+        const response = await api.put(`/api/creative_hub/locations/${locationId}/`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    }
+    const response = await api.put(`/api/creative_hub/locations/${locationId}/`, data);
+    return response.data;
+}
+
+export const deleteLocation = async (locationId: number): Promise<void> => {
+    await api.delete(`/api/creative_hub/locations/${locationId}/`);
+}
+
+export const generateLocationImage = async (locationId: number, model?: string, provider?: string): Promise<any> => {
+    const response = await api.post(`/api/creative_hub/locations/${locationId}/generate-image/`, { model, provider });
+    return response.data;
+}
+
+
 export const getCloths = async (scriptId: number): Promise<Cloth[]> => {
      const response = await api.get(`/api/creative_hub/scripts/${scriptId}/cloths/`);
      if (Array.isArray(response.data)) return response.data;

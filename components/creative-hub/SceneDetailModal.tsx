@@ -185,7 +185,31 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6 space-y-8">
             
+            {/* Location Image Banner */}
+            {scene.location_detail?.image_url && (
+              <section>
+                <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-emerald-400" />
+                  Location
+                </h3>
+                <div className="relative rounded-md overflow-hidden border border-[#1a1a1a] bg-[#0a0a0a]">
+                  <img
+                    src={scene.location_detail.image_url}
+                    alt={scene.location_detail.name}
+                    className="w-full object-cover max-h-48"
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                    <p className="text-white text-sm font-semibold">{scene.location_detail.name}</p>
+                    {scene.location_detail.description && (
+                      <p className="text-[#aaa] text-xs line-clamp-1">{scene.location_detail.description}</p>
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+
             {/* Description */}
+
             <section>
                 <h3 className="text-lg font-semibold text-white mb-3">Description</h3>
                 {isEditing ? (

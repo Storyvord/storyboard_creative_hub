@@ -18,6 +18,7 @@ export interface Scene {
   description: string;
   order: number;
   location?: string;
+  location_detail?: Location | null;
   int_ext?: string;
   time?: string;
   scene_characters?: any[];
@@ -28,6 +29,15 @@ export interface Character {
   id: number;
   name: string;
   description?: string;
+  image_url?: string;
+}
+
+export interface Location {
+  id: number;
+  script: number;
+  name: string;
+  description?: string;
+  time?: string;
   image_url?: string;
 }
 

@@ -400,6 +400,19 @@ export default function ShotDetailModal({
                             Scene {scene.order}: {scene.scene_name}
                         </h2>
                     )}
+                    {/* Location image reference strip */}
+                    {scene?.location_detail?.image_url && (
+                      <div className="mt-2 rounded-md overflow-hidden border border-emerald-500/20 relative">
+                        <img
+                          src={scene.location_detail.image_url}
+                          alt={scene.location_detail.name}
+                          className="w-full h-16 object-cover opacity-80"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent flex items-center px-2">
+                          <span className="text-[10px] text-emerald-300 font-semibold truncate">📍 {scene.location_detail.name}</span>
+                        </div>
+                      </div>
+                    )}
                 </div>
 
                 {/* Tabs */}

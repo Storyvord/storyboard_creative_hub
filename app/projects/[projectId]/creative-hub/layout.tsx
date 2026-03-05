@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
-import { FileText, Clapperboard, Users, Shirt, Film, Video, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileText, Clapperboard, Users, Shirt, Film, Video, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
+
 import { clsx } from "clsx";
 import { useState } from "react";
 
@@ -20,6 +21,7 @@ export default function CreativeHubLayout({
     { name: "Script", href: `/projects/${projectId}/creative-hub/script`, icon: FileText },
     { name: "Scenes", href: `/projects/${projectId}/creative-hub/scenes`, icon: Clapperboard },
     { name: "Characters", href: `/projects/${projectId}/creative-hub/characters`, icon: Users },
+    { name: "Locations", href: `/projects/${projectId}/creative-hub/locations`, icon: MapPin },
     { name: "Wardrobe", href: `/projects/${projectId}/creative-hub/wardrobe`, icon: Shirt },
     { name: "Storyboarding", href: `/projects/${projectId}/creative-hub/storyboard`, icon: Film },
   ];
