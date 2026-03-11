@@ -397,7 +397,18 @@ export const updateShotDetails = async (shotId: number, data: Partial<Shot>): Pr
     return response.data;
 }
 
-export const createScriptPrevisualization = async (data: { script: number, description: string, aspect_ratio: string, camera_angle?: string, shot_type?: string, generate_ai_image: boolean; model?: string; provider?: string; }): Promise<any> => {
+export const createScriptPrevisualization = async (data: {
+  script: number;
+  description: string;
+  aspect_ratio: string;
+  camera_angle?: string;
+  shot_type?: string;
+  generate_ai_image: boolean;
+  model?: string;
+  provider?: string;
+  character_ids?: number[];
+  location_ids?: number[];
+}): Promise<any> => {
     const response = await api.post(`/api/creative_hub/previsualization/create/`, data);
     return response.data;
 }

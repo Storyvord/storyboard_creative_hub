@@ -274,6 +274,8 @@ export default function MentionTextarea({
         const pos = before.length + name.length + 2;
         textareaRef.current.setSelectionRange(pos, pos);
         textareaRef.current.focus();
+        // Re-sync backdrop so highlight aligns with cursor after insert
+        syncScroll();
       }
     }, 0);
   };
@@ -336,11 +338,6 @@ export default function MentionTextarea({
 
   return (
     <div ref={containerRef} className="relative">
-      {/*
-        Highlight backdrop — same font/padding as the textarea, rendered
-        behind it. The textarea sits on top with transparent text so the
-        colored spans show through.
-      */}
       <div
         ref={backdropRef}
         aria-hidden="true"
@@ -353,8 +350,13 @@ export default function MentionTextarea({
           overflowY: "auto",
           overflowX: "hidden",
           whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-          // text color for plain text — same as the textarea default
+          wordWrap: "break-word",
+          overflowWrap: "break-word",
+          // The background text must match textarea identically to align cursor
+          fontFamily: "inherit",
+          fontSize: "inherit",
+          lineHeight: "inherit",
+          letterSpacing: "inherit",
           color: disabled ? "#555" : "#999",
           zIndex: 0,
         }}
@@ -389,10 +391,9 @@ export default function MentionTextarea({
           ...style,
           position: "relative",
           zIndex: 1,
-          // Make textarea text transparent so backdrop shows through.
-          // caretColor keeps the cursor visible.
-          color: "transparent",
-          caretColor: disabled ? "transparent" : "white",
+          color: disabled ? "#555" : "#fff",
+          WebkitTextFillColor: "transparent", // Hack to keep caret visible but text invisible
+          caretColor: "white",
           background: "transparent",
         }}
       />
