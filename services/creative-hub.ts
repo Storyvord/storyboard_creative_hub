@@ -469,6 +469,21 @@ export const getStoryboardData = async (scriptId: string | number): Promise<any[
     return results;
 };
 
+// Fetches global previsualizations for a script sorted by latest first
+export const getScriptPrevisualizations = async (
+    scriptId: string | number,
+    page: number = 1
+): Promise<{ results: any[]; next: string | null }> => {
+    const response = await api.get(`/api/creative_hub/previsualization/list/?script_id=${scriptId}&page=${page}`);
+    if (response.data.results) {
+        return { results: response.data.results, next: response.data.next };
+    }
+    if (Array.isArray(response.data)) {
+        return { results: response.data, next: null };
+    }
+    return { results: [], next: null };
+};
+
 // Fetches a single scene with nested shots and previsualizations
 export const getSceneStoryboardData = async (sceneId: number): Promise<any> => {
     const response = await api.get(`/api/creative_hub/previsualization/list/v2/?scene_ids=${sceneId}`);

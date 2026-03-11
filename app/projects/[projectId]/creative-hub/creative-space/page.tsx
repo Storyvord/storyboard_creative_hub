@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, Send, LayoutPanelTop, MonitorPlay, AlertTriangle, User, MapPin } from "lucide-react";
+import { Loader2, Send, LayoutPanelTop, MonitorPlay, AlertTriangle, User, MapPin, History } from "lucide-react";
 import { useParams } from "next/navigation";
 import {
   getScripts,
@@ -11,10 +11,17 @@ import {
   getCharacters,
   getLocations,
   ImageModel,
+  getScriptPrevisualizations,
 } from "@/services/creative-hub";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import { ASPECT_RATIOS, CAMERA_ANGLES } from "@/app/projects/[projectId]/creative-hub/storyboard/page";
+import dayjs from "dayjs";
+import isToday from "dayjs/plugin/isToday";
+import isYesterday from "dayjs/plugin/isYesterday";
+
+dayjs.extend(isToday);
+dayjs.extend(isYesterday);
 
 const SHOT_TYPES = [
   "Close-Up", "Wide Shot", "Tracking Shot", "Over-The-Shoulder",
@@ -398,7 +405,18 @@ export default function CreativeSpacePage() {
   const [cameraAngle, setCameraAngle] = useState("");
   const [shotType,    setShotType]    = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [history,     setHistory]     = useState<any[]>([]);
+
+  // View toggle state
+  const [showHistory, setShowHistory] = useState(false);
+
+  // History state
+  const [history, setHistory] = useState<any[]>([]);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [hasMoreHistory, setHasMoreHistory] = useState(true);
+  const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [lastScrollHeight, setLastScrollHeight] = useState<number>(0);
 
   const [imageModels,       setImageModels]       = useState<ImageModel[]>([]);
   const [selectedModelName, setSelectedModelName] = useState("");
@@ -408,6 +426,42 @@ export default function CreativeSpacePage() {
   const [locations,        setLocations]        = useState<TaggedLocation[]>([]);
   const [taggedCharacters, setTaggedCharacters] = useState<TaggedCharacter[]>([]);
   const [taggedLocations,  setTaggedLocations]  = useState<TaggedLocation[]>([]);
+
+  const fetchHistory = async (sid: number, page: number, isInitial: boolean = false) => {
+    if (isFetchingHistory) return;
+    setIsFetchingHistory(true);
+    try {
+      const { results, next } = await getScriptPrevisualizations(sid, page);
+      const items = Array.isArray(results) ? [...results] : [];
+
+      // Results usually come newest first (ex: ID descending).
+      // Since we want newest at the bottom, we should reverse them.
+      // E.g., if page 1 has IDs 10..1, reversed is 1..10 (10 at bottom).
+      const newItems = items;
+
+      if (containerRef.current) {
+        setLastScrollHeight(containerRef.current.scrollHeight);
+      }
+
+      setHistory((prev) => {
+        if (isInitial) return newItems; // first load
+        // Avoid duplicates by preserving existing history and adding older items
+        const existingIds = prev.map((item) => item.id);
+        const filteredNewItems = newItems.filter((i: any) => !existingIds.includes(i.id));
+
+        // Note: New items represent 'older' images from the next page.
+        // We append them to the START of the array so they sit at the top of the chat view.
+        return [...filteredNewItems, ...prev];
+      });
+
+      setHasMoreHistory(!!next);
+      setHistoryPage(page);
+    } catch (err: any) {
+      console.error("Failed to fetch previz history:", err);
+    } finally {
+      setIsFetchingHistory(false);
+    }
+  };
 
   useEffect(() => {
     if (!projectId) return;
@@ -439,6 +493,39 @@ export default function CreativeSpacePage() {
       .catch(console.error);
   }, [projectId]);
 
+  // Maintain scroll position when compiling new older history
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    // Auto-scroll to bottom on first load or when generating new shot
+    if (historyPage === 1 && history.length > 0) {
+      setTimeout(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        }
+      }, 50);
+    }
+    // Maintain relative scroll offset when older messages are injected at the top
+    else if (historyPage > 1) {
+      setTimeout(() => {
+        if (containerRef.current) {
+          const newScrollHeight = containerRef.current.scrollHeight;
+          const diff = newScrollHeight - lastScrollHeight;
+          containerRef.current.scrollTop += diff;
+        }
+      }, 50);
+    }
+  }, [history, historyPage, lastScrollHeight]);
+
+  const handleScroll = () => {
+    if (!containerRef.current || isFetchingHistory || !hasMoreHistory || !scriptId) return;
+    
+    // If scrolled to top with a 100px threshold
+    if (containerRef.current.scrollTop <= 100) {
+      fetchHistory(scriptId, historyPage + 1);
+    }
+  };
+
   // Derive tagged entities live from prompt changes
   useEffect(() => {
     setTaggedCharacters(getTaggedCharactersFromText(prompt, characters));
@@ -468,18 +555,28 @@ export default function CreativeSpacePage() {
     const locIds  = capturedLocs.map((l) => l.id);
     const tempId  = Date.now();
 
-    setHistory((prev) => [{
-      id: tempId,
-      isGenerating: true,
-      prompt: capturedPrompt,
-      aspect_ratio: aspectRatio,
-      camera_angle: cameraAngle,
-      shot_type: shotType,
-      model_name: selectedModelName,
-      taggedCharacters: capturedChars,
-      taggedLocations:  capturedLocs,
-    }, ...prev]);
+    setHistory((prev) => {
+      const sortedResult = [...prev, {
+        id: tempId,
+        isGenerating: true,
+        prompt: capturedPrompt,
+        aspect_ratio: aspectRatio,
+        camera_angle: cameraAngle,
+        shot_type: shotType,
+        model_name: selectedModelName,
+        taggedCharacters: capturedChars,
+        taggedLocations:  capturedLocs,
+        created_at: new Date().toISOString()
+      }];
+      // Sort them by id or just append to end so it displays at bottom.
+      return sortedResult;
+    });
     // Do NOT clear prompt yet — clear only on success so the user can retry on error
+
+    // Scroll to bottom immediately to see generation state
+    setTimeout(() => {
+      if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }, 50);
 
     try {
       const response = await createScriptPrevisualization({
@@ -503,6 +600,12 @@ export default function CreativeSpacePage() {
               : item
           )
         );
+        // Scroll to bottom after arrival
+        if (showHistory) {
+          setTimeout(() => {
+            if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight;
+          }, 50);
+        }
         setPrompt(""); // only clear on success
       } else {
         setHistory((prev) => prev.filter((item) => item.id !== tempId));
@@ -523,6 +626,33 @@ export default function CreativeSpacePage() {
     }
   };
 
+  // Group history items by date explicitly resolving "Today" and "Yesterday."
+  // Since items are fetched descending (newest first) and we reversed them to place oldest at top,
+  // we can iterate cleanly. However, if the server ordered them newest-first natively, they should be in 
+  // chronological order for the chat interface (oldest at top). Let's sort to guarantee chronological order.
+  const chronologicalHistory = [...history].sort((a, b) => {
+    // If temp generating item, id is large date.now(), puts it at end appropriately
+    const idA = a.id ?? 0;
+    const idB = b.id ?? 0;
+    return idA - idB; 
+  });
+
+  const groupedHistory = chronologicalHistory.reduce((acc: any, item: any) => {
+    if (!item.created_at) return acc;
+    const dateObj = dayjs(item.created_at);
+    let label = dateObj.format("MMM D, YYYY");
+
+    if (dateObj.isToday()) {
+      label = "Today";
+    } else if (dateObj.isYesterday()) {
+      label = "Yesterday";
+    }
+
+    if (!acc[label]) acc[label] = [];
+    acc[label].push(item);
+    return acc;
+  }, {} as Record<string, any[]>);
+
   return (
     <div className="relative flex flex-col h-full bg-[#0a0a0a] overflow-hidden">
 
@@ -538,12 +668,45 @@ export default function CreativeSpacePage() {
             <span className="text-sky-500 font-medium">#locations</span> to include reference images.
           </p>
         </div>
+        <button
+          onClick={() => {
+            // Trigger fetch dynamically when opening history view if we haven't yet
+            if (!showHistory && scriptId && history.length === 0 && hasMoreHistory) {
+              fetchHistory(scriptId, 1, true);
+            }
+            setShowHistory(!showHistory);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] border border-[#333] rounded-md text-sm text-white transition-colors"
+        >
+          {showHistory ? (
+            <>
+              <MonitorPlay className="w-4 h-4" />
+              <span>Back to Generator</span>
+            </>
+          ) : (
+            <>
+              <History className="w-4 h-4" />
+              <span>View History</span>
+            </>
+          )}
+        </button>
       </div>
 
       {/* Scrollable history grid */}
-      <div className="flex-1 overflow-y-auto p-6 pb-56 scroll-smooth">
-        <div className="max-w-[1400px] mx-auto">
-          {history.length === 0 ? (
+      <div 
+        ref={containerRef}
+        onScroll={handleScroll}
+        className={`flex-1 overflow-y-auto p-6 pb-[200px] scroll-smooth ${showHistory ? 'block' : 'hidden'}`}
+      >
+        <div className="max-w-[1400px] mx-auto flex flex-col gap-10">
+          
+          {isFetchingHistory && hasMoreHistory && (
+             <div className="flex justify-center p-4">
+               <Loader2 className="w-5 h-5 text-emerald-500 animate-spin" />
+             </div>
+          )}
+
+          {history.length === 0 && !isFetchingHistory ? (
             <div className="h-full min-h-[50vh] flex flex-col items-center justify-center text-[#444]">
               <MonitorPlay className="w-16 h-16 mb-4 opacity-20" />
               <p className="text-sm">Your generated imagery will appear here.</p>
@@ -553,80 +716,97 @@ export default function CreativeSpacePage() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {history.map((item, idx) => (
-                <div key={idx} className="bg-[#111] border border-[#222] rounded-xl overflow-hidden flex flex-col group">
-                  <div className="aspect-video bg-[#050505] relative flex items-center justify-center">
-                    {item.isGenerating ? (
-                      <div className="flex flex-col items-center justify-center">
-                        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mb-3" />
-                        <span className="text-emerald-400 text-xs font-medium animate-pulse">Generating Vision...</span>
-                      </div>
-                    ) : item.isError ? (
-                      <div className="flex flex-col items-center justify-center gap-3 px-6 text-center">
-                        <AlertTriangle className="w-8 h-8 text-red-500/70 shrink-0" />
-                        <p className="text-red-400 text-xs leading-relaxed">{item.errorMessage}</p>
-                      </div>
-                    ) : item.image_url ? (
-                      <img src={item.image_url} alt="Generated Previz" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="text-[#333]"><MonitorPlay className="w-8 h-8" /></div>
-                    )}
-                  </div>
-
-                  <div className="p-4 flex flex-col gap-2">
-                    <p className="text-sm text-[#ccc] line-clamp-3">"{item.description || item.prompt}"</p>
-
-                    {/* Tagged entity chips on history card */}
-                    {((item.taggedCharacters?.length > 0) || (item.taggedLocations?.length > 0)) && (
-                      <div className="flex flex-wrap gap-1.5 mt-1">
-                        {item.taggedCharacters?.map((c: TaggedCharacter) => (
-                          <div key={`char-${c.id}`} className="flex items-center gap-1 bg-emerald-950/40 border border-emerald-900/30 rounded-full pl-0.5 pr-2 py-0.5">
-                            <div className="w-4 h-4 rounded-full overflow-hidden bg-[#1a1a1a]">
-                              {c.image_url
-                                ? <img src={c.image_url} alt={c.name} className="w-full h-full object-cover" />
-                                : <User className="w-2.5 h-2.5 m-auto mt-0.5 text-emerald-500/60" />}
-                            </div>
-                            <span className="text-[10px] text-emerald-400 font-medium">{c.name}</span>
-                          </div>
-                        ))}
-                        {item.taggedLocations?.map((l: TaggedLocation) => (
-                          <div key={`loc-${l.id}`} className="flex items-center gap-1 bg-sky-950/40 border border-sky-900/30 rounded-full pl-0.5 pr-2 py-0.5">
-                            <div className="w-4 h-4 rounded-full overflow-hidden bg-[#1a1a1a]">
-                              {l.image_url
-                                ? <img src={l.image_url} alt={l.name} className="w-full h-full object-cover" />
-                                : <MapPin className="w-2.5 h-2.5 m-auto mt-0.5 text-sky-500/60" />}
-                            </div>
-                            <span className="text-[10px] text-sky-400 font-medium">{l.name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap gap-1.5 mt-auto pt-2">
-                      <span className="text-[10px] bg-[#1a1a1a] px-2 py-1 rounded text-[#888] font-mono border border-[#222]">
-                        {item.aspect_ratio || "16:9"}
-                      </span>
-                      {item.camera_angle && (
-                        <span className="text-[10px] bg-[#1a1a1a] px-2 py-1 rounded border border-[#222] text-[#888] truncate max-w-[160px]">
-                          {item.camera_angle}
-                        </span>
-                      )}
-                      {item.shot_type && (
-                        <span className="text-[10px] bg-[#1a1a1a] px-2 py-1 rounded border border-[#222] text-[#888] truncate max-w-[160px]">
-                          {item.shot_type}
-                        </span>
-                      )}
-                      {item.model_name && (
-                        <span className="text-[10px] bg-emerald-950/40 px-2 py-1 rounded border border-emerald-900/30 text-emerald-600 truncate max-w-[200px] ml-auto">
-                          {item.model_name.split("/").pop()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+            Object.entries(groupedHistory).map(([dateLabel, items]) => (
+              <div key={dateLabel} className="flex flex-col gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="h-px bg-[#1a1a1a] flex-1"></div>
+                  <span className="text-xs font-semibold uppercase tracking-widest text-[#555]">{dateLabel}</span>
+                  <div className="h-px bg-[#1a1a1a] flex-1"></div>
                 </div>
-              ))}
-            </div>
+
+                <div className="flex flex-wrap gap-3">
+                  {(items as any[]).map((item: any, idx: number) => {
+                    const pt = (item.aspect_ratio || "16:9").split(":");
+                    const w = parseFloat(pt[0]) || 16;
+                    const h = parseFloat(pt[1]) || 9;
+                    const ratio = Math.max(0.5, Math.min(w / h, 3));
+
+                    return (
+                      <div 
+                        key={item.id ?? idx} 
+                        className="bg-[#111] border border-[#222] rounded-lg overflow-hidden flex flex-col group relative"
+                        style={{
+                          flexGrow: ratio,
+                          flexBasis: `${ratio * 120}px`,
+                          maxWidth: '100%'
+                        }}
+                      >
+                        <div 
+                          className="bg-[#050505] relative flex items-center justify-center overflow-hidden"
+                          style={{ aspectRatio: `${w}/${h}` }}
+                        >
+                          {item.isGenerating ? (
+                            <div className="flex flex-col items-center justify-center h-full w-full bg-[#0a0a0a]">
+                              <Loader2 className="w-6 h-6 text-emerald-500 animate-spin mb-2" />
+                              <span className="text-emerald-400 text-[10px] font-medium animate-pulse">Generating</span>
+                            </div>
+                          ) : item.isError ? (
+                            <div className="flex flex-col items-center justify-center gap-2 px-4 text-center h-full w-full bg-red-950/10">
+                              <AlertTriangle className="w-6 h-6 text-red-500/70 shrink-0" />
+                              <p className="text-red-400 text-[10px] leading-relaxed line-clamp-3" title={item.errorMessage}>{item.errorMessage}</p>
+                            </div>
+                          ) : item.image_url ? (
+                            <img src={item.image_url} alt="Generated Previz" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          ) : (
+                            <div className="text-[#333]"><MonitorPlay className="w-6 h-6" /></div>
+                          )}
+
+                          {/* Top Meta Badges overlaid on top */}
+                          <div className="absolute top-0 left-0 right-0 p-2 flex flex-wrap gap-1 bg-gradient-to-b from-black/80 to-transparent z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {((item.taggedCharacters?.length > 0) || (item.taggedLocations?.length > 0)) && (
+                              <>
+                                {item.taggedCharacters?.map((c: TaggedCharacter) => (
+                                  <div key={`char-${c.id}`} className="flex flex-row items-center bg-black/50 backdrop-blur rounded pl-0.5 pr-1 py-0.5">
+                                    {c.image_url ? <img src={c.image_url} alt={c.name} className="w-3 h-3 rounded-sm object-cover mr-1" /> : <User className="w-2.5 h-2.5 mr-0.5 text-emerald-500/60" />}
+                                    <span className="text-[9px] text-emerald-400 font-medium">@{c.name.substring(0,6)}..</span>
+                                  </div>
+                                ))}
+                                {item.taggedLocations?.map((l: TaggedLocation) => (
+                                  <div key={`loc-${l.id}`} className="flex flex-row items-center bg-black/50 backdrop-blur rounded pl-0.5 pr-1 py-0.5">
+                                    {l.image_url ? <img src={l.image_url} alt={l.name} className="w-3 h-3 rounded-sm object-cover mr-1" /> : <MapPin className="w-2.5 h-2.5 mr-0.5 text-sky-500/60" />}
+                                    <span className="text-[9px] text-sky-400 font-medium">#{l.name.substring(0,6)}..</span>
+                                  </div>
+                                ))}
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Bottom Info area */}
+                        <div className="p-2 flex flex-col border-t border-[#1a1a1a] h-[72px] flex-shrink-0">
+                          <p className="text-[10px] text-[#ccc] line-clamp-2" title={item.description || item.prompt}>
+                            {item.description || item.prompt}
+                          </p>
+
+                          <div className="flex flex-wrap gap-1 mt-auto overflow-hidden">
+                            <span className="text-[8px] bg-[#1a1a1a] px-1 py-0.5 rounded text-[#888] font-mono whitespace-nowrap">
+                              {item.aspect_ratio || "16:9"}
+                            </span>
+                            {item.shot_type && (
+                              <span className="text-[8px] bg-[#1a1a1a] px-1 py-0.5 rounded text-[#888] truncate max-w-[80px]">
+                                {item.shot_type}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {/* Dummy element to prevent the last row from stretching heavily if incomplete */}
+                  <div className="flex-grow-[10]"></div>
+                </div>
+              </div>
+            ))
           )}
         </div>
       </div>
