@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, memo, forwardRef } from "react";
 import {
   uploadScript,
   getScripts,
@@ -10,6 +10,7 @@ import {
   reparseScript,
   getScriptConversionReview,
   confirmScriptConversion,
+  deleteScript,
 } from "@/services/creative-hub";
 import { Script, Scene, Character } from "@/types/creative-hub";
 import {
@@ -21,6 +22,7 @@ import {
   Keyboard,
   X,
   ChevronRight,
+  Trash2,
 } from "lucide-react";
 import {
   PieChart,
@@ -40,17 +42,11 @@ import {
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import { useParams } from "next/navigation";
+import { ScriptEditor, ScreenplayElementType } from "../../../../../components/creative-hub/ScriptEditor";
 
 /* ───────────────────────── Types ───────────────────────── */
 
-type ScreenplayElement =
-  | "scene_heading"
-  | "action"
-  | "character"
-  | "dialogue"
-  | "parenthetical"
-  | "transition"
-  | "shot";
+type ScreenplayElement = ScreenplayElementType;
 
 /* ───────────────────────── Constants ───────────────────── */
 
@@ -148,8 +144,8 @@ function fdxToText(xml: string): string {
 }
 
 /** Map LineType → FDX Paragraph Type */
-const LINE_TO_FDX_TYPE: Record<LineType, string> = {
-  blank: "",
+const LINE_TO_FDX_TYPE: Record<string, string> = {
+  blank: "Action", // FDX doesn't have blank, just empty Action
   scene_heading: "Scene Heading",
   action: "Action",
   character: "Character",
@@ -229,6 +225,37 @@ function scenesToText(scenes: Record<string, any>[]): string {
    Component
    ═══════════════════════════════════════════════════════════ */
 
+function getLineClasses(type: LineType): string {
+  switch (type) {
+    case "blank": return "h-[24px]";
+    case "scene_heading": return "text-[#f0f0f0] font-bold uppercase tracking-wide text-left transition-all duration-500 rounded";
+    case "character": return "text-center text-[#e8e8e8] uppercase mt-3";
+    case "parenthetical": return "text-center mx-auto max-w-[240px] text-[#b0b0b0] italic";
+    case "dialogue": return "text-center mx-auto max-w-[65%] text-[#d0d0d0]";
+    case "transition": return "text-right text-[#e0e0e0] uppercase mt-3 mb-1";
+    case "shot": return "text-left text-[#e0e0e0] uppercase";
+    default: return "text-left text-[#c8c8c8]"; // action
+  }
+}
+
+const generateInitialHtml = (text: string) => {
+  const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const lines = text.split("\n");
+  let prevType: LineType | null = null;
+  return lines.map((line, idx) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      prevType = 'blank';
+      return `<p data-type="blank"></p>`;
+    }
+    const type = classifyLine(trimmed, prevType);
+    prevType = type;
+    return `<p data-type="${type}">${escapeXml(line)}</p>`;
+  }).join("");
+};
+
+// RawEditor, applyFormatting, and getLineClasses have been replaced by ScriptEditor components
+
 export default function ScriptPage() {
   const params = useParams();
   const projectId = params.projectId as string;
@@ -241,6 +268,7 @@ export default function ScriptPage() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editorContent, setEditorContent] = useState("");
+  const [internalRefContent, setInternalRefContent] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const originalFdxRef = useRef<string>(""); // The real FDX stored in DB
 
@@ -253,29 +281,30 @@ export default function ScriptPage() {
   /* ── UI toggles ─────────────────────────────────────────── */
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [activeElement, setActiveElement] = useState<ScreenplayElement>("action");
 
   /* ── Refs ────────────────────────────────────────────────── */
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<any>(null);
 
-  /* ── Derived: scene headings from the editor text ───────── */
-  const scriptHeadings = useMemo(() => {
-    const headings: { text: string; index: number; lineIndex: number }[] = [];
-    const lines = editorContent.split("\n");
-    let charIdx = 0;
-    for (let i = 0; i < lines.length; i++) {
-      const trimmed = lines[i].trim();
-      if (SCENE_HEADING_RE.test(trimmed)) {
-        headings.push({ text: trimmed.toUpperCase(), index: charIdx, lineIndex: i });
-      }
-      charIdx += lines[i].length + 1; // +1 for \n
+  useEffect(() => {
+    if (!isDirty && editorContent !== internalRefContent) {
+      setInternalRefContent(editorContent);
     }
-    return headings;
-  }, [editorContent]);
+  }, [editorContent, isDirty, internalRefContent]);
 
-  /* ═══════════════════════ Data fetching ═══════════════════ */
+  const initialHtml = useMemo(() => {
+    return generateInitialHtml(internalRefContent);
+  }, [internalRefContent]);
 
+  const showUpload = !script && !loading && !isConverting;
+  const canUpload = !script || isConverting;
+  const isEditorVisible = !!script && !isConverting && !loading && !showUpload;
+
+  // React shortcuts & legacy inputs managed by TipTap ScriptEditor
+  
   useEffect(() => {
     if (projectId) fetchScript();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -289,7 +318,9 @@ export default function ScriptPage() {
         setScript(s);
         const raw = s.content || "";
         originalFdxRef.current = raw;
-        setEditorContent(isFdxXml(raw) ? fdxToText(raw) : raw);
+        const initialText = isFdxXml(raw) ? fdxToText(raw) : raw;
+        setEditorContent(initialText);
+        setInternalRefContent(initialText);
         setIsDirty(false);
 
         // Check if this script is mid-conversion
@@ -306,10 +337,14 @@ export default function ScriptPage() {
             const draftFdx = review?.draft?.fdx_preview || '';
             const draftScenes = review?.draft?.scenes || [];
             if (draftFdx && isFdxXml(draftFdx)) {
-              setEditorContent(fdxToText(draftFdx));
+              const text = fdxToText(draftFdx);
+              setEditorContent(text);
+              setInternalRefContent(text);
               setIsAwaitingConfirm(true);
             } else if (draftScenes.length) {
-              setEditorContent(scenesToText(draftScenes));
+              const text = scenesToText(draftScenes);
+              setEditorContent(text);
+              setInternalRefContent(text);
               setIsAwaitingConfirm(true);
             } else {
               setIsConverting(true);
@@ -352,11 +387,15 @@ export default function ScriptPage() {
         const draftFdx = review?.draft?.fdx_preview || '';
         const draftScenes = review?.draft?.scenes || [];
         if (draftFdx && isFdxXml(draftFdx)) {
-          setEditorContent(fdxToText(draftFdx));
+          const text = fdxToText(draftFdx);
+          setEditorContent(text);
+          setInternalRefContent(text);
           setIsConverting(false);
           setIsAwaitingConfirm(true);
         } else if (draftScenes.length) {
-          setEditorContent(scenesToText(draftScenes));
+          const text = scenesToText(draftScenes);
+          setEditorContent(text);
+          setInternalRefContent(text);
           setIsConverting(false);
           setIsAwaitingConfirm(true);
         }
@@ -477,114 +516,85 @@ export default function ScriptPage() {
     }
   };
 
+  const scriptHeadings = useMemo(() => {
+    const headings: { text: string; index: number; lineIndex: number; headingIndex: number }[] = [];
+    const lines = editorContent.split("\n");
+    let charIdx = 0;
+    let hIdx = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
+      if (SCENE_HEADING_RE.test(trimmed)) {
+        headings.push({ text: trimmed.toUpperCase(), index: charIdx, lineIndex: i, headingIndex: hIdx });
+        hIdx++;
+      }
+      charIdx += lines[i].length + 1; // +1 for \n
+    }
+    return headings;
+  }, [editorContent]);
+
   const jumpToHeading = useCallback(
-    (heading: { text: string; index: number; lineIndex: number }) => {
-      // Scroll the visible rendered line into view with a smooth animation
-      const el = document.getElementById(`script-line-${heading.lineIndex}`);
+    (heading: { text: string; index: number; lineIndex: number; headingIndex: number }) => {
+      // Use DOM to scroll to the heading, since TipTap renders data-type="scene_heading"
+      const domHeadings = document.querySelectorAll('[data-type="scene_heading"]');
+      const el = domHeadings[heading.headingIndex] as HTMLElement;
+      
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-        // Brief highlight flash so the user sees where they landed
         el.classList.add('ring-1', 'ring-emerald-400/60');
         setTimeout(() => el.classList.remove('ring-1', 'ring-emerald-400/60'), 1200);
-      }
 
-      // Also place the caret in the hidden textarea for editing continuity
-      const ta = editorRef.current;
-      if (ta) {
-        ta.focus();
-        ta.setSelectionRange(heading.index, heading.index + heading.text.length);
+        const editor = editorRef.current;
+        if (editor) {
+          editor.commands.focus();
+        }
       }
     },
     []
   );
 
+  const handleDeleteScript = async () => {
+    if (!script) return;
+    try {
+      await deleteScript(script.id);
+      toast.success("Script deleted successfully.");
+      setScript(null);
+      setEditorContent("");
+      setInternalRefContent("");
+      setScenes([]);
+      setCharacters([]);
+      setShowDeleteConfirm(false);
+      setDeleteConfirmText("");
+      // Refresh list to see if another script exists, or stay on upload screen
+      await fetchScript();
+    } catch (err: unknown) {
+      toast.error(extractApiError(err as Error, "Failed to delete script."));
+    }
+  };
+
   /* ═══════════════════ Celtx shortcuts ════════════════════ */
+  // TipTap ScriptEditor extension handles Enter/Tab shortcuts intrinsically.
 
-  const applyElement = (element: ScreenplayElement) => {
-    const ta = editorRef.current;
-    if (!ta) return;
-
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const text = editorContent;
-    const lineStart = text.lastIndexOf("\n", start - 1) + 1;
-    const lineEndPos = text.indexOf("\n", end);
-    const lineEnd = lineEndPos === -1 ? text.length : lineEndPos;
-    const currentLine = text.slice(lineStart, lineEnd).trim();
-
-    let transformed = currentLine;
-    switch (element) {
-      case "scene_heading":
-        transformed =
-          currentLine.toUpperCase().startsWith("INT") ||
-          currentLine.toUpperCase().startsWith("EXT")
-            ? currentLine.toUpperCase()
-            : `INT. ${currentLine || "LOCATION"} - DAY`;
-        break;
-      case "character":
-        transformed = (currentLine || "CHARACTER").toUpperCase();
-        break;
-      case "parenthetical":
-        transformed = currentLine.startsWith("(")
-          ? currentLine
-          : `(${currentLine || "beat"})`;
-        break;
-      case "transition":
-        transformed = currentLine.toUpperCase().endsWith("TO:")
-          ? currentLine.toUpperCase()
-          : `${(currentLine || "CUT").toUpperCase()} TO:`;
-        break;
-      case "shot":
-        transformed = currentLine.toUpperCase().startsWith("SHOT")
-          ? currentLine
-          : `SHOT: ${currentLine || ""}`;
-        break;
-      default:
-        transformed = currentLine;
-    }
-
-    const next = text.slice(0, lineStart) + transformed + text.slice(lineEnd);
-    setEditorContent(next);
-    setIsDirty(true);
-    setActiveElement(element);
-  };
-
-  const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const meta = e.metaKey || e.ctrlKey;
-
-    if (meta && e.key.toLowerCase() === "s") {
-      e.preventDefault();
-      if (isAwaitingConfirm) handleConfirm();
-      else handleSave();
-      return;
-    }
-    if (meta && e.shiftKey && e.key.toLowerCase() === "a") {
-      e.preventDefault();
-      setShowAnalytics(true);
-      return;
-    }
-    if (meta && e.key === "/") {
-      e.preventDefault();
-      setShowShortcuts((v) => !v);
-      return;
-    }
-    if (e.key === "Tab") {
-      e.preventDefault();
-      const idx = ELEMENT_CYCLE.indexOf(activeElement);
-      const next = e.shiftKey
-        ? (idx - 1 + ELEMENT_CYCLE.length) % ELEMENT_CYCLE.length
-        : (idx + 1) % ELEMENT_CYCLE.length;
-      applyElement(ELEMENT_CYCLE[next]);
-      return;
-    }
-
-    const num = Number(e.key);
-    if (meta && num >= 1 && num <= 7) {
-      e.preventDefault();
-      applyElement(ELEMENT_CYCLE[num - 1]);
-    }
-  };
+  // To support global Cmd+S for saving, use a window event listener
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (isAwaitingConfirm) handleConfirm();
+        else handleSave();
+      }
+      if (meta && e.shiftKey && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        setShowAnalytics(true);
+      }
+      if (meta && e.key === "/") {
+        e.preventDefault();
+        setShowShortcuts((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [isAwaitingConfirm, handleConfirm, handleSave]);
 
   /* ═══════════════════ Analytics data ═════════════════════ */
 
@@ -682,8 +692,7 @@ export default function ScriptPage() {
 
   /* ═══════════════════ Helpers for view ═══════════════════ */
 
-  const isEditorVisible = !!script && !isConverting && !loading;
-  const showUpload = !script && !loading && !isConverting;
+  /* ═══════════════════ Helpers for view ═══════════════════ */
 
   /* ═══════════════════════ Render ══════════════════════════ */
 
@@ -782,6 +791,19 @@ export default function ScriptPage() {
                 <Save className="h-3.5 w-3.5" />
               )}
               Save
+            </button>
+          )}
+          {/* Delete (dustbin) */}
+          {script && !isConverting && (
+            <button
+              onClick={() => {
+                setDeleteConfirmText("");
+                setShowDeleteConfirm(true);
+              }}
+              className="inline-flex items-center justify-center h-[28px] w-[28px] rounded bg-red-900/30 border border-red-900/50 text-red-500 hover:bg-red-900/50 hover:text-red-400 transition-colors ml-1"
+              title="Delete Script"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
@@ -887,89 +909,18 @@ export default function ScriptPage() {
                 */}
                 <div className="w-[720px] max-w-full mx-auto my-8 bg-[#0e0e0e] border border-[#1a1a1a] rounded shadow-2xl shadow-black/40 min-h-[calc(100vh-220px)]">
                   <div className="relative">
-                    {/* Invisible textarea captures all input */}
-                    <textarea
-                      ref={editorRef}
-                      value={editorContent}
-                      onChange={(e) => { setEditorContent(e.target.value); setIsDirty(true); }}
-                      onKeyDown={handleEditorKeyDown}
-                      spellCheck={false}
-                      className="absolute inset-0 w-full h-full bg-transparent text-transparent caret-white outline-none border-none resize-none z-10 cursor-text font-[Courier_Prime,Courier_New,monospace] text-[12.5px] leading-[24px] px-16 py-12"
-                      placeholder=""
+                    {/* Formatted screenplay TipTap render */}
+                    <ScriptEditor
+                      key={script?.id ? `${script.id}-${isAwaitingConfirm}` : 'new'}
+                      initialHtml={initialHtml}
+                      editorRef={editorRef}
+                      onUpdate={(html: string, text: string) => {
+                        setEditorContent(text);
+                        setInternalRefContent(html);
+                        if (html !== initialHtml) setIsDirty(true);
+                      }}
+                      onActiveElementChange={setActiveElement}
                     />
-
-                    {/* Formatted screenplay render */}
-                    <div
-                      className="font-[Courier_Prime,Courier_New,monospace] text-[12.5px] leading-[24px] min-h-[60vh] cursor-text px-16 py-12"
-                      onClick={() => editorRef.current?.focus()}
-                    >
-                      {editorContent === "" ? (
-                        <p className="text-[#333] italic text-center">Start writing your screenplay…</p>
-                      ) : (() => {
-                        const lines = editorContent.split("\n");
-                        let prevType: LineType | null = null;
-                        return lines.map((line, idx) => {
-                          const trimmed = line.trim();
-                          const type = classifyLine(trimmed, prevType);
-                          prevType = type;
-
-                          if (type === "blank") {
-                            return <div key={idx} className="h-[24px]" />;
-                          }
-                          if (type === "scene_heading") {
-                            return (
-                              <div key={idx} id={`script-line-${idx}`} className="text-[#f0f0f0] font-bold uppercase tracking-wide text-left transition-all duration-500 rounded">
-                                {trimmed}
-                              </div>
-                            );
-                          }
-                          if (type === "character") {
-                            /* Character name: centered on the page */
-                            return (
-                              <div key={idx} className="text-center text-[#e8e8e8] uppercase font-semibold mt-3">
-                                {trimmed}
-                              </div>
-                            );
-                          }
-                          if (type === "parenthetical") {
-                            /* Parenthetical: centered, narrow block */
-                            return (
-                              <div key={idx} className="text-center mx-auto max-w-[240px] text-[#b0b0b0] italic">
-                                {trimmed}
-                              </div>
-                            );
-                          }
-                          if (type === "dialogue") {
-                            /* Dialogue: centered block, ~65% width */
-                            return (
-                              <div key={idx} className="text-center mx-auto max-w-[65%] text-[#d0d0d0]">
-                                {trimmed}
-                              </div>
-                            );
-                          }
-                          if (type === "transition") {
-                            return (
-                              <div key={idx} className="text-right text-[#e0e0e0] uppercase font-semibold mt-3 mb-1">
-                                {trimmed}
-                              </div>
-                            );
-                          }
-                          if (type === "shot") {
-                            return (
-                              <div key={idx} className="text-left text-[#e0e0e0] uppercase">
-                                {trimmed}
-                              </div>
-                            );
-                          }
-                          /* Action — full width, left-aligned */
-                          return (
-                            <div key={idx} className="text-left text-[#c8c8c8]">
-                              {trimmed}
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1242,6 +1193,55 @@ export default function ScriptPage() {
                   )}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ═══════════ Delete Modal ═════════════════════════ */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-lg border border-[#2a2a2a] bg-[#101010] shadow-2xl">
+            <div className="p-4 border-b border-[#1f1f1f] flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-red-400 flex items-center gap-2">
+                <Trash2 className="h-4 w-4" /> Delete Script
+              </h3>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="text-[#888] hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-xs text-[#999] mb-4">
+                This action is permanent and cannot be undone. All scenes, characters, and shots associated with this script will be lost.
+              </p>
+              <p className="text-xs text-white font-medium mb-2">
+                Type <strong className="text-red-400">CONFIRM</strong> to proceed:
+              </p>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="CONFIRM"
+                className="w-full bg-[#1a1a1a] border border-[#333] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500 transition-colors mb-5 placeholder:text-[#444]"
+                autoFocus
+              />
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-4 py-2 rounded text-xs text-[#999] hover:text-white hover:bg-[#222] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteScript}
+                  disabled={deleteConfirmText !== "CONFIRM"}
+                  className="px-4 py-2 rounded text-xs bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Delete Permanently
+                </button>
+              </div>
             </div>
           </div>
         </div>
