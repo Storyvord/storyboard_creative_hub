@@ -1014,25 +1014,19 @@ export default function StoryboardPage() {
       if (pendingPrevizShotIds.length === 0) return;
       setIsBulkGenerating(true);
       try {
-          const allTags = pendingPrevizShotIds.flatMap(shotId => shotTaggedCharacters[shotId] || []);
+          // Construct per-shot configuration array
+          const shotsConfig = pendingPrevizShotIds.map(shotId => {
+              const tags = shotTaggedCharacters[shotId] || [];
+              const scene_character_ids = Array.from(new Set(tags.filter(t => t.type === "scene_character").map(t => t.id)));
+              const character_ids = Array.from(new Set(tags.filter(t => t.type === "global_character").map(t => t.id)));
+              return {
+                  shot_id: shotId,
+                  scene_character_ids: scene_character_ids.length > 0 ? scene_character_ids : undefined,
+                  character_ids: character_ids.length > 0 ? character_ids : undefined
+              };
+          });
 
-          // SceneCharacter IDs (characters assigned to this scene)
-          const sceneCharIds = Array.from(new Set(
-            allTags.filter(t => t.type === "scene_character").map(t => t.id)
-          ));
-
-          // Global Character IDs (characters from across the script, not in this scene)
-          const globalCharIds = Array.from(new Set(
-            allTags.filter(t => t.type === "global_character").map(t => t.id)
-          ));
-
-          const response = await bulkGeneratePreviz(
-            pendingPrevizShotIds,
-            model,
-            provider,
-            sceneCharIds.length > 0 ? sceneCharIds : undefined,
-            globalCharIds.length > 0 ? globalCharIds : undefined
-          );
+          const response = await bulkGeneratePreviz(shotsConfig, model, provider);
           if (response?.shot_ids && response?.task_ids) {
               setTrackedTasks(prev => { const c = { ...prev }; response.shot_ids.forEach((sid: number, i: number) => { c[sid] = response.task_ids[i]; }); return c; });
               setShotErrors(prev => { const c = { ...prev }; response.shot_ids.forEach((sid: number) => { delete c[sid]; }); return c; });

@@ -414,8 +414,11 @@ export default function CreativeSpacePage() {
   const [historyPage, setHistoryPage] = useState(1);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+  const [sessionGenerations, setSessionGenerations] = useState<any[]>([]);
 
+  // Derived state or refs
   const containerRef = useRef<HTMLDivElement>(null);
+  const sessionContainerRef = useRef<HTMLDivElement>(null);
   const [lastScrollHeight, setLastScrollHeight] = useState<number>(0);
 
   const [imageModels,       setImageModels]       = useState<ImageModel[]>([]);
@@ -518,7 +521,7 @@ export default function CreativeSpacePage() {
   }, [history, historyPage, lastScrollHeight]);
 
   const handleScroll = () => {
-    if (!containerRef.current || isFetchingHistory || !hasMoreHistory || !scriptId) return;
+    if (!containerRef.current || isFetchingHistory || !hasMoreHistory || !scriptId || isGenerating) return;
     
     // If scrolled to top with a 100px threshold
     if (containerRef.current.scrollTop <= 100) {
@@ -555,8 +558,7 @@ export default function CreativeSpacePage() {
     const locIds  = capturedLocs.map((l) => l.id);
     const tempId  = Date.now();
 
-    setHistory((prev) => {
-      const sortedResult = [...prev, {
+    const newGen = {
         id: tempId,
         isGenerating: true,
         prompt: capturedPrompt,
@@ -567,14 +569,15 @@ export default function CreativeSpacePage() {
         taggedCharacters: capturedChars,
         taggedLocations:  capturedLocs,
         created_at: new Date().toISOString()
-      }];
-      // Sort them by id or just append to end so it displays at bottom.
-      return sortedResult;
-    });
+    };
+
+    setHistory((prev) => [...prev, newGen]);
+    setSessionGenerations((prev) => [...prev, newGen]);
+
     // Do NOT clear prompt yet — clear only on success so the user can retry on error
 
-    // Scroll to bottom immediately to see generation state
     setTimeout(() => {
+      if (sessionContainerRef.current) sessionContainerRef.current.scrollTop = sessionContainerRef.current.scrollHeight;
       if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }, 50);
 
@@ -593,34 +596,35 @@ export default function CreativeSpacePage() {
       });
 
       if (response?.image_url) {
-        setHistory((prev) =>
-          prev.map((item) =>
-            item.id === tempId
-              ? { ...response, isGenerating: false, shot_type: shotType, taggedCharacters: capturedChars, taggedLocations: capturedLocs }
-              : item
-          )
-        );
+        const resolved = { ...response, isGenerating: false, shot_type: shotType, taggedCharacters: capturedChars, taggedLocations: capturedLocs };
+        setHistory((prev) => prev.map((item) => item.id === tempId ? resolved : item));
+        setSessionGenerations((prev) => prev.map((item) => item.id === tempId ? resolved : item));
+        
+        setTimeout(() => {
+          if (sessionContainerRef.current) sessionContainerRef.current.scrollTop = sessionContainerRef.current.scrollHeight;
+        }, 50);
+
         // Scroll to bottom after arrival
         if (showHistory) {
           setTimeout(() => {
             if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight;
           }, 50);
         }
-        setPrompt(""); // only clear on success
+        setPrompt(""); // Success, can clear prompt
       } else {
-        setHistory((prev) => prev.filter((item) => item.id !== tempId));
+        const msg = "Failed to generate visual.";
+        const errored = (item: any) => ({ ...item, isGenerating: false, isError: true, errorMessage: msg });
+        setHistory((prev) => prev.map((item) => item.id === tempId ? errored(item) : item));
+        setSessionGenerations((prev) => prev.map((item) => item.id === tempId ? errored(item) : item));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to generate script previsualization:", error);
       const msg = extractApiError(error, "Image generation failed. Please try again.");
       toast.error(msg);
-      setHistory((prev) =>
-        prev.map((item) =>
-          item.id === tempId
-            ? { ...item, isGenerating: false, isError: true, errorMessage: msg }
-            : item
-        )
-      );
+      
+      const errored = (item: any) => ({ ...item, isGenerating: false, isError: true, errorMessage: msg });
+      setHistory((prev) => prev.map((item) => item.id === tempId ? errored(item) : item));
+      setSessionGenerations((prev) => prev.map((item) => item.id === tempId ? errored(item) : item));
     } finally {
       setIsGenerating(false);
     }
@@ -810,6 +814,58 @@ export default function CreativeSpacePage() {
           )}
         </div>
       </div>
+
+      {/* Generator Active View */}
+      {!showHistory && (
+        <div ref={sessionContainerRef} className="flex-1 flex flex-col p-6 pb-[200px] overflow-y-auto scroll-smooth">
+          {sessionGenerations.length > 0 ? (
+            <div className="w-full max-w-5xl mx-auto flex flex-col gap-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {sessionGenerations.map((item, idx) => {
+                  const pt = (item.aspect_ratio || "16:9").split(":");
+                  const w = parseFloat(pt[0]) || 16;
+                  const h = parseFloat(pt[1]) || 9;
+                  
+                  return (
+                    <div key={item.id || idx} className="flex flex-col gap-3 fade-in">
+                      <div className="relative w-full flex items-center justify-center bg-[#050505] border border-[#222] rounded-xl overflow-hidden shadow-2xl" style={{ aspectRatio: `${w}/${h}` }}>
+                        {item.isGenerating ? (
+                          <div className="flex flex-col items-center justify-center h-full w-full bg-[#0a0a0a]">
+                            <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mb-3" />
+                            <span className="text-emerald-400 text-xs font-medium animate-pulse">Generating your vision...</span>
+                          </div>
+                        ) : item.isError ? (
+                          <div className="flex flex-col items-center justify-center gap-3 px-6 text-center h-full w-full bg-red-950/10">
+                            <AlertTriangle className="w-8 h-8 text-red-500/70 shrink-0" />
+                            <p className="text-red-400 text-xs leading-relaxed">{item.errorMessage}</p>
+                          </div>
+                        ) : item.image_url ? (
+                          <img src={item.image_url} alt="Generated Previz" className="w-full h-full object-contain" />
+                        ) : null}
+                      </div>
+                      <div className="px-2">
+                        <p className="text-[#888] text-sm leading-relaxed" title={item.prompt || item.description}>{item.prompt || item.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center text-[#444] text-center max-w-md h-full mx-auto">
+              <div className="w-20 h-20 rounded-2xl bg-[#111] border border-[#222] flex items-center justify-center mb-6 shadow-xl">
+                <LayoutPanelTop className="w-8 h-8 text-emerald-500/50" />
+              </div>
+              <h2 className="text-lg text-white font-medium mb-2">Creative Space Generator</h2>
+              <p className="text-sm">Describe your scene below to generate previsualizations.</p>
+              <p className="text-xs mt-3 text-[#333]">
+                Use <span className="text-emerald-600">@CharacterName</span> or{" "}
+                <span className="text-sky-600">#LocationName</span> to inject reference images.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Floating bottom bar */}
       <div className="absolute bottom-0 left-0 right-0 pb-5 px-4 z-20 pointer-events-none">
