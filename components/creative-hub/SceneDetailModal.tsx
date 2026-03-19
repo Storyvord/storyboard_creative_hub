@@ -1,11 +1,12 @@
 import { Scene, Shot } from "@/types/creative-hub";
-import { X, Calendar, MapPin, Clock, Film, Edit, Trash2, Wand2 } from "lucide-react";
+import { X, Calendar, MapPin, Clock, Film, Edit, Trash2, Wand2, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { getShots, generateShots, updateScene, getSceneCharacters } from "@/services/creative-hub";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import SceneCharacterDetailModal from "./SceneCharacterDetailModal";
+import ShotSkeleton from "./ShotSkeleton";
 
 interface SceneDetailModalProps {
   scene: Scene | null;
@@ -341,8 +342,20 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                     </button>
                 </div>
 
-                {loadingShots ? (
-                    <div className="text-center py-8 text-gray-500">Loading shots...</div>
+                {generatingShots ? (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 text-emerald-400 font-medium text-xs mb-2">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <span>AI is analyzing script for shots...</span>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <ShotSkeleton count={6} className="w-full" />
+                        </div>
+                    </div>
+                ) : loadingShots ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 animate-pulse">
+                        <ShotSkeleton count={3} className="w-full" />
+                    </div>
                 ) : shots.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {shots.map((shot) => (

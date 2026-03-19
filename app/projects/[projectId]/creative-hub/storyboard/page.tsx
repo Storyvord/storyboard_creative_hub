@@ -12,6 +12,7 @@ import StoryboardSlideshowModal from "@/components/creative-hub/StoryboardSlides
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import MentionTextarea, { TaggedCharacter, SceneCharacterItem, GlobalCharacterItem } from "@/components/creative-hub/MentionTextarea";
+import ShotSkeleton from "@/components/creative-hub/ShotSkeleton";
 
 // Shot type abbreviation map — aligned with backend shot_types choices
 const SHOT_TYPE_MAP: Record<string, string> = {
@@ -420,7 +421,9 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
       {/* Shot Horizontal Scroll */}
       <div className="p-4" onDragEnd={handleDragEnd}>
         {loadingShots ? (
-          <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-[#333]" /></div>
+          <div className="flex items-center gap-4 overflow-x-auto pb-2">
+            <ShotSkeleton count={6} />
+          </div>
         ) : shots.length > 0 ? (
           <div className="flex items-center gap-0 overflow-x-auto pb-2 scroll-smooth"
             onDragOver={handleContainerDragOver}
@@ -1036,8 +1039,18 @@ export default function StoryboardPage() {
   };
 
   const handleGenerateShots = async (sceneId: number) => {
-      try { toast.info("Generating shots..."); await generateShots(sceneId); fetchShots(sceneId); }
-      catch (error) { console.error(error); toast.error(extractApiError(error, "Failed to generate shots.")); }
+      setLoadingShotsMap(prev => ({ ...prev, [sceneId]: true }));
+      try { 
+          toast.info("Generating shots..."); 
+          await generateShots(sceneId); 
+          await fetchShots(sceneId); 
+      }
+      catch (error) { 
+          console.error(error); 
+          toast.error(extractApiError(error, "Failed to generate shots.")); 
+      } finally {
+          setLoadingShotsMap(prev => ({ ...prev, [sceneId]: false }));
+      }
   };
 
   // ─── Manual shot insertion ──────────────────────────────

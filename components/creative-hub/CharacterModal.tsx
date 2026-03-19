@@ -1,7 +1,7 @@
 import { Character } from "@/types/creative-hub";
-import { X, User, Edit, Wand2, Plus, Save, Loader2 } from "lucide-react";
+import { X, User, Edit, Wand2, Plus, Save, Loader2, Upload } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createCharacter, updateCharacter, generateCharacterImage } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { toast } from "react-toastify";
@@ -13,34 +13,51 @@ interface CharacterModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdate: () => void;
+  onGenerate?: (charId: number) => void;
 }
 
-export default function CharacterModal({ character, scriptId, isOpen, onClose, onUpdate }: CharacterModalProps) {
+export default function CharacterModal({ character, scriptId, isOpen, onClose, onUpdate, onGenerate }: CharacterModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
+  
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (character) {
         setName(character.name);
         setDescription(character.description || "");
+        setImagePreview(character.image_url || null);
     } else {
         setName("");
         setDescription("");
+        setImagePreview(null);
     }
+    setImageFile(null);
   }, [character, isOpen]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name.trim()) return toast.error("Name is required");
     setLoading(true);
     try {
+        const payload = { name, description, ...(imageFile ? { image_url: imageFile } : {}) };
         if (character) {
-            await updateCharacter(character.id, { name, description });
+            await updateCharacter(character.id, payload);
             toast.success("Character updated");
         } else {
-            await createCharacter(scriptId, { name, description });
+            await createCharacter(scriptId, payload);
             toast.success("Character created");
         }
         onUpdate();
@@ -54,21 +71,33 @@ export default function CharacterModal({ character, scriptId, isOpen, onClose, o
   };
 
   const handleGenerateImage = async () => {
-      if (!character) return;
+      // Don't require existing character. Open model selector, we'll save + generate on confirm.
+      if (!name.trim()) return toast.error("Name is required before generating.");
       setIsModelSelectorOpen(true);
   }
 
   const handleModelConfirm = async (model: string, provider: string) => {
-      if (!character) return;
       setIsModelSelectorOpen(false);
       setGenerating(true);
       try {
-          await generateCharacterImage(character.id, model, provider);
-          toast.success("Image generation started");
+          let charId = character?.id;
+          const payload = { name, description, ...(imageFile ? { image_url: imageFile } : {}) };
+          
+          if (charId) {
+              await updateCharacter(charId, payload);
+          } else {
+              const newChar = await createCharacter(scriptId, payload);
+              charId = newChar.id;
+          }
+          
+          await generateCharacterImage(charId, model, provider);
+          toast.success("Character saved and image generation started");
+          if (onGenerate) onGenerate(charId);
           setTimeout(onUpdate, 3000);
+          onClose(); // Close modal immediately so user sees the loading state on the card
       } catch (error) {
-          console.error("Failed to generate image", error);
-          toast.error(extractApiError(error, "Failed to generate image."));
+          console.error("Failed to save & generate", error);
+          toast.error(extractApiError(error, "Failed to save & generate image."));
       } finally {
           setGenerating(false);
       }
@@ -108,76 +137,65 @@ export default function CharacterModal({ character, scriptId, isOpen, onClose, o
             </div>
 
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
-                 <div>
-                     <label className="block text-[10px] font-bold text-[#555] uppercase tracking-widest mb-1.5">Name</label>
-                     <input 
-                          type="text" 
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          className="w-full bg-[#111] border border-[#222] rounded-md px-3 py-2 text-white text-sm focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-500/40 outline-none transition-all"
-                          placeholder="Character Name"
-                          required
-                     />
-                 </div>
-                 <div>
-                     <label className="block text-[10px] font-bold text-[#555] uppercase tracking-widest mb-1.5">Description</label>
-                     <textarea 
-                          value={description}
-                          onChange={(e) => setDescription(e.target.value)}
-                          className="w-full bg-[#111] border border-[#222] rounded-md px-3 py-2 text-white text-sm focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-500/40 outline-none transition-all h-28 resize-none"
-                          placeholder="Character description..."
-                     />
+                 <div className="flex gap-4">
+                     {/* Image Uploader */}
+                     <div 
+                         className="w-32 h-32 shrink-0 bg-[#0a0a0a] rounded-md border border-[#1a1a1a] overflow-hidden relative cursor-pointer group"
+                         onClick={() => fileRef.current?.click()}
+                     >
+                         {imagePreview ? (
+                             <img src={imagePreview} alt="Character" className="w-full h-full object-cover" />
+                         ) : (
+                             <div className="w-full h-full flex flex-col items-center justify-center text-[#333]">
+                                 <Upload className="h-5 w-5 mb-1 opacity-50" />
+                                 <span className="text-[9px] text-center px-2">Upload Avatar</span>
+                             </div>
+                         )}
+                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                             <Upload className="h-5 w-5 text-white" />
+                         </div>
+                         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                     </div>
+
+                     <div className="flex-1 space-y-4">
+                         <div>
+                             <label className="block text-[10px] font-bold text-[#555] uppercase tracking-widest mb-1.5">Name *</label>
+                             <input 
+                                  type="text" 
+                                  value={name}
+                                  onChange={(e) => setName(e.target.value)}
+                                  className="w-full bg-[#111] border border-[#222] rounded-md px-3 py-2 text-white text-sm focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-500/40 outline-none transition-all"
+                                  placeholder="Character Name"
+                                  required
+                             />
+                         </div>
+                         <div>
+                             <label className="block text-[10px] font-bold text-[#555] uppercase tracking-widest mb-1.5">Description</label>
+                             <textarea 
+                                  value={description}
+                                  onChange={(e) => setDescription(e.target.value)}
+                                  className="w-full bg-[#111] border border-[#222] rounded-md px-3 py-2 text-white text-sm focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-500/40 outline-none transition-all h-16 resize-none"
+                                  placeholder="Character description..."
+                             />
+                         </div>
+                     </div>
                  </div>
 
-                  {character && (
-                      <div className="bg-[#111] p-3 rounded-md border border-[#1a1a1a] flex items-center justify-between">
-                           <div className="flex items-center gap-3">
-                               <div className="w-14 h-14 bg-[#0a0a0a] rounded-md overflow-hidden border border-[#222] relative group">
-                                   {character.image_url ? (
-                                       <img src={character.image_url} alt={character.name} className="w-full h-full object-cover" />
-                                   ) : (
-                                       <User className="h-5 w-5 text-[#333] m-auto mt-4" />
-                                   )}
-                                   <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                                       <User className="h-3.5 w-3.5 text-white" />
-                                       <input 
-                                           type="file" 
-                                           className="hidden" 
-                                           accept="image/*"
-                                           onChange={async (e) => {
-                                               const file = e.target.files?.[0];
-                                               if (!file) return;
-                                               setLoading(true);
-                                               try {
-                                                   await updateCharacter(character.id, { image_url: file });
-                                                   toast.success("Image updated");
-                                                   onUpdate();
-                                               } catch (error) {
-                                                   console.error("Failed to upload image", error);
-                                                   toast.error(extractApiError(error, "Failed to upload image."));
-                                               } finally {
-                                                   setLoading(false);
-                                               }
-                                           }}
-                                       />
-                                   </label>
-                               </div>
-                               <div>
-                                  <span className="text-xs text-[#999] font-medium block">Character Image</span>
-                                  <span className="text-[10px] text-[#555]">Upload or Generate</span>
-                               </div>
-                           </div>
-                           <button
-                               type="button"
-                               onClick={handleGenerateImage}
-                               disabled={generating}
-                               className="px-3 py-1.5 text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-md transition-colors flex items-center gap-1.5 font-medium"
-                           >
-                               {generating ? <Wand2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
-                               Generate AI
-                           </button>
-                      </div>
-                  )}
+                 <div className="bg-[#111] p-3 rounded-md border border-[#1a1a1a] flex items-center justify-between mt-4">
+                     <div>
+                         <span className="text-xs text-[#999] font-medium block">AI Portrait Generation</span>
+                         <span className="text-[10px] text-[#555]">Instantly saves details and generates an image</span>
+                     </div>
+                     <button
+                         type="button"
+                         onClick={handleGenerateImage}
+                         disabled={generating}
+                         className="px-3 py-1.5 text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-md transition-colors flex items-center gap-1.5 font-medium"
+                     >
+                         {generating ? <Wand2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                         Save & Generate
+                     </button>
+                 </div>
 
                  <div className="pt-3 flex justify-end gap-2">
                       <button

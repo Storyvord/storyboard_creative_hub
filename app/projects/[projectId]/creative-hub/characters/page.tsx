@@ -18,6 +18,7 @@ export default function CharactersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
   const [globalTask, setGlobalTask] = useState<any>(null);
+  const [generatingId, setGeneratingId] = useState<number | null>(null);
 
   useEffect(() => { if (projectId) fetchData(); }, [projectId]);
 
@@ -64,7 +65,17 @@ export default function CharactersPage() {
         const currentScript = scripts[0];
         setScript(currentScript);
         const charData = await getCharacters(currentScript.id);
-        setCharacters(charData || []);
+        
+        // Order by frequency as shown in the Analysis
+        const appearanceData = currentScript.analysis?.character_appearances || {};
+        const sorted = [...(charData || [])].sort((a, b) => {
+             const countA = appearanceData[a.name.trim().toUpperCase()]?.count || 0;
+             const countB = appearanceData[b.name.trim().toUpperCase()]?.count || 0;
+             if (countB !== countA) return countB - countA;
+             return a.name.localeCompare(b.name);
+        });
+        
+        setCharacters(sorted);
       }
     } catch (error) { console.error("Failed to fetch characters", error); }
     finally { setLoading(false); }
@@ -142,6 +153,12 @@ export default function CharactersPage() {
                            <Trash2 className="h-3.5 w-3.5" />
                        </button>
                    </div>
+                   {generatingId === char.id && (
+                       <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
+                           <Loader2 className="h-6 w-6 text-emerald-500 animate-spin mb-1" />
+                           <span className="text-[10px] text-emerald-400 font-medium">Generating...</span>
+                       </div>
+                   )}
                </div>
                <div className="p-3 flex-1 flex flex-col">
                    <h3 className="font-bold text-sm mb-0.5 text-white">{char.name}</h3>
@@ -162,7 +179,10 @@ export default function CharactersPage() {
             onClose={() => setIsModalOpen(false)}
             character={selectedCharacter}
             scriptId={script.id}
-            onUpdate={fetchData}
+            onUpdate={() => {
+                fetchData().finally(() => setGeneratingId(null));
+            }}
+            onGenerate={(id) => setGeneratingId(id)}
           />
       )}
     </div>

@@ -32,7 +32,17 @@ export default function LocationsPage() {
         const currentScript = scripts[0];
         setScript(currentScript);
         const locData = await getLocations(currentScript.id);
-        setLocations(locData || []);
+
+        // Order by frequency as shown in the Analysis (Setting Distribution)
+        const distData = currentScript.analysis?.setting_distribution || {};
+        const sorted = [...(locData || [])].sort((a, b) => {
+             const valA = distData[a.name.trim().toUpperCase()] || 0;
+             const valB = distData[b.name.trim().toUpperCase()] || 0;
+             if (valB !== valA) return valB - valA;
+             return a.name.localeCompare(b.name);
+        });
+
+        setLocations(sorted);
       }
     } catch (error) { console.error("Failed to fetch locations", error); }
     finally { setLoading(false); }
@@ -58,14 +68,20 @@ export default function LocationsPage() {
   const handleModelConfirm = async (model: string, provider: string) => {
     if (!pendingGenerateLoc) return;
     setIsModelSelectorOpen(false);
-    setGeneratingId(pendingGenerateLoc.id);
+    const locId = pendingGenerateLoc.id;
+    setGeneratingId(locId);
     setPendingGenerateLoc(null);
     try {
-      await generateLocationImage(pendingGenerateLoc.id, model, provider);
-      toast.success("Image generation started. Refresh in a few seconds.");
-      setTimeout(fetchData, 6000);
-    } catch (error) { toast.error(extractApiError(error, "Failed to generate image.")); }
-    finally { setGeneratingId(null); }
+      await generateLocationImage(locId, model, provider);
+      toast.success("Image generation started. Refreshing shortly.");
+      // Keep loader active until we fetch
+      setTimeout(() => {
+          fetchData().finally(() => setGeneratingId(null));
+      }, 5000);
+    } catch (error) { 
+        toast.error(extractApiError(error, "Failed to generate image.")); 
+        setGeneratingId(null);
+    }
   };
 
 
@@ -102,6 +118,12 @@ export default function LocationsPage() {
                   <div className="w-full h-full flex flex-col items-center justify-center text-[#333]">
                     <MapPin className="h-8 w-8 mb-1 opacity-30" />
                     <span className="text-[9px] uppercase tracking-wider">No Image</span>
+                  </div>
+                )}
+                {generatingId === loc.id && (
+                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <Loader2 className="h-6 w-6 text-emerald-500 animate-spin mb-1" />
+                    <span className="text-[10px] text-emerald-400 font-medium">Generating...</span>
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -141,6 +163,10 @@ export default function LocationsPage() {
           location={selectedLocation}
           scriptId={script.id}
           onUpdate={fetchData}
+          onGenerate={(locId) => {
+              setPendingGenerateLoc({ id: locId } as Location);
+              setIsModelSelectorOpen(true);
+          }}
         />
       )}
 
@@ -163,9 +189,10 @@ interface LocationModalProps {
   location: Location | null;
   scriptId: number;
   onUpdate: () => void;
+  onGenerate?: (locId: number) => void;
 }
 
-function LocationModal({ isOpen, onClose, location, scriptId, onUpdate }: LocationModalProps) {
+function LocationModal({ isOpen, onClose, location, scriptId, onUpdate, onGenerate }: LocationModalProps) {
   const [form, setForm] = useState({ name: "", description: "", time: "" });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -204,6 +231,24 @@ function LocationModal({ isOpen, onClose, location, scriptId, onUpdate }: Locati
       onUpdate();
       onClose();
     } catch (error) { toast.error(extractApiError(error, "Failed to save location.")); }
+    finally { setSaving(false); }
+  };
+
+  const handleSaveAndGenerate = async () => {
+    if (!form.name.trim()) { toast.error("Name is required before generating."); return; }
+    setSaving(true);
+    try {
+      let locId = location?.id;
+      if (locId) {
+        await updateLocation(locId, { ...form, ...(imageFile ? { image_url: imageFile } : {}) });
+      } else {
+        const newLoc = await createLocation(scriptId, { ...form, ...(imageFile ? { image_url: imageFile } : {}) });
+        locId = newLoc.id;
+      }
+      onUpdate();
+      onClose();
+      if (onGenerate && locId) onGenerate(locId);
+    } catch (error) { toast.error(extractApiError(error, "Failed to save & generate.")); }
     finally { setSaving(false); }
   };
 
@@ -265,6 +310,22 @@ function LocationModal({ isOpen, onClose, location, scriptId, onUpdate }: Locati
               className="w-full bg-[#111] border border-[#222] rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500/50 resize-none"
               placeholder="Describe the location..."
             />
+          </div>
+
+          <div className="bg-[#111] p-3 rounded-md border border-[#1a1a1a] flex items-center justify-between mt-4">
+              <div>
+                  <span className="text-xs text-[#999] font-medium block">AI Location Generation</span>
+                  <span className="text-[10px] text-[#555]">Instantly saves details and generates an image</span>
+              </div>
+              <button
+                  type="button"
+                  onClick={handleSaveAndGenerate}
+                  disabled={saving}
+                  className="px-3 py-1.5 text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-md transition-colors flex items-center gap-1.5 font-medium"
+              >
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                  Save & Generate
+              </button>
           </div>
         </div>
         <div className="p-4 border-t border-[#1a1a1a] flex justify-end gap-3">
