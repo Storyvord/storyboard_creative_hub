@@ -146,7 +146,7 @@ function buildHighlightedSegments(
     segments.push({
       text: raw,
       color: isScene ? "#34d399" : "#22c55e", // emerald-400 vs green-500
-      fontWeight: "600",
+      fontWeight: "normal",
     });
 
     lastIndex = match.index + raw.length;
@@ -336,27 +336,33 @@ export default function MentionTextarea({
     return () => window.removeEventListener("scroll", onScroll, true);
   }, [showDropdown, positionDropdown]);
 
+  const commonStyles: React.CSSProperties = {
+    fontFamily: "inherit",
+    fontSize: "inherit",
+    lineHeight: "inherit",
+    letterSpacing: "inherit",
+    fontKerning: "none",
+    margin: 0,
+    boxSizing: "border-box",
+    whiteSpace: "pre-wrap",
+    wordWrap: "break-word",
+    overflowWrap: "break-word",
+  };
+
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative block w-full">
       <div
         ref={backdropRef}
         aria-hidden="true"
         className={className}
         style={{
           ...style,
+          ...commonStyles,
           position: "absolute",
           inset: 0,
           pointerEvents: "none",
           overflowY: "auto",
           overflowX: "hidden",
-          whiteSpace: "pre-wrap",
-          wordWrap: "break-word",
-          overflowWrap: "break-word",
-          // The background text must match textarea identically to align cursor
-          fontFamily: "inherit",
-          fontSize: "inherit",
-          lineHeight: "inherit",
-          letterSpacing: "inherit",
           color: disabled ? "#555" : "#999",
           zIndex: 0,
         }}
@@ -389,12 +395,14 @@ export default function MentionTextarea({
         className={className}
         style={{
           ...style,
+          ...commonStyles,
           position: "relative",
           zIndex: 1,
-          color: disabled ? "#555" : "#fff",
-          WebkitTextFillColor: "transparent", // Hack to keep caret visible but text invisible
-          caretColor: "white",
+          color: "transparent",
+          caretColor: disabled ? "transparent" : "white",
           background: "transparent",
+          display: "block",
+          width: "100%",
         }}
       />
 
@@ -429,7 +437,7 @@ export default function MentionTextarea({
                     <User className="w-3 h-3 m-auto mt-1.5 text-emerald-500/60" />
                   )}
                 </div>
-                <span className="text-xs font-medium text-emerald-400">{sc.character_name}</span>
+                <span className="text-xs text-emerald-400">{sc.character_name}</span>
                 <span className="ml-auto text-[9px] text-emerald-600/60 font-mono">SC</span>
               </button>
             );
@@ -459,7 +467,7 @@ export default function MentionTextarea({
                     <User className="w-3 h-3 m-auto mt-1.5 text-green-600/60" />
                   )}
                 </div>
-                <span className="text-xs font-medium text-green-500">{gc.name}</span>
+                <span className="text-xs text-green-500">{gc.name}</span>
                 <span className="ml-auto text-[9px] text-green-700/60 font-mono">GLB</span>
               </button>
             );

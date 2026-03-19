@@ -257,7 +257,7 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
                 q && matchIdx !== -1 ? (
                   <>
                     {label.slice(0, matchIdx)}
-                    <span className={isChar ? "text-emerald-300 font-semibold" : "text-sky-300 font-semibold"}>
+                    <span className={isChar ? "text-emerald-300" : "text-sky-300"}>
                       {label.slice(matchIdx, matchIdx + q.length)}
                     </span>
                     {label.slice(matchIdx + q.length)}
@@ -287,7 +287,7 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
                       <MapPin className="w-3 h-3 m-auto mt-1.5 text-sky-500/60" />
                     )}
                   </div>
-                  <span className={`text-xs font-medium flex-1 ${isChar ? "text-emerald-400" : "text-sky-400"}`}>
+                  <span className={`text-xs flex-1 ${isChar ? "text-emerald-400" : "text-sky-400"}`}>
                     {highlighted}
                   </span>
                   {isBest ? (
@@ -336,8 +336,8 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
       parts.push(
         <span key={`m${m.index}`}
           className={token.startsWith("@")
-            ? "text-emerald-400 font-semibold"
-            : "text-sky-400 font-semibold"}
+            ? "text-emerald-400"
+            : "text-sky-400"}
         >{token}</span>
       );
       last = m.index + token.length;
@@ -347,22 +347,30 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
     return parts;
   };
 
+  const commonStyles: React.CSSProperties = {
+    fontFamily: "inherit",
+    fontSize: "inherit",
+    lineHeight: "inherit",
+    letterSpacing: "inherit",
+    fontKerning: "none",
+    margin: 0,
+    boxSizing: "border-box",
+    whiteSpace: "pre-wrap",
+    wordWrap: "break-word",
+    overflowWrap: "break-word",
+  };
+
   return (
-    <div className="flex-1 relative overflow-hidden">
+    <div className="flex-1 relative overflow-hidden flex flex-col">
       <div
         ref={backdropRef}
         aria-hidden="true"
-        className="absolute inset-0 px-2 py-1.5 text-sm whitespace-pre-wrap break-words pointer-events-none select-none"
+        className="absolute inset-0 px-2 py-1.5 text-sm pointer-events-none select-none"
         style={{
-          fontFamily: "inherit",
-          fontSize: "inherit",
-          lineHeight: "inherit",
-          letterSpacing: "inherit",
+          ...commonStyles,
           color: disabled ? "#555" : "#fff",
           overflowY: "auto",
           overflowX: "hidden",
-          wordWrap: "break-word",
-          overflowWrap: "break-word",
           zIndex: 0,
         }}
       >
@@ -372,12 +380,13 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
 
       <textarea
         ref={textareaRef}
-        className="relative w-full border-none outline-none text-sm px-2 py-1.5 resize-none max-h-32 min-h-[44px] placeholder-[#444]"
+        className="relative block w-full flex-1 border-none outline-none text-sm px-2 py-1.5 resize-none max-h-32 min-h-[44px] placeholder-[#444]"
         style={{
-          color: disabled ? "#555" : "#fff",
-          WebkitTextFillColor: "transparent",
-          caretColor: "white",
+          ...commonStyles,
+          color: "transparent",
+          caretColor: disabled ? "transparent" : "white",
           background: "transparent",
+          display: "block",
           zIndex: 1,
         }}
         placeholder="Describe the vision… use @Character or #Location to tag references"

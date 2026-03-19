@@ -894,7 +894,7 @@ export default function ScriptPage() {
                       onChange={(e) => { setEditorContent(e.target.value); setIsDirty(true); }}
                       onKeyDown={handleEditorKeyDown}
                       spellCheck={false}
-                      className="absolute inset-0 w-full h-full opacity-0 resize-none z-10 cursor-text"
+                      className="absolute inset-0 w-full h-full bg-transparent text-transparent caret-white outline-none border-none resize-none z-10 cursor-text font-[Courier_Prime,Courier_New,monospace] text-[12.5px] leading-[24px] px-16 py-12"
                       placeholder=""
                     />
 
