@@ -11,6 +11,7 @@ import {
   getScriptConversionReview,
   confirmScriptConversion,
   deleteScript,
+  getTaskStatus,
 } from "@/services/creative-hub";
 import { Script, Scene, Character } from "@/types/creative-hub";
 import {
@@ -274,6 +275,7 @@ export default function ScriptPage() {
 
   /* ── Conversion flow state ──────────────────────────────── */
   const [pendingScriptId, setPendingScriptId] = useState<number | null>(null);
+  const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
   const [isConverting, setIsConverting] = useState(false);
   const [isAwaitingConfirm, setIsAwaitingConfirm] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -326,6 +328,7 @@ export default function ScriptPage() {
         // Check if this script is mid-conversion
         if (s.requires_confirmation && s.review_status === "processing") {
           setPendingScriptId(s.id);
+          setPendingTaskId(s.task_id || null);
           setIsConverting(true);
           return;
         }
@@ -383,6 +386,21 @@ export default function ScriptPage() {
 
     const timer = setInterval(async () => {
       try {
+        // If we have a task_id, poll project v2 task status first
+        if (pendingTaskId) {
+          const taskRes = await getTaskStatus(pendingTaskId);
+          // Backend returns { status: 'success' | 'pending' | 'started' | 'failure', ... }
+          if (taskRes.status !== "success") {
+            // Task still running or failed (status: pending, started, but NOT success)
+            if (taskRes.status === "failure") {
+              console.error("Conversion task failed:", taskRes.error);
+              setIsConverting(false);
+            }
+            return;
+          }
+        }
+
+        // Task is complete (success) or no task_id provided -> call review API
         const review = await getScriptConversionReview(pendingScriptId);
         const draftFdx = review?.draft?.fdx_preview || '';
         const draftScenes = review?.draft?.scenes || [];
@@ -392,20 +410,23 @@ export default function ScriptPage() {
           setInternalRefContent(text);
           setIsConverting(false);
           setIsAwaitingConfirm(true);
+          setPendingTaskId(null);
         } else if (draftScenes.length) {
           const text = scenesToText(draftScenes);
           setEditorContent(text);
           setInternalRefContent(text);
           setIsConverting(false);
           setIsAwaitingConfirm(true);
+          setPendingTaskId(null);
         }
-      } catch {
-        // Not ready yet — keep polling
+      } catch (error: any) {
+        // Not ready yet or 404 — keep polling
+        console.warn("Polling error (expected if not ready):", error?.message);
       }
     }, 3000);
 
     return () => clearInterval(timer);
-  }, [isConverting, pendingScriptId]);
+  }, [isConverting, pendingScriptId, pendingTaskId]);
 
   /* ═══════════════════════ Handlers ════════════════════════ */
 
@@ -428,6 +449,7 @@ export default function ScriptPage() {
       if (newScript.requires_confirmation) {
         // Non-FDX → needs conversion + review
         setPendingScriptId(newScript.id);
+        setPendingTaskId(newScript.task_id || null);
         setIsConverting(true);
         setIsAwaitingConfirm(false);
         setEditorContent("");

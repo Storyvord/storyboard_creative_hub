@@ -420,7 +420,7 @@ export const getScriptTasks = async (scriptId: string | number): Promise<any> =>
 }
 
 export const getTaskStatus = async (taskId: string): Promise<any> => {
-    const response = await api.get(`/api/creative_hub/tasks/${taskId}/`);
+    const response = await api.get(`/api/project/v2/taskstatus/?task_id=${taskId}`);
     return response.data;
 }
 
