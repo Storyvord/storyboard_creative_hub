@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import { useEditor, EditorContent, ReactNodeViewRenderer } from "@tiptap/react";
+import React, { useEffect, useState } from "react";
+import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Paragraph from "@tiptap/extension-paragraph";
-import { WebsocketProvider } from "y-websocket";
+import Collaboration from "@tiptap/extension-collaboration";
 import * as Y from "yjs";
 
 export type ScreenplayElementType =
@@ -167,23 +167,6 @@ export const ScreenplayExtension = Paragraph.extend({
   },
 });
 
-// Random colour for this client's cursor
-const USER_COLORS = [
-  "#10b981", "#6366f1", "#f59e0b", "#ef4444", "#8b5cf6",
-  "#06b6d4", "#ec4899", "#84cc16",
-];
-function pickColor(seed: string) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  return USER_COLORS[h % USER_COLORS.length];
-}
-
-interface ConnectedUser {
-  clientId: number;
-  name: string;
-  color: string;
-}
-
 interface ScriptEditorProps {
   initialHtml: string;
   onUpdate: (html: string, text: string) => void;
@@ -192,21 +175,80 @@ interface ScriptEditorProps {
   scriptId?: number;
 }
 
+/**
+ * Minimal WebSocket provider that matches ScriptCollabConsumer's raw-bytes relay protocol.
+ *
+ * Protocol (server-side ScriptCollabConsumer):
+ *   - On connect: server sends Y.encode_state_as_update(doc) as raw bytes
+ *   - Client → server: raw Y.js update bytes (no framing)
+ *   - Server → client: raw Y.js update bytes (broadcast from other clients)
+ *
+ * This is intentionally simpler than y-websocket's SYNC_STEP1/STEP2 protocol.
+ * WebsocketProvider (y-websocket) speaks a different protocol and must NOT be used here.
+ */
+class ScriptCollabProvider {
+  ydoc: Y.Doc;
+  ws: WebSocket | null = null;
+  connected = false;
+  private _destroyed = false;
+  private _onUpdate: (update: Uint8Array, origin: unknown) => void;
+
+  constructor(ydoc: Y.Doc, wsUrl: string) {
+    this.ydoc = ydoc;
+
+    // Forward local Y.js updates to server (skip updates that came from the server itself)
+    this._onUpdate = (update: Uint8Array, origin: unknown) => {
+      if (origin === this || !this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      this.ws.send(update);
+    };
+    ydoc.on("update", this._onUpdate);
+
+    this._connect(wsUrl);
+  }
+
+  private _connect(wsUrl: string) {
+    if (this._destroyed) return;
+    this.ws = new WebSocket(wsUrl);
+    this.ws.binaryType = "arraybuffer";
+
+    this.ws.onopen = () => {
+      this.connected = true;
+    };
+
+    this.ws.onmessage = (event) => {
+      const update = new Uint8Array(event.data as ArrayBuffer);
+      // Apply remote update, marking origin as `this` so our onUpdate handler ignores it
+      Y.applyUpdate(this.ydoc, update, this);
+    };
+
+    this.ws.onclose = () => {
+      this.connected = false;
+      // Reconnect after 3 s (unless destroyed)
+      if (!this._destroyed) setTimeout(() => this._connect(wsUrl), 3000);
+    };
+
+    this.ws.onerror = () => {
+      this.ws?.close();
+    };
+  }
+
+  destroy() {
+    this._destroyed = true;
+    this.ydoc.off("update", this._onUpdate);
+    this.ws?.close();
+    this.ws = null;
+  }
+}
+
 function createCollabSetup(scriptId: number) {
   if (typeof window === "undefined") return null;
   const ydoc = new Y.Doc();
   const token = localStorage.getItem("accessToken");
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const wsBase = apiBase.replace(/^http/, "ws");
-  const wsUrl = `${wsBase}/ws/script_collab/${scriptId}/`;
-  const provider = new WebsocketProvider(wsUrl, `script-${scriptId}`, ydoc, {
-    params: token ? { token } : {},
-  });
-  const username = (() => {
-    try { return JSON.parse(localStorage.getItem("user") || "{}").name || "Collaborator"; }
-    catch { return "Collaborator"; }
-  })();
-  provider.awareness.setLocalStateField("user", { name: username, color: pickColor(username) });
+  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
+  const wsUrl = `${wsBase}/ws/script_collab/${scriptId}/${tokenParam}`;
+  const provider = new ScriptCollabProvider(ydoc, wsUrl);
   return { ydoc, provider };
 }
 
@@ -218,32 +260,22 @@ export const ScriptEditor = ({
   scriptId,
 }: ScriptEditorProps) => {
   // Create Y.Doc and provider once on mount (lazy useState, so it's ready before useEditor)
-  const [collab] = useState<{ ydoc: Y.Doc; provider: WebsocketProvider } | null>(
+  const [collab] = useState<{ ydoc: Y.Doc; provider: ScriptCollabProvider } | null>(
     () => (scriptId ? createCollabSetup(scriptId) : null)
   );
-  const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([]);
   const [collabConnected, setCollabConnected] = useState(false);
 
-  // Attach awareness listeners and handle cleanup
+  // Poll connection status and handle cleanup
   useEffect(() => {
     if (!collab) return;
     const { provider } = collab;
 
-    const onStatus = ({ status }: { status: string }) => setCollabConnected(status === "connected");
-    provider.on("status", onStatus);
-
-    const onAwareness = () => {
-      const users: ConnectedUser[] = [];
-      provider.awareness.getStates().forEach((state: any, clientId: number) => {
-        if (state.user) users.push({ clientId, name: state.user.name, color: state.user.color });
-      });
-      setConnectedUsers(users);
-    };
-    provider.awareness.on("change", onAwareness);
+    const interval = setInterval(() => {
+      setCollabConnected(provider.connected);
+    }, 1000);
 
     return () => {
-      provider.off("status", onStatus);
-      provider.awareness.off("change", onAwareness);
+      clearInterval(interval);
       provider.destroy();
       collab.ydoc.destroy();
     };
@@ -253,11 +285,20 @@ export const ScriptEditor = ({
     immediatelyRender: false,
     extensions: [
       StarterKit.configure({
+        // Disable history — Y.js manages undo/redo when Collaboration is active
+        history: collab ? false : undefined,
         paragraph: false,
       }),
       ScreenplayExtension,
+      // Bind the Y.js doc to Tiptap so all edits go through the CRDT.
+      // When no collab session (no scriptId), fall back to initialHtml content.
+      ...(collab
+        ? [Collaboration.configure({ document: collab.ydoc })]
+        : []),
     ],
-    content: initialHtml,
+    // content is only used when Collaboration extension is absent (no scriptId).
+    // When Collaboration is active, content comes from the Y.js doc instead.
+    content: collab ? undefined : initialHtml,
     editorProps: {
       attributes: {
         class:
@@ -285,30 +326,16 @@ export const ScriptEditor = ({
 
   return (
     <div className="relative">
-      {/* Connected users indicator */}
-      {collab && connectedUsers.length > 0 && (
+      {/* Live sync status indicator */}
+      {collab && (
         <div className="absolute top-3 right-4 z-10 flex items-center gap-1.5">
           <div
             className={`w-2 h-2 rounded-full ${collabConnected ? "bg-emerald-400" : "bg-gray-500"}`}
             title={collabConnected ? "Live sync active" : "Connecting…"}
           />
-          <div className="flex -space-x-1.5">
-            {connectedUsers.slice(0, 5).map((u) => (
-              <div
-                key={u.clientId}
-                title={u.name}
-                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-[#0e0e0e] select-none"
-                style={{ backgroundColor: u.color }}
-              >
-                {u.name[0]?.toUpperCase()}
-              </div>
-            ))}
-            {connectedUsers.length > 5 && (
-              <div className="w-6 h-6 rounded-full bg-[#333] flex items-center justify-center text-[10px] text-gray-400 border-2 border-[#0e0e0e]">
-                +{connectedUsers.length - 5}
-              </div>
-            )}
-          </div>
+          <span className="text-[10px] text-gray-500">
+            {collabConnected ? "Live" : "Syncing…"}
+          </span>
         </div>
       )}
       <EditorContent editor={editor} />
