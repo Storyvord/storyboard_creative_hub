@@ -190,7 +190,10 @@ class ScriptCollabProvider {
   ydoc: Y.Doc;
   ws: WebSocket | null = null;
   connected = false;
+  /** Called once after the first message from the server is applied. */
+  onInitialSync: (() => void) | null = null;
   private _destroyed = false;
+  private _initialSynced = false;
   private _onUpdate: (update: Uint8Array, origin: unknown) => void;
 
   constructor(ydoc: Y.Doc, wsUrl: string) {
@@ -208,6 +211,7 @@ class ScriptCollabProvider {
 
   private _connect(wsUrl: string) {
     if (this._destroyed) return;
+    this._initialSynced = false;
     this.ws = new WebSocket(wsUrl);
     this.ws.binaryType = "arraybuffer";
 
@@ -219,6 +223,11 @@ class ScriptCollabProvider {
       const update = new Uint8Array(event.data as ArrayBuffer);
       // Apply remote update, marking origin as `this` so our onUpdate handler ignores it
       Y.applyUpdate(this.ydoc, update, this);
+      // Fire once after the server's initial state snapshot is applied
+      if (!this._initialSynced) {
+        this._initialSynced = true;
+        this.onInitialSync?.();
+      }
     };
 
     this.ws.onclose = () => {
@@ -323,6 +332,31 @@ export const ScriptEditor = ({
       editorRef.current = editor;
     }
   }, [editor, editorRef]);
+
+  // After the server sends its initial state, seed from initialHtml if the Y.js doc
+  // is still empty. This handles scripts that have never had a collab session
+  // (Script.collab_state is null) so the server sends an empty snapshot.
+  useEffect(() => {
+    if (!collab || !editor) return;
+    const { provider, ydoc } = collab;
+
+    const seedIfEmpty = () => {
+      const fragment = ydoc.getXmlFragment("default");
+      if (fragment.length === 0 && initialHtml) {
+        editor.commands.setContent(initialHtml);
+      }
+    };
+
+    provider.onInitialSync = seedIfEmpty;
+
+    // If the server never sends a message (e.g. network delay), fall back after 2 s.
+    const fallbackTimer = setTimeout(seedIfEmpty, 2000);
+
+    return () => {
+      provider.onInitialSync = null;
+      clearTimeout(fallbackTimer);
+    };
+  }, [collab, editor, initialHtml]);
 
   return (
     <div className="relative">
