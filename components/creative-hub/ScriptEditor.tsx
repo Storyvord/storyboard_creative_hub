@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent, ReactNodeViewRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Paragraph from "@tiptap/extension-paragraph";
+import { WebsocketProvider } from "y-websocket";
+import * as Y from "yjs";
 
 export type ScreenplayElementType =
   | "scene_heading"
@@ -165,11 +167,47 @@ export const ScreenplayExtension = Paragraph.extend({
   },
 });
 
+// Random colour for this client's cursor
+const USER_COLORS = [
+  "#10b981", "#6366f1", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#06b6d4", "#ec4899", "#84cc16",
+];
+function pickColor(seed: string) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return USER_COLORS[h % USER_COLORS.length];
+}
+
+interface ConnectedUser {
+  clientId: number;
+  name: string;
+  color: string;
+}
+
 interface ScriptEditorProps {
   initialHtml: string;
   onUpdate: (html: string, text: string) => void;
   onActiveElementChange?: (element: ScreenplayElementType) => void;
   editorRef?: React.MutableRefObject<any>;
+  scriptId?: number;
+}
+
+function createCollabSetup(scriptId: number) {
+  if (typeof window === "undefined") return null;
+  const ydoc = new Y.Doc();
+  const token = localStorage.getItem("accessToken");
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const wsBase = apiBase.replace(/^http/, "ws");
+  const wsUrl = `${wsBase}/ws/script_collab/${scriptId}/`;
+  const provider = new WebsocketProvider(wsUrl, `script-${scriptId}`, ydoc, {
+    params: token ? { token } : {},
+  });
+  const username = (() => {
+    try { return JSON.parse(localStorage.getItem("user") || "{}").name || "Collaborator"; }
+    catch { return "Collaborator"; }
+  })();
+  provider.awareness.setLocalStateField("user", { name: username, color: pickColor(username) });
+  return { ydoc, provider };
 }
 
 export const ScriptEditor = ({
@@ -177,12 +215,45 @@ export const ScriptEditor = ({
   onUpdate,
   onActiveElementChange,
   editorRef,
+  scriptId,
 }: ScriptEditorProps) => {
+  // Create Y.Doc and provider once on mount (lazy useState, so it's ready before useEditor)
+  const [collab] = useState<{ ydoc: Y.Doc; provider: WebsocketProvider } | null>(
+    () => (scriptId ? createCollabSetup(scriptId) : null)
+  );
+  const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([]);
+  const [collabConnected, setCollabConnected] = useState(false);
+
+  // Attach awareness listeners and handle cleanup
+  useEffect(() => {
+    if (!collab) return;
+    const { provider } = collab;
+
+    const onStatus = ({ status }: { status: string }) => setCollabConnected(status === "connected");
+    provider.on("status", onStatus);
+
+    const onAwareness = () => {
+      const users: ConnectedUser[] = [];
+      provider.awareness.getStates().forEach((state: any, clientId: number) => {
+        if (state.user) users.push({ clientId, name: state.user.name, color: state.user.color });
+      });
+      setConnectedUsers(users);
+    };
+    provider.awareness.on("change", onAwareness);
+
+    return () => {
+      provider.off("status", onStatus);
+      provider.awareness.off("change", onAwareness);
+      provider.destroy();
+      collab.ydoc.destroy();
+    };
+  }, [collab]);
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit.configure({
-        paragraph: false, // Disabling default paragraph so we use our customized one
+        paragraph: false,
       }),
       ScreenplayExtension,
     ],
@@ -198,7 +269,6 @@ export const ScriptEditor = ({
       onUpdate(editor.getHTML(), editor.getText({ blockSeparator: "\n" }));
     },
     onSelectionUpdate: ({ editor }) => {
-      // Find the currently focused node type to display in the header
       const { selection } = editor.state;
       const node = selection.$anchor.node();
       if (node && node.type.name === "paragraph" && onActiveElementChange) {
@@ -213,10 +283,35 @@ export const ScriptEditor = ({
     }
   }, [editor, editorRef]);
 
-  // If initialHtml changes entirely from outside (e.g. newly loaded script), set its content
-  // But wait! We shouldn't reset content on every prop change.
-  // Actually, standard controlled editor pattern is complex in TipTap.
-  // Assuming the `page.tsx` recreates this by changing a key if it loads a completely new script.
-
-  return <EditorContent editor={editor} />;
+  return (
+    <div className="relative">
+      {/* Connected users indicator */}
+      {collab && connectedUsers.length > 0 && (
+        <div className="absolute top-3 right-4 z-10 flex items-center gap-1.5">
+          <div
+            className={`w-2 h-2 rounded-full ${collabConnected ? "bg-emerald-400" : "bg-gray-500"}`}
+            title={collabConnected ? "Live sync active" : "Connecting…"}
+          />
+          <div className="flex -space-x-1.5">
+            {connectedUsers.slice(0, 5).map((u) => (
+              <div
+                key={u.clientId}
+                title={u.name}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-[#0e0e0e] select-none"
+                style={{ backgroundColor: u.color }}
+              >
+                {u.name[0]?.toUpperCase()}
+              </div>
+            ))}
+            {connectedUsers.length > 5 && (
+              <div className="w-6 h-6 rounded-full bg-[#333] flex items-center justify-center text-[10px] text-gray-400 border-2 border-[#0e0e0e]">
+                +{connectedUsers.length - 5}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      <EditorContent editor={editor} />
+    </div>
+  );
 };

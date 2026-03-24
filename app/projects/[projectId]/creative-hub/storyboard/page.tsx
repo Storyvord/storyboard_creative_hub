@@ -40,6 +40,12 @@ export const CAMERA_ANGLES = [
 
 const SHOT_TYPES = Object.keys(SHOT_TYPE_MAP);
 export const ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3", "3:4", "2.35:1", "21:9", "3:2"];
+const STORYBOARDING_TYPES: { value: 'sketch' | 'storyboard' | 'hd' | 'anime'; label: string }[] = [
+  { value: 'sketch',     label: 'Sketch' },
+  { value: 'storyboard', label: 'Storyboard' },
+  { value: 'hd',         label: 'HD' },
+  { value: 'anime',      label: 'Anime' },
+];
 
 function getAbbrev(type: string): string {
   return SHOT_TYPE_MAP[type] || type?.substring(0, 3)?.toUpperCase() || "—";
@@ -1134,7 +1140,7 @@ export default function StoryboardPage() {
             {activeScript && (
               <div className="flex items-center gap-2 mr-2">
                 <span className="text-[11px] font-medium text-[#888]">Aspect Ratio:</span>
-                <select 
+                <select
                   className="bg-[#161616] hover:bg-[#1a1a1a] border border-[#222] rounded-md text-[11px] font-medium transition-colors text-white px-2 py-1.5 outline-none focus:border-emerald-500/40"
                   value={activeScript.aspect_ratio || "16:9"}
                   onChange={async (e) => {
@@ -1149,6 +1155,31 @@ export default function StoryboardPage() {
                   }}
                 >
                   {ASPECT_RATIOS.map(ar => <option key={ar} value={ar}>{ar}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* Storyboarding Type */}
+            {activeScript && (
+              <div className="flex items-center gap-2 mr-2">
+                <span className="text-[11px] font-medium text-[#888]">Style:</span>
+                <select
+                  className="bg-[#161616] hover:bg-[#1a1a1a] border border-[#222] rounded-md text-[11px] font-medium transition-colors text-white px-2 py-1.5 outline-none focus:border-emerald-500/40"
+                  value={activeScript.storyboarding_type || "hd"}
+                  onChange={async (e) => {
+                    const newValue = e.target.value as 'sketch' | 'storyboard' | 'hd' | 'anime';
+                    setActiveScript({ ...activeScript, storyboarding_type: newValue });
+                    try {
+                      await updateScript(activeScript.id, { storyboarding_type: newValue });
+                      toast.success("Storyboarding style updated.");
+                    } catch (err) {
+                      toast.error(extractApiError(err, "Failed to update storyboarding style."));
+                    }
+                  }}
+                >
+                  {STORYBOARDING_TYPES.map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
                 </select>
               </div>
             )}

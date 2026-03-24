@@ -7,7 +7,6 @@ import {
   getScenes,
   getCharacters,
   updateScript,
-  reparseScript,
   getScriptConversionReview,
   confirmScriptConversion,
   deleteScript,
@@ -483,23 +482,9 @@ export default function ScriptPage() {
         setScript(updated);
         originalFdxRef.current = newFdx;
         setIsDirty(false);
-        toast.success("Script saved.");
+        toast.success("Script saved. Go to Scenes to review and apply changes.");
       } else {
-        toast.info("No changes — syncing scenes from script…");
-      }
-
-      // Always sync scenes from the (possibly updated) FDX content
-      try {
-        await reparseScript(script.id);
-        const [newScenes, newChars] = await Promise.all([
-          getScenes(script.id).catch(() => []),
-          getCharacters(script.id).catch(() => []),
-        ]);
-        setScenes(newScenes);
-        setCharacters(newChars);
-        toast.success("Scenes synced from script.");
-      } catch {
-        toast.info("Scene sync in progress — scenes will update shortly.");
+        toast.info("No changes to save.");
       }
     } catch (err: unknown) {
       toast.error(extractApiError(err as Error, "Save failed."));
@@ -936,6 +921,7 @@ export default function ScriptPage() {
                       key={script?.id ? `${script.id}-${isAwaitingConfirm}` : 'new'}
                       initialHtml={initialHtml}
                       editorRef={editorRef}
+                      scriptId={script?.id}
                       onUpdate={(html: string, text: string) => {
                         setEditorContent(text);
                         setInternalRefContent(html);

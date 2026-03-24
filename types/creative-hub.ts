@@ -6,6 +6,7 @@ export interface Script {
   suggestions: any[];
   analysis?: any;
   aspect_ratio?: string;
+  storyboarding_type?: 'sketch' | 'storyboard' | 'hd' | 'anime';
   uploaded_at: string;
   task_id?: string;
   requires_confirmation?: boolean;
@@ -20,9 +21,23 @@ export interface Scene {
   location?: string;
   location_detail?: Location | null;
   int_ext?: string;
-  time?: string;
+  /** Time-of-day extracted from FDX (e.g. "DAY", "NIGHT") */
+  environment?: string;
+  /** SHA-256 hash of canonical scene content for change detection */
+  scene_hash?: string;
+  dialog_count?: number;
+  set_number?: number;
+  date?: string;
+  timeline?: any;
   scene_characters?: any[];
   [key: string]: any;
+}
+
+export interface SceneSyncDiff {
+  new_scenes: { order: number; scene_name: string; description: string; location: string; int_ext: string; environment: string }[];
+  updated_scenes: { scene_id: number; order: number; scene_name: string; changes: string[]; shot_count: number }[];
+  unchanged_scenes: { scene_id: number; order: number; scene_name: string }[];
+  deleted_scenes: { scene_id: number; order: number; scene_name: string; shot_count: number }[];
 }
 
 export interface Character {

@@ -1,5 +1,5 @@
 import api from "./api";
-import { Script, Scene, Character, Cloth, Shot } from "@/types/creative-hub";
+import { Script, Scene, Character, Cloth, Shot, SceneSyncDiff } from "@/types/creative-hub";
 
 export interface ImageModel {
   model_name: string;
@@ -93,6 +93,11 @@ export const getScenes = async (scriptId: number): Promise<Scene[]> => {
 export const syncScenes = async (scriptId: number): Promise<void> => {
     await api.post(`/api/creative_hub/scripts/${scriptId}/scenes/`);
 }
+
+export const getScene = async (sceneId: number): Promise<Scene> => {
+    const response = await api.get(`/api/creative_hub/scenes/${sceneId}/edit/`);
+    return response.data;
+};
 
 export const updateScene = async (sceneId: number, data: Partial<Scene>): Promise<Scene> => {
     const response = await api.put(`/api/creative_hub/scenes/${sceneId}/edit/`, data);
@@ -353,6 +358,7 @@ export const bulkGenerateShots = async (sceneIds: number[]): Promise<any> => {
 }
 
 export const reorderShots = async (shotOrders: { id: number; scene_id: number; order: number }[]): Promise<any> => {
+    // Backend ReorderShotsView accepts POST (PUT is an alias) — using POST as documented
     const response = await api.post(`/api/creative_hub/shots/reorder/`, {
         shot_orders: shotOrders
     });
@@ -559,4 +565,24 @@ export const editPrevizWithPrompt = async (
     await setActivePreviz(shotId, newPreviz.id);
 
     return regeneratedPreviz;
+}
+
+// Scene dialogs
+export const getSceneDialogs = async (sceneId: number): Promise<any[]> => {
+    const response = await api.get(`/api/creative_hub/scripts/${sceneId}/dialogs/`);
+    if (Array.isArray(response.data)) return response.data;
+    if (response.data.results) return response.data.results;
+    return [];
+}
+
+// Scene sync preview (returns diff without applying changes)
+export const getSceneSyncPreview = async (scriptId: number): Promise<SceneSyncDiff> => {
+    const response = await api.get(`/api/creative_hub/scripts/${scriptId}/scenes/sync-preview/`);
+    return response.data;
+}
+
+// Confirm scene sync (applies the re-parse)
+export const confirmSceneSync = async (scriptId: number): Promise<{ script_id: number; scenes_synced: number }> => {
+    const response = await api.post(`/api/creative_hub/scripts/${scriptId}/scenes/sync-preview/`);
+    return response.data;
 }

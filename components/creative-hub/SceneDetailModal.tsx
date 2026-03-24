@@ -1,37 +1,43 @@
 import { Scene, Shot } from "@/types/creative-hub";
-import { X, Calendar, MapPin, Clock, Film, Edit, Trash2, Wand2, Loader2 } from "lucide-react";
+import { X, Calendar, MapPin, Clock, Film, Edit, Trash2, Wand2, Loader2, ExternalLink, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
-import { getShots, generateShots, updateScene, getSceneCharacters } from "@/services/creative-hub";
+import { getShots, generateShots, updateScene, getSceneCharacters, getSceneDialogs } from "@/services/creative-hub";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import SceneCharacterDetailModal from "./SceneCharacterDetailModal";
 import ShotSkeleton from "./ShotSkeleton";
+import Link from "next/link";
 
 interface SceneDetailModalProps {
   scene: Scene | null;
+  projectId?: string;
   onClose: () => void;
   onUpdate: () => void;
 }
 
-export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDetailModalProps) {
+export default function SceneDetailModal({ scene, projectId, onClose, onUpdate }: SceneDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<Scene>>({});
   const [saving, setSaving] = useState(false);
-  
+
   // Missing state restored
   const [shots, setShots] = useState<Shot[]>([]);
   const [loadingShots, setLoadingShots] = useState(false);
   const [generatingShots, setGeneratingShots] = useState(false);
-  
+
   const [sceneCharacters, setSceneCharacters] = useState<any[]>([]);
   const [selectedSceneCharacter, setSelectedSceneCharacter] = useState<any | null>(null);
+
+  const [dialogs, setDialogs] = useState<any[]>([]);
+  const [loadingDialogs, setLoadingDialogs] = useState(false);
 
   useEffect(() => {
     if (scene) {
       setFormData(scene);
       fetchShots();
       fetchSceneCharacters();
+      fetchDialogs();
     }
   }, [scene]);
 
@@ -76,6 +82,19 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
           setSceneCharacters(data);
       } catch (error) {
           console.error("Failed to fetch scene characters", error);
+      }
+  };
+
+  const fetchDialogs = async () => {
+      if (!scene) return;
+      setLoadingDialogs(true);
+      try {
+          const data = await getSceneDialogs(scene.id);
+          setDialogs(data || []);
+      } catch (error) {
+          console.error("Failed to fetch dialogs", error);
+      } finally {
+          setLoadingDialogs(false);
       }
   };
 
@@ -161,16 +180,16 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                 <div className="flex items-center gap-1.5">
                     <Clock className="h-4 w-4" />
                     {isEditing ? (
-                         <input 
+                         <input
                             type="text"
-                            name="time"
-                            value={formData.time || ""}
+                            name="environment"
+                            value={formData.environment || ""}
                             onChange={handleInputChange}
                             placeholder="Time of day"
                             className="bg-[#1a1a1a] border border-[#222] rounded px-2 py-0.5 text-white text-xs focus:outline-none w-24"
                         />
                     ) : (
-                        <span>{scene.time}</span>
+                        <span>{scene.environment}</span>
                     )}
                 </div>
               </div>
@@ -325,6 +344,34 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                 )}
             </section>
 
+            {/* Dialogs */}
+            <section>
+                <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-emerald-400" />
+                    Dialogs {!loadingDialogs && `(${dialogs.length})`}
+                </h3>
+                {loadingDialogs ? (
+                    <div className="space-y-2 animate-pulse">
+                        {[...Array(3)].map((_, i) => (
+                            <div key={i} className="h-12 bg-[#1a1a1a]/50 rounded-md" />
+                        ))}
+                    </div>
+                ) : dialogs.length > 0 ? (
+                    <div className="space-y-3">
+                        {dialogs.map((dialog: any, idx: number) => (
+                            <div key={idx} className="bg-[#1a1a1a]/30 border border-[#1a1a1a] rounded-md p-3">
+                                <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-1">
+                                    {dialog.character || dialog.character_name || "Unknown"}
+                                </p>
+                                <p className="text-sm text-gray-300 leading-relaxed">{dialog.dialog || dialog.text || dialog.content}</p>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-gray-500 italic">No dialogs in this scene.</p>
+                )}
+            </section>
+
             {/* Shots */}
             <section>
                 <div className="flex justify-between items-center mb-4">
@@ -400,7 +447,15 @@ export default function SceneDetailModal({ scene, onClose, onUpdate }: SceneDeta
                  </>
              ) : (
                 <>
-                    <button 
+                    {projectId && (
+                        <Link
+                            href={`/projects/${projectId}/creative-hub/scenes/${scene.id}`}
+                            className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] text-gray-300 hover:text-white rounded-md text-sm font-medium transition-colors flex items-center gap-2"
+                        >
+                            <ExternalLink className="h-4 w-4" /> Open Full View
+                        </Link>
+                    )}
+                    <button
                         onClick={() => setIsEditing(true)}
                         className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] text-white rounded-md text-sm font-medium transition-colors flex items-center gap-2"
                     >
