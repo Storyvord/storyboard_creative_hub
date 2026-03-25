@@ -1,14 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getScripts, getScenes, getSceneSyncPreview } from "@/services/creative-hub";
-import { Script, Scene, SceneSyncDiff } from "@/types/creative-hub";
+import { getScripts, getScenes } from "@/services/creative-hub";
+import { Script, Scene } from "@/types/creative-hub";
 import SceneDetailModal from "@/components/creative-hub/SceneDetailModal";
 import SceneSyncPreviewModal from "@/components/creative-hub/SceneSyncPreviewModal";
 import { Loader2, RefreshCw, AlertCircle, MapPin, ChevronRight, Plus } from "lucide-react";
 import { useParams } from "next/navigation";
-
-type SceneStatus = "unchanged" | "updated" | "deleted" | "new";
 
 const CHANGE_LABELS: Record<string, string> = {
   action: "Action",
@@ -18,15 +16,6 @@ const CHANGE_LABELS: Record<string, string> = {
   dialogue: "Dialogue",
 };
 
-interface DisplayScene {
-  status: SceneStatus;
-  scene?: Scene;                          // existing DB scene (unchanged / updated / deleted)
-  newData?: SceneSyncDiff["new_scenes"][number]; // for "new" phantom cards
-  order: number;
-  changes?: string[];
-  shot_count?: number;
-}
-
 export default function ScenesPage() {
   const params = useParams();
   const projectId = params.projectId as string;
@@ -34,7 +23,6 @@ export default function ScenesPage() {
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [script, setScript] = useState<Script | null>(null);
   const [loading, setLoading] = useState(true);
-  const [diff, setDiff] = useState<SceneSyncDiff | null>(null);
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
@@ -47,19 +35,11 @@ export default function ScenesPage() {
         const scripts = await getScripts(projectId);
         if (!scripts || scripts.length === 0) { setLoading(false); return; }
         setScript(scripts[0]);
-        const [scenesData, diffData] = await Promise.all([
-          getScenes(scripts[0].id),
-          getSceneSyncPreview(scripts[0].id).catch(() => null),
-        ]);
+        const scenesData = await getScenes(scripts[0].id);
         setScenes(scenesData || []);
-        setDiff(diffData);
       } else {
-        const [scenesData, diffData] = await Promise.all([
-          getScenes(s.id),
-          getSceneSyncPreview(s.id).catch(() => null),
-        ]);
+        const scenesData = await getScenes(s.id);
         setScenes(scenesData || []);
-        setDiff(diffData);
       }
     } catch (error) {
       console.error("Failed to fetch scenes", error);
@@ -68,43 +48,11 @@ export default function ScenesPage() {
     }
   };
 
-  // Build merged display list: existing scenes + phantom "new" cards, sorted by order
-  const buildDisplayList = (): DisplayScene[] => {
-    if (!diff) {
-      return scenes.map(s => ({ status: "unchanged", scene: s, order: s.order }));
-    }
-
-    const updatedIds = new Set(diff.updated_scenes.map(u => u.scene_id));
-    const deletedIds = new Set(diff.deleted_scenes.map(d => d.scene_id));
-    const updatedMap = new Map(diff.updated_scenes.map(u => [u.scene_id, u]));
-    const deletedMap = new Map(diff.deleted_scenes.map(d => [d.scene_id, d]));
-
-    const list: DisplayScene[] = scenes.map(s => {
-      if (deletedIds.has(s.id)) {
-        return { status: "deleted", scene: s, order: s.order, shot_count: deletedMap.get(s.id)?.shot_count };
-      }
-      if (updatedIds.has(s.id)) {
-        return { status: "updated", scene: s, order: s.order, changes: updatedMap.get(s.id)?.changes, shot_count: updatedMap.get(s.id)?.shot_count };
-      }
-      return { status: "unchanged", scene: s, order: s.order };
-    });
-
-    // Add phantom new-scene cards
-    for (const ns of diff.new_scenes) {
-      list.push({ status: "new", newData: ns, order: ns.order });
-    }
-
-    list.sort((a, b) => a.order - b.order);
-    return list;
-  };
-
-  const hasChanges = diff && (
-    diff.new_scenes.length > 0 ||
-    diff.updated_scenes.length > 0 ||
-    diff.deleted_scenes.length > 0
-  );
-
-  const displayList = buildDisplayList();
+  // Count sync changes directly from backend-provided sync_status on each scene
+  const newCount = scenes.filter(s => s.sync_status === 'new').length;
+  const updatedCount = scenes.filter(s => s.sync_status === 'updated').length;
+  const deletedCount = scenes.filter(s => s.sync_status === 'deleted').length;
+  const hasChanges = newCount > 0 || updatedCount > 0 || deletedCount > 0;
 
   if (loading) return (
     <div className="flex justify-center items-center h-full">
@@ -125,26 +73,26 @@ export default function ScenesPage() {
       <header className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-xl font-bold mb-1 text-white">Scenes</h1>
-          <p className="text-[#555] text-xs">Manage and visualize your script's scenes</p>
+          <p className="text-[#555] text-xs">Manage and visualize your script&apos;s scenes</p>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Change summary badges */}
-          {diff && (diff.new_scenes.length > 0 || diff.updated_scenes.length > 0 || diff.deleted_scenes.length > 0) && (
+          {/* Change summary badges — counts come from backend sync_status */}
+          {hasChanges && (
             <div className="flex items-center gap-1.5 text-xs">
-              {diff.new_scenes.length > 0 && (
+              {newCount > 0 && (
                 <span className="px-2 py-0.5 rounded bg-gray-500/20 text-gray-400 border border-gray-500/30">
-                  +{diff.new_scenes.length} new
+                  +{newCount} new
                 </span>
               )}
-              {diff.updated_scenes.length > 0 && (
+              {updatedCount > 0 && (
                 <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                  ~{diff.updated_scenes.length} edited
+                  ~{updatedCount} edited
                 </span>
               )}
-              {diff.deleted_scenes.length > 0 && (
+              {deletedCount > 0 && (
                 <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">
-                  -{diff.deleted_scenes.length} removed
+                  -{deletedCount} removed
                 </span>
               )}
             </div>
@@ -174,11 +122,15 @@ export default function ScenesPage() {
         </div>
       </header>
 
-      {displayList.length > 0 ? (
+      {scenes.length > 0 ? (
         <div className="space-y-3">
-          {displayList.map((item, idx) => {
-            if (item.status === "new") {
-              const ns = item.newData!;
+          {scenes.map((s, idx) => {
+            const isNew = s.sync_status === 'new';
+            const isUpdated = s.sync_status === 'updated';
+            const isDeleted = s.sync_status === 'deleted';
+
+            // Phantom "new" scene card (no DB id)
+            if (isNew) {
               return (
                 <div
                   key={`new-${idx}`}
@@ -187,28 +139,28 @@ export default function ScenesPage() {
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0 w-14 h-14 bg-[#111] rounded-md flex flex-col items-center justify-center border border-dashed border-gray-600/40">
                       <span className="text-[9px] text-gray-600 uppercase font-bold tracking-wider">SC</span>
-                      <span className="text-lg font-bold text-gray-500">{ns.order}</span>
+                      <span className="text-lg font-bold text-gray-500">{s.order}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between mb-1">
-                        <h3 className="text-sm font-bold text-gray-400 truncate pr-4">{ns.scene_name}</h3>
+                        <h3 className="text-sm font-bold text-gray-400 truncate pr-4">{s.scene_name}</h3>
                         <span className="flex items-center gap-1 text-[10px] text-gray-500 bg-gray-500/10 px-2 py-0.5 rounded border border-gray-500/20">
                           <Plus className="h-3 w-3" /> New
                         </span>
                       </div>
-                      {ns.description && (
-                        <p className="text-[#555] text-xs line-clamp-2">{ns.description}</p>
+                      {s.description && (
+                        <p className="text-[#555] text-xs line-clamp-2">{s.description}</p>
                       )}
-                      {(ns.location || ns.int_ext || ns.environment) && (
+                      {(s.location || s.int_ext || s.environment) && (
                         <div className="flex items-center gap-2 mt-2 text-[10px] text-[#444]">
-                          {ns.int_ext && <span className="uppercase font-medium">{ns.int_ext}</span>}
-                          {ns.location && (
+                          {s.int_ext && <span className="uppercase font-medium">{s.int_ext}</span>}
+                          {s.location && (
                             <div className="flex items-center gap-1">
                               <MapPin className="h-3 w-3" />
-                              <span>{ns.location}</span>
+                              <span>{s.location}</span>
                             </div>
                           )}
-                          {ns.environment && <span>· {ns.environment}</span>}
+                          {s.environment && <span>· {s.environment}</span>}
                         </div>
                       )}
                     </div>
@@ -217,14 +169,10 @@ export default function ScenesPage() {
               );
             }
 
-            const s = item.scene!;
-            const isUpdated = item.status === "updated";
-            const isDeleted = item.status === "deleted";
-
             return (
               <div
-                key={s.id}
-                onClick={() => !isDeleted && setSelectedScene(s)}
+                key={s.id ?? `scene-${idx}`}
+                onClick={() => !isDeleted && s.id && setSelectedScene(s)}
                 className={`relative p-4 rounded-md border transition-all group ${
                   isDeleted
                     ? "bg-[#0d0d0d] border-red-500/30 cursor-default"
@@ -267,16 +215,16 @@ export default function ScenesPage() {
                             Will be deleted
                           </span>
                         )}
-                        {isUpdated && item.changes && item.changes.length > 0 && (
+                        {isUpdated && s.sync_changes && s.sync_changes.length > 0 && (
                           <div className="flex gap-1">
-                            {item.changes.slice(0, 2).map(c => (
+                            {s.sync_changes.slice(0, 2).map((c: string) => (
                               <span key={c} className="text-[10px] text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20">
                                 {CHANGE_LABELS[c] ?? c}
                               </span>
                             ))}
-                            {item.changes.length > 2 && (
+                            {s.sync_changes.length > 2 && (
                               <span className="text-[10px] text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20">
-                                +{item.changes.length - 2}
+                                +{s.sync_changes.length - 2}
                               </span>
                             )}
                           </div>
@@ -297,13 +245,13 @@ export default function ScenesPage() {
                         <MapPin className="h-3 w-3" />
                         <span className="truncate max-w-[120px]">{s.location}</span>
                       </div>
-                      {isDeleted && item.shot_count != null && item.shot_count > 0 && (
-                        <span className="text-red-500/60">{item.shot_count} shot{item.shot_count !== 1 ? "s" : ""} will be removed</span>
+                      {isDeleted && s.sync_shot_count != null && s.sync_shot_count > 0 && (
+                        <span className="text-red-500/60">{s.sync_shot_count} shot{s.sync_shot_count !== 1 ? "s" : ""} will be removed</span>
                       )}
                     </div>
                   </div>
 
-                  {!isDeleted && (
+                  {!isDeleted && s.id && (
                     <div className="flex items-center self-center pl-3 border-l border-[#1a1a1a]">
                       <ChevronRight className={`h-4 w-4 transition-colors ${isUpdated ? "text-orange-500/40 group-hover:text-orange-400" : "text-[#444] group-hover:text-emerald-400"}`} />
                     </div>
@@ -332,9 +280,8 @@ export default function ScenesPage() {
       {showSyncModal && script && (
         <SceneSyncPreviewModal
           scriptId={script.id}
-          preloadedDiff={diff}
           onClose={() => setShowSyncModal(false)}
-          onSynced={() => { setDiff(null); fetchData(script); }}
+          onSynced={() => fetchData(script)}
         />
       )}
     </div>

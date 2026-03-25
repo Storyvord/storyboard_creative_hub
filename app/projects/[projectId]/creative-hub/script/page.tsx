@@ -289,6 +289,9 @@ export default function ScriptPage() {
   /* ── Refs ────────────────────────────────────────────────── */
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<any>(null);
+  /** Plain-text snapshot of the draft loaded for confirmation (not the FDX). Used in
+   *  handleConfirm to detect real edits vs TipTap's initial-render reformatting. */
+  const originalDraftTextRef = useRef<string>("");
 
   useEffect(() => {
     if (!isDirty && editorContent !== internalRefContent) {
@@ -331,7 +334,7 @@ export default function ScriptPage() {
           setIsConverting(true);
           return;
         }
-        if (s.requires_confirmation && s.review_status === "pending_review") {
+        if (s.requires_confirmation && (s.review_status === "pending_review" || s.review_status === "ready_for_review")) {
           setPendingScriptId(s.id);
           // Try to load draft immediately
           try {
@@ -342,16 +345,24 @@ export default function ScriptPage() {
               const text = fdxToText(draftFdx);
               setEditorContent(text);
               setInternalRefContent(text);
+              originalDraftTextRef.current = text;
+              // Must set isConverting=false BEFORE isAwaitingConfirm=true so the
+              // polling useEffect stops (its guard checks isConverting).
+              setIsConverting(false);
               setIsAwaitingConfirm(true);
             } else if (draftScenes.length) {
               const text = scenesToText(draftScenes);
               setEditorContent(text);
               setInternalRefContent(text);
+              originalDraftTextRef.current = text;
+              setIsConverting(false);
               setIsAwaitingConfirm(true);
             } else {
+              // Draft not written yet — keep the converting spinner
               setIsConverting(true);
             }
           } catch {
+            // Review endpoint failed (draft not ready) — keep polling
             setIsConverting(true);
           }
           return;
@@ -385,46 +396,40 @@ export default function ScriptPage() {
 
     const timer = setInterval(async () => {
       try {
-        // If we have a task_id, poll project v2 task status first
-        if (pendingTaskId) {
-          const taskRes = await getTaskStatus(pendingTaskId);
-          // Backend returns { status: 'success' | 'pending' | 'started' | 'failure', ... }
-          if (taskRes.status !== "success") {
-            // Task still running or failed (status: pending, started, but NOT success)
-            if (taskRes.status === "failure") {
-              console.error("Conversion task failed:", taskRes.error);
-              setIsConverting(false);
-            }
-            return;
-          }
+        if (!pendingTaskId) {
+          // No task id — fall back to refreshing the script directly
+          await fetchScript();
+          return;
         }
 
-        // Task is complete (success) or no task_id provided -> call review API
-        const review = await getScriptConversionReview(pendingScriptId);
-        const draftFdx = review?.draft?.fdx_preview || '';
-        const draftScenes = review?.draft?.scenes || [];
-        if (draftFdx && isFdxXml(draftFdx)) {
-          const text = fdxToText(draftFdx);
-          setEditorContent(text);
-          setInternalRefContent(text);
+        // Poll the DB-backed task status endpoint (same as storyboard page).
+        // The DB record persists even after Celery's result backend expires, so
+        // we always get an accurate status without a fallback review API call.
+        const taskRes = await getTaskStatus(pendingTaskId);
+        const taskStatus = taskRes?.status || '';
+
+        if (taskStatus === 'failed' || taskStatus === 'failure') {
+          console.error("Conversion task failed:", taskRes.error);
           setIsConverting(false);
-          setIsAwaitingConfirm(true);
-          setPendingTaskId(null);
-        } else if (draftScenes.length) {
-          const text = scenesToText(draftScenes);
-          setEditorContent(text);
-          setInternalRefContent(text);
-          setIsConverting(false);
-          setIsAwaitingConfirm(true);
-          setPendingTaskId(null);
+          return;
         }
+
+        if (taskStatus === 'completed' || taskStatus === 'success') {
+          // Stop the polling interval immediately, then let fetchScript() decide
+          // the next screen (confirm or normal editor).
+          setPendingTaskId(null);
+          setIsConverting(false);  // tears down this interval via useEffect deps
+          await fetchScript();
+        }
+        // Any other status ('pending', 'processing', 'started', 'retrying'):
+        // keep polling — do nothing this tick.
       } catch (error: any) {
-        // Not ready yet or 404 — keep polling
-        console.warn("Polling error (expected if not ready):", error?.message);
+        console.warn("Task polling error:", error?.message);
       }
     }, 3000);
 
     return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConverting, pendingScriptId, pendingTaskId]);
 
   /* ═══════════════════════ Handlers ════════════════════════ */
@@ -443,10 +448,10 @@ export default function ScriptPage() {
     setUploading(true);
     try {
       const newScript = await uploadScript(projectId, file);
-      setScript(newScript);
 
       if (newScript.requires_confirmation) {
         // Non-FDX → needs conversion + review
+        setScript(newScript);
         setPendingScriptId(newScript.id);
         setPendingTaskId(newScript.task_id || null);
         setIsConverting(true);
@@ -456,7 +461,8 @@ export default function ScriptPage() {
         setCharacters([]);
         toast.success("Script received — converting your screenplay…");
       } else {
-        // FDX → parsed immediately
+        // FDX → parsed immediately. Let fetchScript set script + internalRefContent
+        // in one batch so ScriptEditor only mounts once initialHtml is populated.
         toast.success("Script uploaded and parsed!");
         setPendingScriptId(null);
         setIsConverting(false);
@@ -497,15 +503,23 @@ export default function ScriptPage() {
     if (!script) return;
     setConfirming(true);
     try {
-      if (isDirty) {
-        // User edited the draft — send screenplay_text for re-conversion
+      // Detect real user edits by comparing plain text against what was originally
+      // loaded into the editor. We cannot rely on `isDirty` here because TipTap
+      // fires onUpdate during its initial render with slightly reformatted HTML,
+      // which would set isDirty=true even before the user types anything.
+      const normalize = (s: string) => s.replace(/\s+/g, " ").trim();
+      const hasRealEdits =
+        normalize(editorContent) !== normalize(originalDraftTextRef.current);
+
+      if (hasRealEdits) {
+        // User edited the draft — send screenplay_text for LLM re-conversion
         await confirmScriptConversion(script.id, {
           action: "confirm",
           screenplay_text: editorContent,
         });
         toast.success("Script confirmed — re-converting with edits…");
       } else {
-        // User didn't edit — confirm as-is (no LLM re-conversion)
+        // No real edits — confirm the existing draft scenes directly
         await confirmScriptConversion(script.id, {
           action: "confirm",
         });
@@ -918,7 +932,7 @@ export default function ScriptPage() {
                   <div className="relative">
                     {/* Formatted screenplay TipTap render */}
                     <ScriptEditor
-                      key={script?.id ? `${script.id}-${isAwaitingConfirm}` : 'new'}
+                      key={script?.id ? `${script.id}-${script.updated_at}-${isAwaitingConfirm}` : 'new'}
                       initialHtml={initialHtml}
                       editorRef={editorRef}
                       scriptId={script?.id}

@@ -11,10 +11,12 @@ export interface Script {
   task_id?: string;
   requires_confirmation?: boolean;
   review_status?: string;
+  /** Pre-computed scene diff stored on script save; null after sync is applied */
+  sync_diff?: SceneSyncDiff | null;
 }
 
 export interface Scene {
-  id: number;
+  id: number | null;
   scene_name: string;
   description: string;
   order: number;
@@ -25,11 +27,19 @@ export interface Scene {
   environment?: string;
   /** SHA-256 hash of canonical scene content for change detection */
   scene_hash?: string;
+  /** True when scene content was edited after shots were generated */
+  shots_stale?: boolean;
   dialog_count?: number;
   set_number?: number;
   date?: string;
   timeline?: any;
   scene_characters?: any[];
+  /** Backend-computed sync status relative to current FDX content */
+  sync_status?: 'unchanged' | 'updated' | 'deleted' | 'new';
+  /** List of changed fields (e.g. ['action', 'location']) when sync_status is 'updated' */
+  sync_changes?: string[];
+  /** Number of shots that would be deleted if this scene is removed */
+  sync_shot_count?: number;
   [key: string]: any;
 }
 

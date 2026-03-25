@@ -1,8 +1,8 @@
 import { Scene, Shot } from "@/types/creative-hub";
-import { X, Calendar, MapPin, Clock, Film, Edit, Trash2, Wand2, Loader2, ExternalLink, MessageSquare } from "lucide-react";
+import { X, Calendar, MapPin, Clock, Film, Edit, Trash2, Wand2, Loader2, ExternalLink, MessageSquare, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
-import { getShots, generateShots, updateScene, getSceneCharacters, getSceneDialogs } from "@/services/creative-hub";
+import { getShots, generateShots, updateScene, getSceneCharacters, getSceneDialogs, dismissStaleShotWarning, deleteSceneShots } from "@/services/creative-hub";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import SceneCharacterDetailModal from "./SceneCharacterDetailModal";
@@ -32,14 +32,47 @@ export default function SceneDetailModal({ scene, projectId, onClose, onUpdate }
   const [dialogs, setDialogs] = useState<any[]>([]);
   const [loadingDialogs, setLoadingDialogs] = useState(false);
 
+  const [shotsStale, setShotsStale] = useState(false);
+  const [staleDismissing, setStaleDismissing] = useState(false);
+
   useEffect(() => {
     if (scene) {
       setFormData(scene);
+      setShotsStale(!!scene.shots_stale);
       fetchShots();
       fetchSceneCharacters();
       fetchDialogs();
     }
   }, [scene]);
+
+  const handleIgnoreStale = async () => {
+    if (!scene) return;
+    setStaleDismissing(true);
+    try {
+      await dismissStaleShotWarning(scene.id);
+      setShotsStale(false);
+    } catch {
+      // Dismiss locally even if API fails
+      setShotsStale(false);
+    } finally {
+      setStaleDismissing(false);
+    }
+  };
+
+  const handleDeleteStaleShots = async () => {
+    if (!scene) return;
+    setStaleDismissing(true);
+    try {
+      await deleteSceneShots(scene.id);
+      setShotsStale(false);
+      setShots([]);
+      toast.success("Shots deleted. Previz history is still accessible.");
+    } catch (error) {
+      toast.error(extractApiError(error, "Failed to delete shots."));
+    } finally {
+      setStaleDismissing(false);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       const { name, value } = e.target;
@@ -228,7 +261,37 @@ export default function SceneDetailModal({ scene, projectId, onClose, onUpdate }
               </section>
             )}
 
-            {/* Description */}
+            {/* Stale shots warning */}
+            {shotsStale && (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/8 p-4 flex items-start gap-3">
+                <AlertTriangle className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-amber-300 font-medium">Scene content changed — shots may be inconsistent</p>
+                  <p className="text-xs text-amber-200/60 mt-0.5">
+                    The scene description was updated after these shots were generated.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={handleIgnoreStale}
+                    disabled={staleDismissing}
+                    className="text-xs px-3 py-1.5 bg-[#1a1a1a] hover:bg-[#222] text-gray-300 rounded-md transition-colors disabled:opacity-50"
+                  >
+                    Ignore
+                  </button>
+                  <button
+                    onClick={handleDeleteStaleShots}
+                    disabled={staleDismissing}
+                    className="text-xs px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-md transition-colors disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {staleDismissing ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                    Delete shots
+                  </button>
+                </div>
+              </div>
+            )}
+
+          {/* Description */}
 
             <section>
                 <h3 className="text-lg font-semibold text-white mb-3">Description</h3>
@@ -361,7 +424,7 @@ export default function SceneDetailModal({ scene, projectId, onClose, onUpdate }
                         {dialogs.map((dialog: any, idx: number) => (
                             <div key={idx} className="bg-[#1a1a1a]/30 border border-[#1a1a1a] rounded-md p-3">
                                 <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-1">
-                                    {dialog.character || dialog.character_name || "Unknown"}
+                                    {(typeof dialog.character === 'object' ? dialog.character?.name : dialog.character) || dialog.character_name || "Unknown"}
                                 </p>
                                 <p className="text-sm text-gray-300 leading-relaxed">{dialog.dialog || dialog.text || dialog.content}</p>
                             </div>

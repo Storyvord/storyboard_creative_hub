@@ -581,8 +581,30 @@ export const getSceneSyncPreview = async (scriptId: number): Promise<SceneSyncDi
     return response.data;
 }
 
-// Confirm scene sync (applies the re-parse)
-export const confirmSceneSync = async (scriptId: number): Promise<{ script_id: number; scenes_synced: number }> => {
-    const response = await api.post(`/api/creative_hub/scripts/${scriptId}/scenes/sync-preview/`);
+// Confirm scene sync with optional per-scene shot actions
+// sceneShotActions: { [sceneId]: "keep" | "delete" } — default is "delete"
+export const confirmSceneSync = async (
+    scriptId: number,
+    sceneShotActions?: Record<number, "keep" | "delete">
+): Promise<{ script_id: number; scenes_synced: number }> => {
+    const response = await api.post(`/api/creative_hub/scripts/${scriptId}/scenes/sync-preview/`, {
+        scene_shot_actions: sceneShotActions ?? {},
+    });
+    return response.data;
+}
+
+// Dismiss stale-shots warning for a scene (sets shots_stale = false)
+export const dismissStaleShotWarning = async (sceneId: number): Promise<void> => {
+    await api.put(`/api/creative_hub/scenes/${sceneId}/edit/`, { shots_stale: false });
+}
+
+// Delete all shots for a scene (user chose to clear stale shots)
+export const deleteSceneShots = async (sceneId: number): Promise<void> => {
+    await api.delete(`/api/creative_hub/scenes/${sceneId}/shots/delete/`);
+}
+
+// Discard script edits — regenerates FDX from current DB scenes and clears sync_diff
+export const discardSceneChanges = async (scriptId: number): Promise<{ script_id: number; scenes_count: number }> => {
+    const response = await api.post(`/api/creative_hub/scripts/${scriptId}/scenes/discard/`);
     return response.data;
 }

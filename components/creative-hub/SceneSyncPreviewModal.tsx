@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, RefreshCw, Loader2, Plus, Edit2, Minus, AlertTriangle, History } from "lucide-react";
+import { X, RefreshCw, Loader2, Plus, Edit2, Minus, AlertTriangle, History, Trash2, Check, RotateCcw } from "lucide-react";
 import { SceneSyncDiff } from "@/types/creative-hub";
-import { getSceneSyncPreview, confirmSceneSync } from "@/services/creative-hub";
+import { getSceneSyncPreview, confirmSceneSync, discardSceneChanges } from "@/services/creative-hub";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 
@@ -30,14 +30,39 @@ export default function SceneSyncPreviewModal({
   onSynced,
 }: SceneSyncPreviewModalProps) {
   const [diff, setDiff] = useState<SceneSyncDiff | null>(preloadedDiff ?? null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!preloadedDiff);
   const [confirming, setConfirming] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+  // Per-scene shot action: "delete" (default) or "keep"
+  const [shotActions, setShotActions] = useState<Record<number, "keep" | "delete">>({});
+
+  // Auto-fetch the diff when the modal opens without a preloaded diff
+  useEffect(() => {
+    if (!preloadedDiff) {
+      getSceneSyncPreview(scriptId)
+        .then(data => { setDiff(data); setShotActions({}); })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const getShotAction = (sceneId: number): "keep" | "delete" =>
+    shotActions[sceneId] ?? "delete";
+
+  const toggleShotAction = (sceneId: number) => {
+    setShotActions((prev) => ({
+      ...prev,
+      [sceneId]: prev[sceneId] === "keep" ? "delete" : "keep",
+    }));
+  };
 
   const loadPreview = async () => {
     setLoading(true);
     try {
       const data = await getSceneSyncPreview(scriptId);
       setDiff(data);
+      setShotActions({});
     } catch (error) {
       toast.error(extractApiError(error, "Failed to load sync preview."));
     } finally {
@@ -45,10 +70,33 @@ export default function SceneSyncPreviewModal({
     }
   };
 
+  const handleDiscard = async () => {
+    setDiscarding(true);
+    try {
+      await discardSceneChanges(scriptId);
+      toast.success("Script content reverted to match current scenes.");
+      onSynced(); // refresh parent so script content reloads
+      onClose();
+    } catch (error) {
+      toast.error(extractApiError(error, "Failed to discard changes."));
+    } finally {
+      setDiscarding(false);
+    }
+  };
+
   const handleConfirm = async () => {
     setConfirming(true);
     try {
-      const result = await confirmSceneSync(scriptId);
+      // Only send actions that differ from default ("delete")
+      const actionsToSend: Record<number, "keep" | "delete"> = {};
+      if (diff) {
+        for (const s of diff.updated_scenes) {
+          if (s.shot_count > 0) {
+            actionsToSend[s.scene_id] = getShotAction(s.scene_id);
+          }
+        }
+      }
+      const result = await confirmSceneSync(scriptId, actionsToSend);
       toast.success(`Synced ${result.scenes_synced} scenes successfully.`);
       onSynced();
       onClose();
@@ -65,9 +113,9 @@ export default function SceneSyncPreviewModal({
     diff.deleted_scenes.length > 0
   );
 
-  // Total shots that will be deleted (from updated + deleted scenes)
+  // Total shots that will be deleted from removed scenes (updated scenes handled per-scene)
   const totalShotsAffected = diff
-    ? [...diff.updated_scenes, ...diff.deleted_scenes].reduce((sum, s) => sum + (s.shot_count || 0), 0)
+    ? diff.deleted_scenes.reduce((sum, s) => sum + (s.shot_count || 0), 0)
     : 0;
 
   return (
@@ -155,12 +203,12 @@ export default function SceneSyncPreviewModal({
                       )}
                       {diff.updated_scenes.length > 0 && (
                         <li>
-                          <strong>{diff.updated_scenes.length} scene{diff.updated_scenes.length !== 1 ? "s" : ""}</strong> will be replaced with updated content.
+                          <strong>{diff.updated_scenes.length} scene{diff.updated_scenes.length !== 1 ? "s" : ""}</strong> will be updated with new content. Choose shot handling per scene below.
                         </li>
                       )}
                       {totalShotsAffected > 0 && (
                         <li>
-                          <strong>{totalShotsAffected} shot{totalShotsAffected !== 1 ? "s" : ""}</strong> linked to those scenes will be removed.
+                          Shots on <strong>deleted scenes</strong> will be removed (previz history is preserved).
                         </li>
                       )}
                     </ul>
@@ -202,28 +250,60 @@ export default function SceneSyncPreviewModal({
                       <Edit2 className="h-4 w-4" /> Edited Scenes
                     </h3>
                     <div className="space-y-1.5">
-                      {diff.updated_scenes.map((s, i) => (
-                        <div key={i} className="bg-orange-500/5 border border-orange-500/15 rounded px-3 py-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-orange-500/70 font-mono text-xs flex-shrink-0">#{s.order}</span>
-                              <span className="text-orange-200 text-sm font-medium truncate">{s.scene_name}</span>
+                      {diff.updated_scenes.map((s, i) => {
+                        const action = getShotAction(s.scene_id);
+                        return (
+                          <div key={i} className="bg-orange-500/5 border border-orange-500/15 rounded px-3 py-2.5 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-orange-500/70 font-mono text-xs flex-shrink-0">#{s.order}</span>
+                                <span className="text-orange-200 text-sm font-medium truncate">{s.scene_name}</span>
+                              </div>
                             </div>
+                            {s.changes.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {s.changes.map((c, j) => (
+                                  <span key={j} className="text-[11px] bg-orange-500/10 text-orange-300 px-1.5 py-0.5 rounded">
+                                    {CHANGE_LABELS[c] ?? c}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {/* Per-scene shot action toggle (only shown when scene has shots) */}
                             {s.shot_count > 0 && (
-                              <span className="text-[11px] text-orange-400/60 flex-shrink-0">{s.shot_count} shots reset</span>
+                              <div className="flex items-center gap-2 pt-1 border-t border-orange-500/10">
+                                <span className="text-[11px] text-orange-400/60 flex-shrink-0">
+                                  {s.shot_count} existing shot{s.shot_count !== 1 ? "s" : ""}:
+                                </span>
+                                <div className="flex rounded-md overflow-hidden border border-orange-500/20 text-[11px]">
+                                  <button
+                                    onClick={() => action !== "delete" && toggleShotAction(s.scene_id)}
+                                    className={`px-2.5 py-1 flex items-center gap-1 transition-colors ${
+                                      action === "delete"
+                                        ? "bg-red-500/20 text-red-300"
+                                        : "bg-transparent text-orange-400/50 hover:text-orange-300"
+                                    }`}
+                                  >
+                                    {action === "delete" && <Check className="h-2.5 w-2.5" />}
+                                    <Trash2 className="h-2.5 w-2.5" /> Delete
+                                  </button>
+                                  <button
+                                    onClick={() => action !== "keep" && toggleShotAction(s.scene_id)}
+                                    className={`px-2.5 py-1 flex items-center gap-1 transition-colors border-l border-orange-500/20 ${
+                                      action === "keep"
+                                        ? "bg-amber-500/20 text-amber-300"
+                                        : "bg-transparent text-orange-400/50 hover:text-orange-300"
+                                    }`}
+                                  >
+                                    {action === "keep" && <Check className="h-2.5 w-2.5" />}
+                                    Keep (mark stale)
+                                  </button>
+                                </div>
+                              </div>
                             )}
                           </div>
-                          {s.changes.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1.5">
-                              {s.changes.map((c, j) => (
-                                <span key={j} className="text-[11px] bg-orange-500/10 text-orange-300 px-1.5 py-0.5 rounded">
-                                  {CHANGE_LABELS[c] ?? c}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </section>
                 )}
@@ -267,20 +347,34 @@ export default function SceneSyncPreviewModal({
             >
               Cancel
             </button>
-            {diff && (
-              <button
-                onClick={handleConfirm}
-                disabled={confirming || !hasChanges}
-                className={`px-4 py-2 rounded-md text-sm flex items-center gap-2 transition-colors disabled:opacity-40 ${
-                  hasChanges
-                    ? "bg-emerald-600 hover:bg-emerald-500 text-white"
-                    : "bg-[#1a1a1a] text-gray-500 cursor-not-allowed"
-                }`}
-              >
-                {confirming ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                {hasChanges ? "Confirm & Apply Sync" : "Nothing to Sync"}
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* Discard: revert script content back to current DB scenes */}
+              {diff && hasChanges && (
+                <button
+                  onClick={handleDiscard}
+                  disabled={discarding || confirming}
+                  className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] text-red-400 border border-red-500/20 rounded-md text-sm flex items-center gap-2 transition-colors disabled:opacity-40"
+                  title="Revert script content to match existing scenes (discard edits)"
+                >
+                  {discarding ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                  Discard Changes
+                </button>
+              )}
+              {diff && (
+                <button
+                  onClick={handleConfirm}
+                  disabled={confirming || discarding || !hasChanges}
+                  className={`px-4 py-2 rounded-md text-sm flex items-center gap-2 transition-colors disabled:opacity-40 ${
+                    hasChanges
+                      ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                      : "bg-[#1a1a1a] text-gray-500 cursor-not-allowed"
+                  }`}
+                >
+                  {confirming ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  {hasChanges ? "Confirm & Apply Sync" : "Nothing to Sync"}
+                </button>
+              )}
+            </div>
           </div>
         </motion.div>
       </motion.div>

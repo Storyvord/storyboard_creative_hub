@@ -196,6 +196,8 @@ class ScriptCollabProvider {
   private _initialSynced = false;
   private _onUpdate: (update: Uint8Array, origin: unknown) => void;
 
+  get initialSynced() { return this._initialSynced; }
+
   constructor(ydoc: Y.Doc, wsUrl: string) {
     this.ydoc = ydoc;
 
@@ -333,23 +335,30 @@ export const ScriptEditor = ({
     }
   }, [editor, editorRef]);
 
-  // After the server sends its initial state, seed from initialHtml if the Y.js doc
-  // is still empty. This handles scripts that have never had a collab session
-  // (Script.collab_state is null) so the server sends an empty snapshot.
+  // After the server sends its initial state, seed from initialHtml if the editor
+  // has no real text content. We check editor.getText() instead of fragment.length
+  // so that a blank-placeholder paragraph (seeded before real initialHtml arrived)
+  // doesn't permanently block re-seeding when the prop later updates.
   useEffect(() => {
     if (!collab || !editor) return;
-    const { provider, ydoc } = collab;
+    const { provider } = collab;
 
     const seedIfEmpty = () => {
-      const fragment = ydoc.getXmlFragment("default");
-      if (fragment.length === 0 && initialHtml) {
+      if (!editor.getText({ blockSeparator: "" }).trim() && initialHtml) {
         editor.commands.setContent(initialHtml);
       }
     };
 
     provider.onInitialSync = seedIfEmpty;
 
-    // If the server never sends a message (e.g. network delay), fall back after 2 s.
+    // If the WS already sent its initial snapshot (initialHtml changed after the
+    // first sync), re-seed immediately rather than waiting for the fallback timer.
+    if (provider.initialSynced) {
+      seedIfEmpty();
+    }
+
+    // Fallback: seed if the server never sends a message (network delay) or if
+    // the editor hadn't initialised yet when onInitialSync fired.
     const fallbackTimer = setTimeout(seedIfEmpty, 2000);
 
     return () => {
