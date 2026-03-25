@@ -275,14 +275,15 @@ export default function SceneDetailModal({ scene, projectId, onClose, onUpdate }
                   <button
                     onClick={handleIgnoreStale}
                     disabled={staleDismissing}
-                    className="text-xs px-3 py-1.5 bg-[#1a1a1a] hover:bg-[#222] text-gray-300 rounded-md transition-colors disabled:opacity-50"
+                    className="text-xs px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-md transition-colors disabled:opacity-50 flex items-center gap-1"
                   >
+                    {staleDismissing ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
                     Ignore
                   </button>
                   <button
                     onClick={handleDeleteStaleShots}
                     disabled={staleDismissing}
-                    className="text-xs px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-md transition-colors disabled:opacity-50 flex items-center gap-1"
+                    className="text-xs px-3 py-1.5 bg-transparent hover:bg-red-500/10 text-red-500/60 hover:text-red-400 border border-red-500/20 rounded-md transition-colors disabled:opacity-50 flex items-center gap-1"
                   >
                     {staleDismissing ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
                     Delete shots

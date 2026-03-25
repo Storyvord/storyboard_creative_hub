@@ -33,7 +33,7 @@ export default function SceneSyncPreviewModal({
   const [loading, setLoading] = useState(!preloadedDiff);
   const [confirming, setConfirming] = useState(false);
   const [discarding, setDiscarding] = useState(false);
-  // Per-scene shot action: "delete" (default) or "keep"
+  // Per-scene shot action: "keep" (default) or "delete"
   const [shotActions, setShotActions] = useState<Record<number, "keep" | "delete">>({});
 
   // Auto-fetch the diff when the modal opens without a preloaded diff
@@ -48,7 +48,7 @@ export default function SceneSyncPreviewModal({
   }, []);
 
   const getShotAction = (sceneId: number): "keep" | "delete" =>
-    shotActions[sceneId] ?? "delete";
+    shotActions[sceneId] ?? "keep";
 
   const toggleShotAction = (sceneId: number) => {
     setShotActions((prev) => ({
@@ -87,7 +87,7 @@ export default function SceneSyncPreviewModal({
   const handleConfirm = async () => {
     setConfirming(true);
     try {
-      // Only send actions that differ from default ("delete")
+      // Send the chosen action for every scene with shots (default is "keep")
       const actionsToSend: Record<number, "keep" | "delete"> = {};
       if (diff) {
         for (const s of diff.updated_scenes) {
