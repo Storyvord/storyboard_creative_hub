@@ -341,7 +341,7 @@ export default function SceneDetailPage() {
               {dialogs.map((dialog: any, idx: number) => (
                 <div key={idx} className="bg-[#1a1a1a]/30 border border-[#1a1a1a] rounded-md p-4">
                   <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2">
-                    {dialog.character || dialog.character_name || "Unknown"}
+                    {(typeof dialog.character === "object" ? dialog.character?.name : dialog.character) || dialog.character_name || "Unknown"}
                   </p>
                   <p className="text-gray-300 leading-relaxed">{dialog.dialog || dialog.text || dialog.content}</p>
                 </div>

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { getScripts, getScenes } from "@/services/creative-hub";
 import { Script, Scene } from "@/types/creative-hub";
-import SceneDetailModal from "@/components/creative-hub/SceneDetailModal";
 import SceneSyncPreviewModal from "@/components/creative-hub/SceneSyncPreviewModal";
 import { Loader2, RefreshCw, AlertCircle, MapPin, ChevronRight, Plus } from "lucide-react";
 import { useParams } from "next/navigation";
@@ -19,11 +19,11 @@ const CHANGE_LABELS: Record<string, string> = {
 export default function ScenesPage() {
   const params = useParams();
   const projectId = params.projectId as string;
+  const router = useRouter();
 
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [script, setScript] = useState<Script | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
   useEffect(() => { if (projectId) fetchData(); }, [projectId]);
@@ -172,7 +172,7 @@ export default function ScenesPage() {
             return (
               <div
                 key={s.id ?? `scene-${idx}`}
-                onClick={() => !isDeleted && s.id && setSelectedScene(s)}
+                onClick={() => !isDeleted && s.id && router.push(`/projects/${projectId}/creative-hub/scenes/${s.id}`)}
                 className={`relative p-4 rounded-md border transition-all group ${
                   isDeleted
                     ? "bg-[#0d0d0d] border-red-500/30 cursor-default"
@@ -268,14 +268,7 @@ export default function ScenesPage() {
         </div>
       )}
 
-      {selectedScene && (
-        <SceneDetailModal
-          scene={selectedScene}
-          projectId={projectId}
-          onClose={() => setSelectedScene(null)}
-          onUpdate={() => fetchData(script || undefined)}
-        />
-      )}
+
 
       {showSyncModal && script && (
         <SceneSyncPreviewModal
