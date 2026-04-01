@@ -5,7 +5,8 @@ import { usePathname, useParams } from "next/navigation";
 import { FileText, Clapperboard, Users, Shirt, Film, Video, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 
 import { clsx } from "clsx";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import PlatformTour, { PLATFORM_TOUR_DONE_KEY, PLATFORM_TOUR_PAGE_KEY, PlatformTourTrigger } from "@/components/creative-hub/PlatformTour";
 
 export default function CreativeHubLayout({
   children,
@@ -16,6 +17,17 @@ export default function CreativeHubLayout({
   const params = useParams();
   const projectId = params.projectId as string;
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isTourVisible, setIsTourVisible] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && !localStorage.getItem(PLATFORM_TOUR_DONE_KEY)) {
+      // Seed the starting page if not already set
+      if (!localStorage.getItem(PLATFORM_TOUR_PAGE_KEY)) {
+        localStorage.setItem(PLATFORM_TOUR_PAGE_KEY, "script");
+      }
+      setIsTourVisible(true);
+    }
+  }, []);
 
   const navItems = [
     { name: "Script", href: `/projects/${projectId}/creative-hub/script`, icon: FileText },
@@ -61,7 +73,7 @@ export default function CreativeHubLayout({
           </div>
         )}
 
-        <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
+        <nav data-tour="sidebar-nav" className="flex-1 p-2 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
             return (
@@ -83,16 +95,23 @@ export default function CreativeHubLayout({
             );
           })}
         </nav>
-        <div className="p-3 border-t border-[#1a1a1a] flex justify-center">
-           {!isCollapsed ? (
-             <Link href="/dashboard" className="text-xs text-[#555] hover:text-white transition-colors flex items-center gap-1">
-                ← Dashboard
-             </Link>
-           ) : (
-             <Link href="/dashboard" className="text-xs text-[#555] hover:text-white transition-colors" title="Back to Dashboard">
-                ← 
-             </Link>
-           )}
+        <div className="p-3 border-t border-[#1a1a1a] flex flex-col gap-2 items-center">
+          <PlatformTourTrigger onClick={() => {
+            localStorage.removeItem(PLATFORM_TOUR_DONE_KEY);
+            if (!localStorage.getItem(PLATFORM_TOUR_PAGE_KEY)) {
+              localStorage.setItem(PLATFORM_TOUR_PAGE_KEY, "script");
+            }
+            setIsTourVisible(true);
+          }} />
+          {!isCollapsed ? (
+            <Link href="/dashboard" className="text-xs text-[#555] hover:text-white transition-colors flex items-center gap-1">
+              ← Dashboard
+            </Link>
+          ) : (
+            <Link href="/dashboard" className="text-xs text-[#555] hover:text-white transition-colors" title="Back to Dashboard">
+              ←
+            </Link>
+          )}
         </div>
       </aside>
 
@@ -100,6 +119,13 @@ export default function CreativeHubLayout({
       <main className="flex-1 overflow-auto bg-[#0a0a0a]">
         {children}
       </main>
+
+      {isTourVisible && (
+        <PlatformTour
+          projectId={projectId}
+          onDone={() => setIsTourVisible(false)}
+        />
+      )}
     </div>
   );
 }

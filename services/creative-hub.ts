@@ -1,5 +1,5 @@
 import api from "./api";
-import { Script, Scene, Character, Cloth, Shot, SceneSyncDiff } from "@/types/creative-hub";
+import { Script, Scene, Character, Cloth, Shot, SceneSyncDiff, TaskStatusRecord } from "@/types/creative-hub";
 
 export interface ImageModel {
   model_name: string;
@@ -221,11 +221,22 @@ export const deleteCharacter = async (characterId: number): Promise<void> => {
     await api.delete(`/api/creative_hub/characters/${characterId}/`);
 }
 
-export const generateCharacterImage = async (characterId: number, model?: string, provider?: string): Promise<void> => {
-    await api.post(`/api/creative_hub/characters/${characterId}/generate-image/`, {
+export const generateCharacterImage = async (characterId: number, model?: string, provider?: string): Promise<{ task_id: string; status: string }> => {
+    const response = await api.post(`/api/creative_hub/characters/${characterId}/generate-image/`, {
         model,
         provider
     });
+    return response.data;
+}
+
+export const getCharacter = async (characterId: number): Promise<Character> => {
+    const response = await api.get(`/api/creative_hub/characters/${characterId}/`);
+    return response.data;
+}
+
+export const getCharacterSceneAppearances = async (characterId: number): Promise<any[]> => {
+    const response = await api.get(`/api/creative_hub/characters/${characterId}/scene-appearances/`);
+    return Array.isArray(response.data) ? response.data : [];
 }
 
 // Locations
@@ -269,7 +280,7 @@ export const deleteLocation = async (locationId: number): Promise<void> => {
     await api.delete(`/api/creative_hub/locations/${locationId}/`);
 }
 
-export const generateLocationImage = async (locationId: number, model?: string, provider?: string): Promise<any> => {
+export const generateLocationImage = async (locationId: number, model?: string, provider?: string): Promise<{ task_id: string; status: string }> => {
     const response = await api.post(`/api/creative_hub/locations/${locationId}/generate-image/`, { model, provider });
     return response.data;
 }
@@ -295,8 +306,17 @@ export const createCloth = async (scriptId: number, data: { name: string, cloth_
     return response.data;
 }
 
-export const updateCloth = async (clothId: number, data: Partial<Cloth>): Promise<Cloth> => {
-    // Assuming cloth detail endpoint supports PUT
+export const updateCloth = async (clothId: number, data: Partial<Cloth> & { image_url?: File }): Promise<Cloth> => {
+    if (data.image_url instanceof File) {
+        const formData = new FormData();
+        Object.entries(data).forEach(([k, v]) => {
+            if (v !== undefined && v !== null) formData.append(k, v as string | Blob);
+        });
+        const response = await api.put(`/api/creative_hub/cloths/${clothId}/`, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+        });
+        return response.data;
+    }
     const response = await api.put(`/api/creative_hub/cloths/${clothId}/`, data);
     return response.data;
 }
@@ -306,11 +326,17 @@ export const deleteCloth = async (clothId: number): Promise<void> => {
     await api.delete(`/api/creative_hub/cloths/${clothId}/`);
 }
 
-export const generateClothImage = async (clothId: number, model?: string, provider?: string): Promise<void> => {
-    await api.post(`/api/creative_hub/cloths/${clothId}/generate-image/`, {
+export const generateClothImage = async (clothId: number, model?: string, provider?: string): Promise<{ task_id: string; status: string }> => {
+    const response = await api.post(`/api/creative_hub/cloths/${clothId}/generate-image/`, {
         model,
         provider
     });
+    return response.data;
+}
+
+export const getCharacterTasks = async (characterId: number): Promise<{ portrait: TaskStatusRecord[]; scene_looks: TaskStatusRecord[] }> => {
+    const response = await api.get(`/api/creative_hub/characters/${characterId}/tasks/`);
+    return response.data;
 }
 
 // Shots/Previz

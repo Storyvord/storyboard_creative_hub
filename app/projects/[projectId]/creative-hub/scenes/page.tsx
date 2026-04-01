@@ -100,6 +100,7 @@ export default function ScenesPage() {
 
           {scenes.length === 0 ? (
             <button
+              data-tour="sync-scenes-btn"
               onClick={() => setShowSyncModal(true)}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-medium transition-all flex items-center gap-2"
             >
@@ -108,6 +109,7 @@ export default function ScenesPage() {
             </button>
           ) : (
             <button
+              data-tour="sync-scenes-btn"
               onClick={() => setShowSyncModal(true)}
               className={`px-3 py-2 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 border ${
                 hasChanges
@@ -172,6 +174,7 @@ export default function ScenesPage() {
             return (
               <div
                 key={s.id ?? `scene-${idx}`}
+                {...(idx === 0 ? { "data-tour": "scene-card" } : {})}
                 onClick={() => !isDeleted && s.id && router.push(`/projects/${projectId}/creative-hub/scenes/${s.id}`)}
                 className={`relative p-4 rounded-md border transition-all group ${
                   isDeleted

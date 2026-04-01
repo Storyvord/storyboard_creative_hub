@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getScripts, getCloths, getCharacters } from "@/services/creative-hub";
+import { getScripts, getCloths, getCharacters, getScriptTasks } from "@/services/creative-hub";
 import { Script, Cloth, Character } from "@/types/creative-hub";
 import { Loader2, Plus, Edit, Trash2, Shirt } from "lucide-react";
 import { useParams } from "next/navigation";
@@ -9,6 +9,7 @@ import WardrobeModal from "@/components/creative-hub/WardrobeModal";
 import FittingRoom from "@/components/creative-hub/FittingRoom";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
+import { useGenerationTasks } from "@/hooks/useGenerationTasks";
 
 export default function WardrobePage() {
   const params = useParams();
@@ -20,6 +21,10 @@ export default function WardrobePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFittingRmOpen, setIsFittingRmOpen] = useState(false);
   const [selectedCloth, setSelectedCloth] = useState<Cloth | null>(null);
+  // DB-backed: clothId → true while generating
+  const [generatingClothIds, setGeneratingClothIds] = useState<Record<number, boolean>>({});
+  // DB-backed: taskId → clothId
+  const [trackedTasks, setTrackedTasks] = useState<Record<string, number>>({});
 
   useEffect(() => { if (projectId) fetchData(); }, [projectId]);
 
@@ -32,9 +37,49 @@ export default function WardrobePage() {
         const [clothData, charData] = await Promise.all([getCloths(currentScript.id), getCharacters(currentScript.id)]);
         setCloths(clothData || []);
         setCharacters(charData || []);
+
+        // ── Restore in-progress cloth tasks from DB ──
+        try {
+          const ACTIVE = new Set(['processing', 'pending', 'retrying', 'started']);
+          const MAX_AGE = 60 * 60 * 1000;
+          const now = Date.now();
+          const tasks = await getScriptTasks(currentScript.id);
+          const newTracked: Record<string, number> = {};
+          const genIds: Record<number, boolean> = {};
+          for (const t of (tasks.cloths || [])) {
+            if (ACTIVE.has(t.status) && now - new Date(t.created_at).getTime() < MAX_AGE) {
+              newTracked[t.task_id] = t.object_id;
+              genIds[t.object_id] = true;
+            }
+          }
+          setTrackedTasks(newTracked);
+          setGeneratingClothIds(genIds);
+        } catch { /* task restore non-blocking */ }
       }
     } catch (error) { console.error("Failed to fetch wardrobe", error); }
     finally { setLoading(false); }
+  };
+
+  // ── DB-backed task polling ────────────────────────────────────────────────
+  useGenerationTasks({
+    taskIds: Object.keys(trackedTasks),
+    getObjectId: (taskId) => trackedTasks[taskId] ?? 0,
+    onComplete: (taskId, objectId) => {
+      setTrackedTasks(prev => { const n = { ...prev }; delete n[taskId]; return n; });
+      setGeneratingClothIds(prev => { const n = { ...prev }; delete n[objectId]; return n; });
+      fetchData();
+      toast.success("Cloth image is ready!");
+    },
+    onError: (taskId, objectId, error) => {
+      setTrackedTasks(prev => { const n = { ...prev }; delete n[taskId]; return n; });
+      setGeneratingClothIds(prev => { const n = { ...prev }; delete n[objectId]; return n; });
+      toast.error(`Cloth image failed: ${error}`);
+    },
+  });
+
+  const handleGenerationStarted = (taskId: string, clothId: number) => {
+    setTrackedTasks(prev => ({ ...prev, [taskId]: clothId }));
+    setGeneratingClothIds(prev => ({ ...prev, [clothId]: true }));
   };
 
   const handleEdit = (item: Cloth) => { setSelectedCloth(item); setIsModalOpen(true); };
@@ -60,12 +105,12 @@ export default function WardrobePage() {
            <p className="text-[#555] text-xs">Manage costumes and props</p>
         </div>
         <div className="flex gap-2">
-             <button onClick={() => setIsFittingRmOpen(true)} disabled={!script}
+             <button data-tour="fitting-room-btn" onClick={() => setIsFittingRmOpen(true)} disabled={!script}
                 className="px-3 py-2 bg-[#161616] hover:bg-[#1a1a1a] text-white rounded-md text-xs font-medium border border-[#222] transition-all flex items-center gap-1.5 disabled:opacity-30">
                 <Shirt className="h-3.5 w-3.5" />
                 Fitting Room
             </button>
-            <button onClick={handleAdd} disabled={!script}
+            <button data-tour="add-wardrobe-item-btn" onClick={handleAdd} disabled={!script}
                 className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-xs font-medium transition-all flex items-center gap-1.5 disabled:opacity-30">
                 <Plus className="h-3.5 w-3.5" />
                 Add Item
@@ -83,12 +128,18 @@ export default function WardrobePage() {
             <div key={item.id} className="bg-[#0d0d0d] rounded-md border border-[#1a1a1a] overflow-hidden group hover:border-emerald-500/30 transition-all flex flex-col">
                <div className="aspect-[3/4] bg-[#0a0a0a] relative group-hover:opacity-90 transition-opacity">
                    {item.image_url ? (
-                       <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                       <img src={item.image_url} alt={item.name} className="w-full h-full object-contain" />
                    ) : (
                        <div className="w-full h-full flex flex-col items-center justify-center text-[#333]">
                            <span className="text-base font-bold mb-1 text-center px-2">{item.cloth_type}</span>
                            <span className="text-[9px] uppercase tracking-wider">No Image</span>
                        </div>
+                   )}
+                   {generatingClothIds[item.id] && (
+                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
+                       <Loader2 className="h-6 w-6 text-emerald-500 animate-spin mb-1" />
+                       <span className="text-[10px] text-emerald-400 font-medium">Generating...</span>
+                     </div>
                    )}
                    <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-black/60 rounded text-[9px] text-white capitalize backdrop-blur-sm">
                        {item.cloth_type?.replace('_', ' ')}
@@ -116,7 +167,7 @@ export default function WardrobePage() {
       )}
 
       {script && (
-          <WardrobeModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} cloth={selectedCloth} scriptId={script.id} onUpdate={fetchData} />
+          <WardrobeModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} cloth={selectedCloth} scriptId={script.id} onUpdate={fetchData} onGenerationStarted={handleGenerationStarted} />
       )}
       
       {script && (

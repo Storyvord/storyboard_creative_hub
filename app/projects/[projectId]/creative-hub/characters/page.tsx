@@ -3,20 +3,20 @@
 import { useState, useEffect } from "react";
 import { getScripts, getCharacters, getScriptTasks } from "@/services/creative-hub";
 import { Script, Character } from "@/types/creative-hub";
-import { Loader2, AlertCircle, Plus, Edit, Trash2, Wand2 } from "lucide-react";
-import { useParams } from "next/navigation";
+import { Loader2, AlertCircle, Plus, Trash2, Wand2 } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
 import CharacterModal from "@/components/creative-hub/CharacterModal";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 
 export default function CharactersPage() {
   const params = useParams();
+  const router = useRouter();
   const projectId = params.projectId as string;
   const [characters, setCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(true);
   const [script, setScript] = useState<Script | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
   const [globalTask, setGlobalTask] = useState<any>(null);
   const [generatingId, setGeneratingId] = useState<number | null>(null);
 
@@ -81,8 +81,7 @@ export default function CharactersPage() {
     finally { setLoading(false); }
   };
 
-  const handleEdit = (char: Character) => { setSelectedCharacter(char); setIsModalOpen(true); };
-  const handleAdd = () => { setSelectedCharacter(null); setIsModalOpen(true); };
+  const handleAdd = () => { setIsModalOpen(true); };
 
   const handleDelete = async (id: number) => {
       if (!confirm("Delete this character?")) return;
@@ -98,17 +97,31 @@ export default function CharactersPage() {
 
   return (
     <div className="p-6">
-      <header className="flex justify-between items-center mb-6">
+      <header className="flex justify-between items-center mb-4">
         <div>
            <h1 className="text-xl font-bold mb-1 text-white">Characters</h1>
            <p className="text-[#555] text-xs">Manage cast and character details</p>
         </div>
-        <button onClick={handleAdd} disabled={!script}
+        <button data-tour="add-character-btn" onClick={handleAdd} disabled={!script}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-30">
             <Plus className="h-4 w-4" />
             Add Character
         </button>
       </header>
+
+      {/* Characters vs Scene Characters explainer */}
+      <div data-tour="characters-vs-scene-info" className="mb-6 rounded-md border border-[#1a1a1a] bg-[#0d0d0d] p-4">
+        <div className="flex gap-4">
+          <div className="flex-1 border-r border-[#1a1a1a] pr-4">
+            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Characters (this page)</p>
+            <p className="text-[11px] text-[#888] leading-relaxed">The <span className="text-white font-medium">global reference portrait</span> for each cast member — their canonical face, build, and appearance. Used as the base for all AI generation.</p>
+          </div>
+          <div className="flex-1 pl-4">
+            <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Scene Characters (inside each scene)</p>
+            <p className="text-[11px] text-[#888] leading-relaxed">The <span className="text-white font-medium">scene-specific look</span> for the same character — different costume, injury, aging, makeup effects. Same actor, different state per scene. Set using the <span className="text-indigo-300">Fitting Room</span> inside each scene's detail view.</p>
+          </div>
+        </div>
+      </div>
 
       {globalTask && (
           <div className="mb-6 p-3 bg-emerald-950/40 rounded-md border border-emerald-500/30 flex items-center justify-between">
@@ -134,8 +147,8 @@ export default function CharactersPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {characters.map((char) => (
-            <div key={char.id} className="bg-[#0d0d0d] rounded-md border border-[#1a1a1a] overflow-hidden group hover:border-emerald-500/30 transition-all flex flex-col">
+          {characters.map((char, idx) => (
+            <div key={char.id} {...(idx === 0 ? { "data-tour": "character-card" } : {})} className="bg-[#0d0d0d] rounded-md border border-[#1a1a1a] overflow-hidden group hover:border-emerald-500/30 transition-all flex flex-col cursor-pointer" onClick={() => router.push(`/projects/${projectId}/creative-hub/characters/${char.id}`)}>
                <div className="aspect-square bg-[#0a0a0a] relative group-hover:opacity-90 transition-opacity">
                    {char.image_url ? (
                        <img src={char.image_url} alt={char.name} className="w-full h-full object-cover" />
@@ -146,10 +159,7 @@ export default function CharactersPage() {
                        </div>
                    )}
                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                       <button onClick={() => handleEdit(char)} className="p-2 bg-white/10 hover:bg-white/20 rounded-md text-white transition-colors" title="Edit">
-                           <Edit className="h-3.5 w-3.5" />
-                       </button>
-                       <button onClick={() => handleDelete(char.id)} className="p-2 bg-red-500/20 hover:bg-red-500/40 rounded-md text-red-400 transition-colors" title="Delete">
+                       <button onClick={(e) => { e.stopPropagation(); handleDelete(char.id); }} className="p-2 bg-red-500/20 hover:bg-red-500/40 rounded-md text-red-400 transition-colors" title="Delete">
                            <Trash2 className="h-3.5 w-3.5" />
                        </button>
                    </div>
@@ -163,10 +173,9 @@ export default function CharactersPage() {
                <div className="p-3 flex-1 flex flex-col">
                    <h3 className="font-bold text-sm mb-0.5 text-white">{char.name}</h3>
                    <p className="text-[10px] text-[#555] line-clamp-2 mb-3 flex-1">{char.description || "No description."}</p>
-                   <button onClick={() => handleEdit(char)}
-                        className="w-full py-1.5 text-[10px] font-medium bg-[#111] hover:bg-[#161616] text-[#888] rounded-md transition-colors border border-[#1a1a1a]">
+                   <div className="w-full py-1.5 text-[10px] font-medium bg-[#111] text-[#888] rounded-md text-center border border-[#1a1a1a]">
                        View Details
-                   </button>
+                   </div>
                </div>
             </div>
           ))}
@@ -174,10 +183,10 @@ export default function CharactersPage() {
       )}
 
       {script && (
-          <CharacterModal 
+          <CharacterModal
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
-            character={selectedCharacter}
+            character={null}
             scriptId={script.id}
             onUpdate={() => {
                 fetchData().finally(() => setGeneratingId(null));

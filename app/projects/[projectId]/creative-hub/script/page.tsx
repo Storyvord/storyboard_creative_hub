@@ -748,6 +748,7 @@ export default function ScriptPage() {
           {/* Analytics */}
           {script && scenes.length > 0 && !isAwaitingConfirm && (
             <button
+              data-tour="script-analytics-btn"
               onClick={() => setShowAnalytics(true)}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] rounded border border-[#222] text-[#888] hover:text-white hover:bg-[#151515] transition-colors"
               title="Script Analytics"
@@ -802,6 +803,7 @@ export default function ScriptPage() {
           {/* Save (normal mode) */}
           {script && !isAwaitingConfirm && !isConverting && (
             <button
+              data-tour="script-save-btn"
               onClick={handleSave}
               disabled={saving}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] rounded bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-60"
@@ -854,7 +856,7 @@ export default function ScriptPage() {
         {/* Upload zone (no script yet) */}
         {showUpload && (
           <div className="flex-1 flex items-center justify-center p-8">
-            <div className="w-full max-w-md border border-dashed border-[#222] rounded-lg p-12 flex flex-col items-center bg-[#0d0d0d] hover:border-[#333] transition-colors">
+            <div data-tour="script-upload-zone" className="w-full max-w-md border border-dashed border-[#222] rounded-lg p-12 flex flex-col items-center bg-[#0d0d0d] hover:border-[#333] transition-colors">
               <Upload className="h-10 w-10 text-[#333] mb-4" />
               <h3 className="text-sm font-medium text-white mb-1">
                 Upload your screenplay
@@ -928,7 +930,7 @@ export default function ScriptPage() {
                     Dialogue:      CENTERED, ~3.5in wide
                     Transition:    right-aligned
                 */}
-                <div className="w-[720px] max-w-full mx-auto my-8 bg-[#0e0e0e] border border-[#1a1a1a] rounded shadow-2xl shadow-black/40 min-h-[calc(100vh-220px)]">
+                <div data-tour="script-editor" className="w-[720px] max-w-full mx-auto my-8 bg-[#0e0e0e] border border-[#1a1a1a] rounded shadow-2xl shadow-black/40 min-h-[calc(100vh-220px)]">
                   <div className="relative">
                     {/* Formatted screenplay TipTap render */}
                     <ScriptEditor
@@ -966,7 +968,7 @@ export default function ScriptPage() {
             </div>
 
             {/* Scene Navigator sidebar */}
-            <aside className="w-56 flex-shrink-0 border-l border-[#1a1a1a] bg-[#0d0d0d] flex flex-col min-h-0">
+            <aside data-tour="scene-navigator" className="w-56 flex-shrink-0 border-l border-[#1a1a1a] bg-[#0d0d0d] flex flex-col min-h-0">
               <div className="px-3 py-3 border-b border-[#1a1a1a]">
                 <h3 className="text-[11px] font-semibold text-[#999] uppercase tracking-wider">
                   Scenes

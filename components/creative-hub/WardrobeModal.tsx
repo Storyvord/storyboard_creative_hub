@@ -1,7 +1,7 @@
 import { Cloth } from "@/types/creative-hub";
-import { X, Shirt, Edit, Trash2, Wand2, Plus, Save } from "lucide-react";
+import { X, Shirt, Wand2, Plus, Save, Upload, Edit } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createCloth, updateCloth, generateClothImage } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { toast } from "react-toastify";
@@ -14,199 +14,258 @@ interface WardrobeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdate: () => void;
+  onGenerationStarted?: (taskId: string, clothId: number) => void;
 }
 
 const CLOTH_TYPES = [
-    { value: 'top', label: 'Top' },
-    { value: 'bottom', label: 'Bottom' },
-    { value: 'shoes', label: 'Shoes' },
-    { value: 'accessory', label: 'Accessory' },
-    { value: 'full_outfit', label: 'Full Outfit' },
-    { value: 'hat', label: 'Hat' },
+  { value: 'torso',       label: 'Torso'      },
+  { value: 'legs',        label: 'Legs'       },
+  { value: 'feet',        label: 'Feet'       },
+  { value: 'hands',       label: 'Hands'      },
+  { value: 'head',        label: 'Head'       },
+  { value: 'face',        label: 'Face'       },
+  { value: 'full_body',   label: 'Full Body'  },
+  { value: 'accessories', label: 'Accessories'},
 ];
 
-export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpdate }: WardrobeModalProps) {
+export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpdate, onGenerationStarted }: WardrobeModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [clothType, setClothType] = useState("full_outfit");
+  const [clothType, setClothType] = useState("full_body");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (cloth) {
-        setName(cloth.name);
-        setDescription(cloth.description || "");
-        setClothType(cloth.cloth_type || "full_outfit");
+      setName(cloth.name);
+      setDescription(cloth.description || "");
+      setClothType(cloth.cloth_type || "full_body");
+      setImagePreview(cloth.image_url || null);
     } else {
-        setName("");
-        setDescription("");
-        setClothType("full_outfit");
+      setName("");
+      setDescription("");
+      setClothType("full_body");
+      setImagePreview(null);
     }
+    setImageFile(null);
   }, [cloth, isOpen]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setImageFile(f);
+    setImagePreview(URL.createObjectURL(f));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name.trim()) return toast.error("Name is required");
     setLoading(true);
     try {
-        if (cloth) {
-            await updateCloth(cloth.id, { name, description, cloth_type: clothType });
-            toast.success("Item updated");
-        } else {
-            await createCloth(scriptId, { name, description, cloth_type: clothType });
-            toast.success("Item created");
-        }
-        onUpdate();
-        onClose();
+      if (cloth) {
+        await updateCloth(cloth.id, {
+          name,
+          description,
+          cloth_type: clothType,
+          ...(imageFile ? { image_url: imageFile } : {}),
+        });
+        toast.success("Item updated");
+      } else {
+        await createCloth(scriptId, {
+          name,
+          description,
+          cloth_type: clothType,
+          ...(imageFile ? { image: imageFile } : {}),
+        });
+        toast.success("Item created");
+      }
+      onUpdate();
+      onClose();
     } catch (error) {
-        console.error("Failed to save item", error);
-        toast.error(extractApiError(error, "Failed to save item."));
+      toast.error(extractApiError(error, "Failed to save item."));
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleGenerateImage = async () => {
-      if (!cloth) return;
-      setIsModelSelectorOpen(true);
-  }
-
   const handleModelConfirm = async (model: string, provider: string) => {
-      if (!cloth) return;
-      setIsModelSelectorOpen(false);
-      setGenerating(true);
-      try {
-          await generateClothImage(cloth.id, model, provider);
-          toast.success("Image generation started");
-          setTimeout(onUpdate, 3000);
-      } catch (error) {
-          console.error("Failed to generate image", error);
-          toast.error(extractApiError(error, "Failed to generate image."));
-      } finally {
-          setGenerating(false);
-      }
-  }
+    if (!cloth) return;
+    setIsModelSelectorOpen(false);
+    setGenerating(true);
+    try {
+      const result = await generateClothImage(cloth.id, model, provider);
+      toast.success("Cloth image rendering — will update when ready…");
+      onGenerationStarted?.(result.task_id, cloth.id);
+    } catch (error) {
+      toast.error(extractApiError(error, "Failed to generate image."));
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-        onClick={onClose}
-      >
+    <>
+      <AnimatePresence>
         <motion.div
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.95, opacity: 0 }}
-          onClick={(e) => e.stopPropagation()}
-          className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl"
+          key="wardrobe-modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={onClose}
         >
-          <div className="p-6 border-b border-gray-800 flex justify-between items-center">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                {cloth ? <Edit className="h-5 w-5 text-pink-500" /> : <Plus className="h-5 w-5 text-pink-500" />}
-                {cloth ? "Edit Item" : "Add Item"}
-            </h2>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+          <motion.div
+            initial={{ scale: 0.96, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.96, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onClick={e => e.stopPropagation()}
+            className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl w-full max-w-lg shadow-2xl overflow-hidden"
+          >
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-[#1a1a1a] flex items-center justify-between">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                {cloth ? <Edit className="h-4 w-4 text-emerald-400" /> : <Plus className="h-4 w-4 text-emerald-400" />}
+                {cloth ? "Edit Wardrobe Item" : "Add Wardrobe Item"}
+              </h2>
+              <button
+                onClick={onClose}
+                className="p-1.5 hover:bg-[#1a1a1a] rounded-lg text-[#555] hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
-               <div>
-                   <label className="block text-sm font-medium text-gray-400 mb-1">Name</label>
-                   <input 
-                        type="text" 
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-pink-500/50 outline-none transition-all"
-                        placeholder="Item Name"
-                        required
-                   />
-               </div>
-               
-               <div>
-                   <label className="block text-sm font-medium text-gray-400 mb-1">Type</label>
-                   <select
-                        value={clothType}
-                        onChange={(e) => setClothType(e.target.value)}
-                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-pink-500/50 outline-none transition-all"
-                   >
-                       {CLOTH_TYPES.map(type => (
-                           <option key={type.value} value={type.value}>{type.label}</option>
-                       ))}
-                   </select>
-               </div>
-
-               <div>
-                   <label className="block text-sm font-medium text-gray-400 mb-1">Description</label>
-                   <textarea 
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-pink-500/50 outline-none transition-all h-24 resize-none"
-                        placeholder="Item Description..."
-                   />
-               </div>
-
-                {cloth && (
-                    <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-800 flex items-center justify-between">
-                         <div className="flex items-center gap-3">
-                             <div className="w-10 h-10 bg-gray-900 rounded-lg overflow-hidden border border-gray-700">
-                                 {cloth.image_url ? (
-                                     <img src={cloth.image_url} alt={cloth.name} className="w-full h-full object-cover" />
-                                 ) : (
-                                     <Shirt className="h-5 w-5 text-gray-600 m-auto mt-2" />
-                                 )}
-                             </div>
-                             <span className="text-sm text-gray-300">Item Image</span>
-                         </div>
-                         <button
-                            type="button"
-                            onClick={handleGenerateImage}
-                            disabled={generating}
-                            className="px-3 py-1.5 text-xs bg-pink-600/10 hover:bg-pink-600/20 text-pink-400 border border-pink-600/20 rounded-lg transition-colors flex items-center gap-2"
-                         >
-                             {generating ? <Wand2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
-                             Generate
-                         </button>
+            <form onSubmit={handleSubmit}>
+              <div className="p-5 space-y-4">
+                {/* Image upload area */}
+                <div>
+                  <label className="text-[9px] text-[#555] uppercase tracking-widest font-semibold block mb-2">
+                    Reference Image
+                  </label>
+                  <div
+                    className="relative aspect-[3/4] rounded-lg bg-[#0a0a0a] border border-[#1a1a1a] overflow-hidden cursor-pointer group"
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    {imagePreview ? (
+                      <img src={imagePreview} alt="Preview" className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-[#333] gap-2">
+                        <Shirt className="h-8 w-8 opacity-30" />
+                        <span className="text-[10px] text-[#444]">Click to upload image</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5">
+                      <Upload className="h-5 w-5 text-white" />
+                      <span className="text-[10px] text-white/80">
+                        {imagePreview ? "Change image" : "Upload image"}
+                      </span>
                     </div>
-                )}
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+                  {/* AI generate — only available for existing items */}
+                  {cloth && (
+                    <button
+                      type="button"
+                      onClick={() => setIsModelSelectorOpen(true)}
+                      disabled={generating}
+                      className="mt-2 w-full py-2 text-[10px] font-medium bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
+                    >
+                      {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                      Generate AI Image
+                    </button>
+                  )}
+                </div>
 
-               <div className="pt-4 flex justify-end gap-3">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                {/* Name + Type row */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="text-[9px] text-[#555] uppercase tracking-widest font-semibold block mb-1.5">
+                      Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      className="w-full bg-[#111] border border-[#222] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-[#444]"
+                      placeholder="e.g. Leather Jacket"
+                      required
+                    />
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="text-[9px] text-[#555] uppercase tracking-widest font-semibold block mb-1.5">
+                      Category
+                    </label>
+                    <select
+                      value={clothType}
+                      onChange={e => setClothType(e.target.value)}
+                      className="w-full bg-[#111] border border-[#222] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500/50 transition-colors"
                     >
-                        Cancel
-                    </button>
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="px-6 py-2 bg-pink-600 hover:bg-pink-500 text-white rounded-lg font-medium shadow-lg shadow-pink-500/20 transition-all flex items-center gap-2"
-                    >
-                        {loading ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4" />}
-                        Save Item
-                    </button>
-               </div>
-          </form>
+                      {CLOTH_TYPES.map(t => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="text-[9px] text-[#555] uppercase tracking-widest font-semibold block mb-1.5">
+                    Description
+                  </label>
+                  <textarea
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
+                    rows={3}
+                    placeholder="Material, colour, condition, era, special details…"
+                    className="w-full bg-[#111] border border-[#222] rounded-lg px-3 py-2 text-sm text-[#bbb] focus:outline-none focus:border-emerald-500/50 transition-colors resize-none placeholder:text-[#444]"
+                  />
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-4 border-t border-[#1a1a1a] flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-xs text-[#777] hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 disabled:opacity-40"
+                >
+                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                  {cloth ? "Save Changes" : "Add Item"}
+                </button>
+              </div>
+            </form>
+          </motion.div>
         </motion.div>
-      </motion.div>
+      </AnimatePresence>
 
       <ModelSelector
         isOpen={isModelSelectorOpen}
         onClose={() => setIsModelSelectorOpen(false)}
         onConfirm={handleModelConfirm}
         itemCount={1}
-        title="Select Model for Cloth Image"
-        confirmLabel="Generate Image"
+        title="Generate Wardrobe Image"
+        confirmLabel="Generate"
       />
-    </AnimatePresence>
+    </>
   );
 }

@@ -307,9 +307,9 @@ export default function SceneDetailPage() {
                 >
                   <div className="w-12 h-12 bg-[#222] rounded-md overflow-hidden flex-shrink-0">
                     {char.image_url ? (
-                      <img src={char.image_url} alt={char.character_name} className="w-full h-full object-cover" />
+                      <img src={char.image_url} alt={char.character_name} className="w-full h-full object-contain" />
                     ) : char.character?.image_url ? (
-                      <img src={char.character.image_url} alt={char.character_name} className="w-full h-full object-cover opacity-80" />
+                      <img src={char.character.image_url} alt={char.character_name} className="w-full h-full object-contain opacity-80" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-gray-700 text-gray-400 text-lg font-bold">
                         {(char.character_name || char.name || "?")[0].toUpperCase()}

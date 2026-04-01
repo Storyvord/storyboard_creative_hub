@@ -1,3 +1,17 @@
+export interface TaskStatusRecord {
+  id: number;
+  task_id: string;
+  task_type: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'retrying' | 'started';
+  object_id: number;
+  error: string | null;
+  progress_message: string | null;
+  progress_current: number;
+  progress_total: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Script {
   id: number;
   title: string;

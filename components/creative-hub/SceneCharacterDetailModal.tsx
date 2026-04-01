@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Shirt, Wand2, Save, Plus, Upload, User } from "lucide-react";
 import { Cloth, Script } from "@/types/creative-hub";
 import { getCloths, updateSceneCharacter, generateSceneCharacterImage, createCloth, updateCharacter, getBulkTaskStatus } from "@/services/creative-hub";
+import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { toast } from "react-toastify";
 import { Loader2 } from "lucide-react";
 import { extractApiError } from "@/lib/extract-api-error";
@@ -37,6 +38,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
 
   useEffect(() => {
     if (scriptId) {
@@ -205,19 +207,24 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
       }
   };
 
-  const handleGenerate = async () => {
-      setGenerating(true);
-      try {
-          const res = await generateSceneCharacterImage(sceneCharacter.id, editPrompt);
-          toast.success("Image generation started. It will update shortly.");
-          if (res && res.task_id) {
-              setActiveTaskId(res.task_id);
-          }
-      } catch (error: any) {
-          console.error("Failed to generate image", error);
-          toast.error(extractApiError(error, "Failed to trigger generation. Please check your credits or try again."));
-          setGenerating(false);
+  const handleGenerate = () => {
+    setIsModelSelectorOpen(true);
+  };
+
+  const handleModelConfirm = async (model: string, provider: string) => {
+    setIsModelSelectorOpen(false);
+    setGenerating(true);
+    try {
+      const res = await generateSceneCharacterImage(sceneCharacter.id, editPrompt, model, provider);
+      toast.success("Image generation started. It will update shortly.");
+      if (res && res.task_id) {
+        setActiveTaskId(res.task_id);
       }
+    } catch (error: any) {
+      console.error("Failed to generate image", error);
+      toast.error(extractApiError(error, "Failed to trigger generation. Please check your credits or try again."));
+      setGenerating(false);
+    }
   };
 
   const filteredCloths = availableCloths.filter(c => c.cloth_type === activeSlot);
@@ -261,19 +268,19 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                     <div className="relative w-full aspect-[3/4] max-w-sm rounded-md overflow-hidden border border-[#222] bg-[#1a1a1a] flex-shrink-0 group/image">
                             {/* Primary Image: Scene Character Image */}
                             {sceneCharacter?.image_url ? (
-                                <img 
-                                src={sceneCharacter.image_url} 
-                                alt="Scene Appearance" 
-                                className="w-full h-full object-cover"
+                                <img
+                                src={sceneCharacter.image_url}
+                                alt="Scene Appearance"
+                                className="w-full h-full object-contain"
                                 />
                             ) : (
                                 /* Fallback: Script Character Image */
                                 sceneCharacter?.character?.image_url ? (
                                 <div className="w-full h-full relative">
-                                    <img 
-                                        src={sceneCharacter.character.image_url} 
-                                        alt="Base Character" 
-                                        className="w-full h-full object-cover opacity-80"
+                                    <img
+                                        src={sceneCharacter.character.image_url}
+                                        alt="Base Character"
+                                        className="w-full h-full object-contain opacity-80"
                                     />
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                                         <span className="px-3 py-1 bg-black/60 text-white text-xs rounded-md backdrop-blur-md border border-white/10">Base Appearance</span>
@@ -462,6 +469,15 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
             </div>
         </motion.div>
       </motion.div>
+
+      <ModelSelector
+        isOpen={isModelSelectorOpen}
+        onClose={() => setIsModelSelectorOpen(false)}
+        onConfirm={handleModelConfirm}
+        itemCount={1}
+        title="Select Model for Scene Look"
+        confirmLabel="Generate Look"
+      />
     </AnimatePresence>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { getScripts } from "@/services/creative-hub";
-import { getLocations, createLocation, updateLocation, deleteLocation, generateLocationImage } from "@/services/creative-hub";
+import { getLocations, createLocation, updateLocation, deleteLocation, generateLocationImage, getScriptTasks } from "@/services/creative-hub";
 import { Script } from "@/types/creative-hub";
 import { Location } from "@/types/creative-hub";
 import { Loader2, Plus, Edit, Trash2, Wand2, MapPin, Upload, X } from "lucide-react";
@@ -10,6 +10,7 @@ import { useParams } from "next/navigation";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
+import { useGenerationTasks } from "@/hooks/useGenerationTasks";
 
 export default function LocationsPage() {
   const params = useParams();
@@ -19,7 +20,10 @@ export default function LocationsPage() {
   const [script, setScript] = useState<Script | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
-  const [generatingId, setGeneratingId] = useState<number | null>(null);
+  // DB-backed: locId → true while generating
+  const [generatingLocIds, setGeneratingLocIds] = useState<Record<number, boolean>>({});
+  // DB-backed: taskId → locId
+  const [trackedTasks, setTrackedTasks] = useState<Record<string, number>>({});
   const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
   const [pendingGenerateLoc, setPendingGenerateLoc] = useState<Location | null>(null);
 
@@ -43,6 +47,24 @@ export default function LocationsPage() {
         });
 
         setLocations(sorted);
+
+        // ── Restore in-progress location tasks from DB ──
+        try {
+          const ACTIVE = new Set(['processing', 'pending', 'retrying', 'started']);
+          const MAX_AGE = 60 * 60 * 1000;
+          const now = Date.now();
+          const tasks = await getScriptTasks(currentScript.id);
+          const newTracked: Record<string, number> = {};
+          const genIds: Record<number, boolean> = {};
+          for (const t of (tasks.locations || [])) {
+            if (ACTIVE.has(t.status) && now - new Date(t.created_at).getTime() < MAX_AGE) {
+              newTracked[t.task_id] = t.object_id;
+              genIds[t.object_id] = true;
+            }
+          }
+          setTrackedTasks(newTracked);
+          setGeneratingLocIds(genIds);
+        } catch { /* task restore non-blocking */ }
       }
     } catch (error) { console.error("Failed to fetch locations", error); }
     finally { setLoading(false); }
@@ -69,20 +91,34 @@ export default function LocationsPage() {
     if (!pendingGenerateLoc) return;
     setIsModelSelectorOpen(false);
     const locId = pendingGenerateLoc.id;
-    setGeneratingId(locId);
+    setGeneratingLocIds(prev => ({ ...prev, [locId]: true }));
     setPendingGenerateLoc(null);
     try {
-      await generateLocationImage(locId, model, provider);
-      toast.success("Image generation started. Refreshing shortly.");
-      // Keep loader active until we fetch
-      setTimeout(() => {
-          fetchData().finally(() => setGeneratingId(null));
-      }, 5000);
-    } catch (error) { 
-        toast.error(extractApiError(error, "Failed to generate image.")); 
-        setGeneratingId(null);
+      const result = await generateLocationImage(locId, model, provider);
+      setTrackedTasks(prev => ({ ...prev, [result.task_id]: locId }));
+      toast.success("Location image rendering — will update when ready…");
+    } catch (error) {
+      toast.error(extractApiError(error, "Failed to generate image."));
+      setGeneratingLocIds(prev => { const n = { ...prev }; delete n[locId]; return n; });
     }
   };
+
+  // ── DB-backed task polling ────────────────────────────────────────────────
+  useGenerationTasks({
+    taskIds: Object.keys(trackedTasks),
+    getObjectId: (taskId) => trackedTasks[taskId] ?? 0,
+    onComplete: (taskId, objectId) => {
+      setTrackedTasks(prev => { const n = { ...prev }; delete n[taskId]; return n; });
+      setGeneratingLocIds(prev => { const n = { ...prev }; delete n[objectId]; return n; });
+      fetchData();
+      toast.success("Location image is ready!");
+    },
+    onError: (taskId, objectId, error) => {
+      setTrackedTasks(prev => { const n = { ...prev }; delete n[taskId]; return n; });
+      setGeneratingLocIds(prev => { const n = { ...prev }; delete n[objectId]; return n; });
+      toast.error(`Location image failed: ${error}`);
+    },
+  });
 
 
 
@@ -109,8 +145,8 @@ export default function LocationsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {locations.map((loc) => (
-            <div key={loc.id} className="bg-[#0d0d0d] rounded-md border border-[#1a1a1a] overflow-hidden group hover:border-emerald-500/30 transition-all flex flex-col">
+          {locations.map((loc, idx) => (
+            <div key={loc.id} {...(idx === 0 ? { "data-tour": "location-card" } : {})} className="bg-[#0d0d0d] rounded-md border border-[#1a1a1a] overflow-hidden group hover:border-emerald-500/30 transition-all flex flex-col">
               <div className="aspect-video bg-[#0a0a0a] relative group-hover:opacity-90 transition-opacity">
                 {loc.image_url ? (
                   <img src={loc.image_url} alt={loc.name} className="w-full h-full object-cover" />
@@ -120,7 +156,7 @@ export default function LocationsPage() {
                     <span className="text-[9px] uppercase tracking-wider">No Image</span>
                   </div>
                 )}
-                {generatingId === loc.id && (
+                {generatingLocIds[loc.id] && (
                   <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
                     <Loader2 className="h-6 w-6 text-emerald-500 animate-spin mb-1" />
                     <span className="text-[10px] text-emerald-400 font-medium">Generating...</span>
@@ -132,10 +168,10 @@ export default function LocationsPage() {
                   </button>
                   <button
                     onClick={() => handleGenerateImage(loc)}
-                    disabled={generatingId === loc.id}
+                    disabled={!!generatingLocIds[loc.id]}
                     className="p-2 bg-emerald-500/20 hover:bg-emerald-500/40 rounded-md text-emerald-400 transition-colors" title="Generate AI Image"
                   >
-                    {generatingId === loc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                    {generatingLocIds[loc.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
                   </button>
                   <button onClick={() => handleDelete(loc.id)} className="p-2 bg-red-500/20 hover:bg-red-500/40 rounded-md text-red-400 transition-colors" title="Delete">
                     <Trash2 className="h-3.5 w-3.5" />
