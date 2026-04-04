@@ -434,7 +434,7 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
                 ? "text-[#555] italic"
                 : "text-white"
             )}
-            value={scene.effective_storyboarding_type ?? activeScriptStoryboardingType ?? 'hd'}
+            value={scene.storyboarding_type || activeScriptStoryboardingType || 'hd'}
             onChange={(e) => onUpdateSceneStyle(scene.id as number, e.target.value)}
           >
             {STORYBOARDING_TYPES.map(t => (
