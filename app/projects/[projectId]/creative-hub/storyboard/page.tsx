@@ -957,6 +957,16 @@ export default function StoryboardPage() {
 
   useEffect(() => { if (projectId) fetchScenes(); }, [projectId]);
 
+  // When the script-level storyboarding type changes, propagate to scenes that inherit (storyboarding_type === null)
+  useEffect(() => {
+    if (!activeScript?.storyboarding_type) return;
+    setScenes(prev => prev.map(s =>
+      !s.storyboarding_type
+        ? { ...s, effective_storyboarding_type: activeScript.storyboarding_type! }
+        : s
+    ));
+  }, [activeScript?.storyboarding_type]);
+
   const fetchScenes = async () => {
     try {
       setLoadingScenes(true);
@@ -1231,11 +1241,6 @@ export default function StoryboardPage() {
                   onChange={async (e) => {
                     const newValue = e.target.value as 'sketch' | 'storyboard' | 'hd' | 'anime';
                     setActiveScript({ ...activeScript, storyboarding_type: newValue });
-                    setScenes(prev => prev.map(s =>
-                      s.storyboarding_type === null || s.storyboarding_type === undefined
-                        ? { ...s, effective_storyboarding_type: newValue }
-                        : s
-                    ));
                     try {
                       await updateScript(activeScript.id, { storyboarding_type: newValue });
                       toast.success("Storyboarding style updated.");
