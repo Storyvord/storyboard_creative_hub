@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardDataPaginated, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, createShot, reorderShots as reorderShotsApi, getCharacters, updateShotDetails } from "@/services/creative-hub";
+import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardDataPaginated, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, updateScene, createShot, reorderShots as reorderShotsApi, getCharacters, updateShotDetails } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { Scene, Shot, Script } from "@/types/creative-hub";
 import { Loader2, Film, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon, CheckCircle, Circle, AlertTriangle, GripVertical, Plus, X } from "lucide-react";
@@ -328,13 +328,15 @@ interface SceneItemProps {
   onTagsChange: (shotId: number, tags: TaggedCharacter[]) => void;
   globalCharacters: GlobalCharacterItem[];
   shotsAreaTourId?: string;
+  onUpdateSceneStyle: (sceneId: number, value: string | null) => void;
+  activeScriptStoryboardingType?: string;
 }
 
 function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, loadingShots,
   onGenerateShots, trackedTasks, shotErrors, selectedShotIds, onToggleSelectShot,
   retryingTasks, onUpdateShot, onReorderShots, onInsertShot, scriptId, onGeneratePreviz,
   globalDraggingId, onGlobalDragStart, onGlobalDragEnd, onTagsChange, globalCharacters,
-  shotsAreaTourId }: SceneItemProps) {
+  shotsAreaTourId, onUpdateSceneStyle, activeScriptStoryboardingType }: SceneItemProps) {
 
   const [dragOverShotId, setDragOverShotId] = useState<number | null>(null);
 
@@ -424,6 +426,33 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
 
         <span className="text-[10px] text-[#444] ml-2">{shots.length} shot{shots.length !== 1 ? 's' : ''}</span>
 
+        <div className="flex items-center gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
+          <select
+            className={clsx(
+              "bg-[#161616] border border-[#222] rounded text-[10px] px-1.5 py-1 outline-none focus:border-emerald-500/40 transition-colors",
+              scene.storyboarding_type === null || scene.storyboarding_type === undefined
+                ? "text-[#555] italic"
+                : "text-white"
+            )}
+            value={scene.storyboarding_type || activeScriptStoryboardingType || 'hd'}
+            onChange={(e) => onUpdateSceneStyle(scene.id as number, e.target.value)}
+          >
+            {STORYBOARDING_TYPES.map(t => (
+              <option key={t.value} value={t.value}>
+                {t.label}{(scene.storyboarding_type === null || scene.storyboarding_type === undefined) ? ' (default)' : ''}
+              </option>
+            ))}
+          </select>
+          {scene.storyboarding_type !== null && scene.storyboarding_type !== undefined && (
+            <button
+              onClick={() => onUpdateSceneStyle(scene.id as number, null)}
+              className="text-[#555] hover:text-white transition-colors p-0.5"
+              title="Reset to project default"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
 
       </div>
 
@@ -554,7 +583,7 @@ export default function StoryboardPage() {
     const parsedScenes: Scene[] = [];
     const parsedShotsMap: Record<number, Shot[]> = {};
     data.forEach((sceneData: any) => {
-      parsedScenes.push({ id: sceneData.id, script_id: scriptId, scene_name: sceneData.scene_name, description: sceneData.description, order: sceneData.order, location: "", set_number: "", environment: "", int_ext: "", date: "", timeline: [], scene_characters: sceneData.scene_characters || [], created_at: "", updated_at: "" });
+      parsedScenes.push({ id: sceneData.id, script_id: scriptId, scene_name: sceneData.scene_name, description: sceneData.description, order: sceneData.order, location: "", set_number: "", environment: "", int_ext: "", date: "", timeline: [], scene_characters: sceneData.scene_characters || [], created_at: "", updated_at: "", storyboarding_type: sceneData.storyboarding_type ?? null, effective_storyboarding_type: sceneData.effective_storyboarding_type });
       const shots: Shot[] = (sceneData.shots || []).map((sd: any) => {
         let imageUrl = null;
         let activePreviz = null;
@@ -928,6 +957,16 @@ export default function StoryboardPage() {
 
   useEffect(() => { if (projectId) fetchScenes(); }, [projectId]);
 
+  // When the script-level storyboarding type changes, propagate to scenes that inherit (storyboarding_type === null)
+  useEffect(() => {
+    if (!activeScript?.storyboarding_type) return;
+    setScenes(prev => prev.map(s =>
+      !s.storyboarding_type
+        ? { ...s, effective_storyboarding_type: activeScript.storyboarding_type! }
+        : s
+    ));
+  }, [activeScript?.storyboarding_type]);
+
   const fetchScenes = async () => {
     try {
       setLoadingScenes(true);
@@ -993,6 +1032,7 @@ export default function StoryboardPage() {
                   return { id: sd.id, scene: sceneId, description: sd.description, type: sd.type || "Wide Shot", order: sd.order, image_url: imageUrl, active_previz: sd.active_previz, previz: activePreviz } as Shot;
              });
              setShotsMap(prev => ({ ...prev, [sceneId]: shots.sort((a, b) => a.order - b.order) }));
+             setScenes(prev => prev.map(s => s.id === sceneId ? { ...s, storyboarding_type: sceneData.storyboarding_type ?? null, effective_storyboarding_type: sceneData.effective_storyboarding_type } : s));
         } else setShotsMap(prev => ({ ...prev, [sceneId]: [] }));
     } catch (error) { console.error(error); }
     finally { setLoadingShotsMap(prev => ({ ...prev, [sceneId]: false })); }
@@ -1031,20 +1071,40 @@ export default function StoryboardPage() {
               const tags = shotTaggedCharacters[shotId] || [];
               const scene_character_ids = Array.from(new Set(tags.filter(t => t.type === "scene_character").map(t => t.id)));
               const character_ids = Array.from(new Set(tags.filter(t => t.type === "global_character").map(t => t.id)));
+              const parentScene = scenes.find(s => s.id !== null && (shotsMap[s.id as number] || []).some((sh: Shot) => sh.id === shotId));
+              const sceneStoryboardingType = parentScene?.storyboarding_type ?? null;
               return {
                   shot_id: shotId,
                   scene_character_ids: scene_character_ids.length > 0 ? scene_character_ids : undefined,
-                  character_ids: character_ids.length > 0 ? character_ids : undefined
+                  character_ids: character_ids.length > 0 ? character_ids : undefined,
+                  ...(sceneStoryboardingType ? { storyboarding_type: sceneStoryboardingType } : {}),
               };
           });
 
-          const response = await bulkGeneratePreviz(shotsConfig, model, provider);
+          const response = await bulkGeneratePreviz(shotsConfig, model, provider, activeScript?.storyboarding_type ?? undefined);
           if (response?.shot_ids && response?.task_ids) {
               setTrackedTasks(prev => { const c = { ...prev }; response.shot_ids.forEach((sid: number, i: number) => { c[sid] = response.task_ids[i]; }); return c; });
               setShotErrors(prev => { const c = { ...prev }; response.shot_ids.forEach((sid: number) => { delete c[sid]; }); return c; });
           }
           toast.success("Bulk previz generation started!");
       } catch (error) { console.error(error); toast.error(extractApiError(error, "Failed to start previz generation.")); } finally { setIsBulkGenerating(false); setPendingPrevizShotIds([]); }
+  };
+
+  const handleUpdateSceneStyle = async (sceneId: number, value: string | null) => {
+    if (!activeScript) return;
+    const prevScenes = scenes;
+    setScenes(prev => prev.map(s =>
+      s.id === sceneId
+        ? { ...s, storyboarding_type: value as any, effective_storyboarding_type: (value ?? activeScript.storyboarding_type ?? 'hd') as any }
+        : s
+    ));
+    try {
+      await updateScene(sceneId, { storyboarding_type: value as any });
+      toast.success(value ? "Scene style pinned." : "Scene style reset to project default.");
+    } catch (err) {
+      setScenes(prevScenes);
+      toast.error(extractApiError(err, "Failed to update scene style."));
+    }
   };
 
   const handleGenerateShots = async (sceneId: number) => {
@@ -1286,6 +1346,8 @@ export default function StoryboardPage() {
                       onTagsChange={handleTagsChange}
                       globalCharacters={globalCharacters}
                       shotsAreaTourId={sceneIndex === 0 ? "shots-area" : undefined}
+                      onUpdateSceneStyle={handleUpdateSceneStyle}
+                      activeScriptStoryboardingType={activeScript?.storyboarding_type}
                     />
                   </div>
                 ))}

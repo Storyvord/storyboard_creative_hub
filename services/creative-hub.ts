@@ -100,7 +100,7 @@ export const getScene = async (sceneId: number): Promise<Scene> => {
 };
 
 export const updateScene = async (sceneId: number, data: Partial<Scene>): Promise<Scene> => {
-    const response = await api.put(`/api/creative_hub/scenes/${sceneId}/edit/`, data);
+    const response = await api.patch(`/api/creative_hub/scenes/${sceneId}/edit/`, data);
     return response.data;
 }
 
@@ -396,17 +396,20 @@ export interface BulkGenerateShotConfig {
     scene_character_ids?: number[];
     character_ids?: number[];
     location_id?: number | null;
+    storyboarding_type?: 'hd' | 'sketch' | 'anime' | 'storyboard';
 }
 
 export const bulkGeneratePreviz = async (
     shots: BulkGenerateShotConfig[],
     model?: string,
-    provider?: string
+    provider?: string,
+    storyboarding_type?: string
 ): Promise<any> => {
     const body: Record<string, any> = {
         shots,
         model,
-        provider
+        provider,
+        ...(storyboarding_type ? { storyboarding_type } : {}),
     };
     const response = await api.post(`/api/creative_hub/previsualization/bulk-generate/`, body);
     return response.data;
