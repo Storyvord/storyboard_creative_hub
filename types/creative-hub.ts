@@ -54,6 +54,10 @@ export interface Scene {
   sync_changes?: string[];
   /** Number of shots that would be deleted if this scene is removed */
   sync_shot_count?: number;
+  /** Per-scene style override; null means inherit from script/project level */
+  storyboarding_type?: 'hd' | 'sketch' | 'anime' | 'storyboard' | null;
+  /** Always-resolved effective style (never null) */
+  effective_storyboarding_type?: 'hd' | 'sketch' | 'anime' | 'storyboard';
   [key: string]: any;
 }
 
