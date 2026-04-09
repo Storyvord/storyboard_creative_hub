@@ -14,16 +14,20 @@ interface CameraAngleSelectorProps {
 }
 
 function AnglePreview({ angle, className }: { angle: CameraAngle; className?: string }) {
-  if (angle.reference_image) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const diagram = getCameraAngleDiagram(angle.name);
+
+  if (angle.reference_image && !imgFailed) {
     return (
       <img
         src={angle.reference_image}
         alt={angle.name}
         className={className ?? "w-full h-full object-cover"}
+        onError={() => setImgFailed(true)}
       />
     );
   }
-  const diagram = getCameraAngleDiagram(angle.name);
+
   if (diagram) {
     return <div className={className ?? "w-full h-full"}>{diagram}</div>;
   }
