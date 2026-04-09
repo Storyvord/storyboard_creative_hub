@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, Check, ChevronDown } from "lucide-react";
 import { CameraAngle } from "@/services/creative-hub";
+import { getCameraAngleDiagram } from "@/components/creative-hub/CameraAngleDiagram";
 
 interface CameraAngleSelectorProps {
   angles: CameraAngle[];
@@ -10,6 +11,27 @@ interface CameraAngleSelectorProps {
   onChange: (name: string) => void;
   disabled?: boolean;
   size?: "sm" | "md";
+}
+
+function AnglePreview({ angle, className }: { angle: CameraAngle; className?: string }) {
+  if (angle.reference_image) {
+    return (
+      <img
+        src={angle.reference_image}
+        alt={angle.name}
+        className={className ?? "w-full h-full object-cover"}
+      />
+    );
+  }
+  const diagram = getCameraAngleDiagram(angle.name);
+  if (diagram) {
+    return <div className={className ?? "w-full h-full"}>{diagram}</div>;
+  }
+  return (
+    <div className="w-full h-full flex items-center justify-center">
+      <span className="text-[#333] text-xs">{angle.name[0]}</span>
+    </div>
+  );
 }
 
 export default function CameraAngleSelector({
@@ -27,6 +49,8 @@ export default function CameraAngleSelector({
       ? "w-full bg-[#111] border border-[#222] rounded-md text-xs text-[#ccc] px-2 py-2 outline-none focus:border-emerald-500/40 flex items-center justify-between gap-1"
       : "w-full bg-[#0a0a0a] border border-[#222] rounded-md text-sm text-white px-3 py-2 outline-none focus:border-emerald-500/50 flex items-center justify-between gap-2";
 
+  const thumbSize = size === "sm" ? "w-6 h-4" : "w-8 h-5";
+
   return (
     <div className="relative">
       {/* Trigger */}
@@ -37,29 +61,37 @@ export default function CameraAngleSelector({
         disabled={disabled}
       >
         <span className="flex items-center gap-2 min-w-0">
-          {selected?.reference_image && (
-            <img
-              src={selected.reference_image}
-              alt={selected.name}
-              className={size === "sm" ? "w-6 h-4 object-cover rounded flex-shrink-0" : "w-8 h-5 object-cover rounded flex-shrink-0"}
-            />
+          {selected && (
+            <span className={`${thumbSize} rounded overflow-hidden flex-shrink-0 inline-flex`}>
+              <AnglePreview angle={selected} className="w-full h-full object-cover" />
+            </span>
           )}
-          <span className="truncate">{selected ? selected.name : size === "sm" ? "—" : "— Select angle —"}</span>
+          <span className="truncate">
+            {selected ? selected.name : size === "sm" ? "—" : "— Select angle —"}
+          </span>
         </span>
         <ChevronDown className={size === "sm" ? "w-3 h-3 flex-shrink-0 text-[#555]" : "w-4 h-4 flex-shrink-0 text-[#555]"} />
       </button>
 
       {/* Modal overlay */}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setOpen(false)}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setOpen(false)}
+        >
           <div
             className="relative bg-[#0d0d0d] border border-[#222] rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a1a1a]">
-              <span className="text-sm font-semibold text-white tracking-wide">Select Camera Angle</span>
-              <button onClick={() => setOpen(false)} className="text-[#555] hover:text-white transition-colors">
+              <span className="text-sm font-semibold text-white tracking-wide">
+                Select Camera Angle
+              </span>
+              <button
+                onClick={() => setOpen(false)}
+                className="text-[#555] hover:text-white transition-colors"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -70,7 +102,7 @@ export default function CameraAngleSelector({
                 <p className="text-center text-[#555] text-sm py-8">Loading angles…</p>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {/* Clear option */}
+                  {/* Clear / None option */}
                   <button
                     type="button"
                     onClick={() => { onChange(""); setOpen(false); }}
@@ -82,7 +114,9 @@ export default function CameraAngleSelector({
                   >
                     <span className="text-[#555] text-2xl">—</span>
                     <span className="text-[10px] text-[#666] uppercase tracking-wider">None</span>
-                    {!value && <Check className="absolute top-1.5 right-1.5 w-3 h-3 text-emerald-400" />}
+                    {!value && (
+                      <Check className="absolute top-1.5 right-1.5 w-3 h-3 text-emerald-400" />
+                    )}
                   </button>
 
                   {angles.map((angle) => (
@@ -96,26 +130,20 @@ export default function CameraAngleSelector({
                           : "border-[#222] hover:border-[#333]"
                       }`}
                     >
-                      {/* Image */}
-                      <div className="w-full h-20 bg-[#111] flex-shrink-0">
-                        {angle.reference_image ? (
-                          <img
-                            src={angle.reference_image}
-                            alt={angle.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <span className="text-[#333] text-xs">No image</span>
-                          </div>
-                        )}
+                      {/* Preview — photo if available, diagram otherwise */}
+                      <div className="w-full h-20 bg-[#111] flex-shrink-0 overflow-hidden">
+                        <AnglePreview angle={angle} />
                       </div>
 
                       {/* Label */}
                       <div className="px-2 py-1.5 bg-[#0d0d0d] border-t border-[#1a1a1a]">
-                        <span className="text-[10px] text-[#aaa] leading-tight block text-center">{angle.name}</span>
+                        <span className="text-[10px] text-[#aaa] leading-tight block text-center">
+                          {angle.name}
+                        </span>
                         {angle.description && (
-                          <span className="text-[9px] text-[#555] leading-tight block text-center mt-0.5 truncate">{angle.description}</span>
+                          <span className="text-[9px] text-[#555] leading-tight block text-center mt-0.5 truncate">
+                            {angle.description}
+                          </span>
                         )}
                       </div>
 
