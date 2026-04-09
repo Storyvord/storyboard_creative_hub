@@ -129,6 +129,16 @@ export default function ShotDetailModal({
     }
   }, [activeTab, scene?.script_id, scene?.script]);
 
+  // When generation finishes (isGenerating flips false→true→false), refresh previz history
+  // and update the displayed image from the latest shot prop.
+  const prevIsGenerating = useRef<boolean>(false);
+  useEffect(() => {
+    if (prevIsGenerating.current && !isGenerating) {
+      fetchPrevizHistory();
+    }
+    prevIsGenerating.current = !!isGenerating;
+  }, [isGenerating]);
+
   const fetchPrevizHistory = async () => {
       if (!shot) return;
       setLoadingHistory(true);

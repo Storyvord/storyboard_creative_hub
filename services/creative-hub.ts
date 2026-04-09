@@ -428,6 +428,11 @@ export const updateShotDetails = async (shotId: number, data: Partial<Shot>): Pr
     return response.data;
 }
 
+export const getShotDetail = async (shotId: number): Promise<Shot> => {
+    const response = await api.get(`/api/creative_hub/shots/${shotId}/detail/`);
+    return response.data;
+}
+
 export const createScriptPrevisualization = async (data: {
   script: number;
   description: string;
