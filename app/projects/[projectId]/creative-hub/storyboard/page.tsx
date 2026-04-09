@@ -592,7 +592,7 @@ export default function StoryboardPage() {
           if (!activePreviz) activePreviz = sd.previz[sd.previz.length - 1];
           imageUrl = activePreviz?.image_url || null;
         }
-        return { id: sd.id, scene: sceneData.id, description: sd.description, type: sd.type || "Wide Shot", order: sd.order, done: false, timeline: {}, movement: "", camera_angle: "", lighting: "", rationale: "", created_at: "", updated_at: "", image_url: imageUrl, active_previz: sd.active_previz, previz: activePreviz } as Shot;
+        return { id: sd.id, scene: sceneData.id, description: sd.description, type: sd.type || "Wide Shot", order: sd.order, done: false, timeline: {}, movement: sd.movement || "", camera_angle: sd.camera_angle || "", lighting: sd.lighting || "", rationale: sd.rationale || "", created_at: "", updated_at: "", image_url: imageUrl, active_previz: sd.active_previz, previz: activePreviz } as Shot;
       });
       parsedShotsMap[sceneData.id] = shots.sort((a, b) => a.order - b.order);
     });
@@ -1029,7 +1029,7 @@ export default function StoryboardPage() {
                       imageUrl = activePreviz?.image_url || null;
                   }
 
-                  return { id: sd.id, scene: sceneId, description: sd.description, type: sd.type || "Wide Shot", order: sd.order, image_url: imageUrl, active_previz: sd.active_previz, previz: activePreviz } as Shot;
+                  return { id: sd.id, scene: sceneId, description: sd.description, type: sd.type || "Wide Shot", order: sd.order, movement: sd.movement || "", camera_angle: sd.camera_angle || "", lighting: sd.lighting || "", rationale: sd.rationale || "", image_url: imageUrl, active_previz: sd.active_previz, previz: activePreviz } as Shot;
              });
              setShotsMap(prev => ({ ...prev, [sceneId]: shots.sort((a, b) => a.order - b.order) }));
              setScenes(prev => prev.map(s => s.id === sceneId ? { ...s, storyboarding_type: sceneData.storyboarding_type ?? null, effective_storyboarding_type: sceneData.effective_storyboarding_type } : s));
