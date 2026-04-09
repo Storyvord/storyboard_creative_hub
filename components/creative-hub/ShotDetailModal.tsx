@@ -1,7 +1,7 @@
 import { Shot, Scene, Character } from "@/types/creative-hub";
 import { X, Film, User, ChevronLeft, ChevronRight, Clock, AlertTriangle, Upload, Pencil, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { uploadPreviz, getShotPreviz, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails, getCameraAngles, CameraAngle } from "@/services/creative-hub";
 import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import { toast } from "react-toastify";
@@ -128,6 +128,16 @@ export default function ShotDetailModal({
         fetchScriptPreviz();
     }
   }, [activeTab, scene?.script_id, scene?.script]);
+
+  // When generation finishes (isGenerating flips false→true→false), refresh previz history
+  // and update the displayed image from the latest shot prop.
+  const prevIsGenerating = useRef<boolean>(false);
+  useEffect(() => {
+    if (prevIsGenerating.current && !isGenerating) {
+      fetchPrevizHistory();
+    }
+    prevIsGenerating.current = !!isGenerating;
+  }, [isGenerating]);
 
   const fetchPrevizHistory = async () => {
       if (!shot) return;
