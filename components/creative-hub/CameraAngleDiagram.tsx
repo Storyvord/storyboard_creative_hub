@@ -11,16 +11,14 @@ const diagrams: Record<string, ReactElement> = {
       <rect width="120" height="80" fill="#111" />
       {/* Ground */}
       <line x1="0" y1="60" x2="120" y2="60" stroke="#333" strokeWidth="1" />
-      {/* Subject — body then head */}
+      {/* Subject */}
       <rect x="52" y="30" width="16" height="30" rx="2" fill="#2a2a2a" stroke="#444" strokeWidth="1" />
       <circle cx="60" cy="24" r="7" fill="#2a2a2a" stroke="#444" strokeWidth="1" />
-      {/* Camera — at head/eye height (y aligned with head centre cy=24) */}
-      <rect x="12" y="19" width="14" height="10" rx="2" fill="#1a6b3a" />
-      <circle cx="30" cy="24" r="3" fill="#0d4726" />
-      {/* Arrow — horizontal, pointing at head */}
-      <line x1="33" y1="24" x2="51" y2="24" stroke="#22c55e" strokeWidth="1.5" markerEnd="url(#ah)" />
-      {/* Eye-level guide line (dashed) from camera to subject */}
-      <line x1="12" y1="24" x2="120" y2="24" stroke="#22c55e" strokeWidth="0.5" strokeDasharray="3,3" opacity="0.3" />
+      {/* Camera */}
+      <rect x="12" y="36" width="14" height="10" rx="2" fill="#1a6b3a" />
+      <circle cx="30" cy="41" r="3" fill="#0d4726" />
+      {/* Arrow — horizontal */}
+      <line x1="32" y1="41" x2="50" y2="41" stroke="#22c55e" strokeWidth="1.5" markerEnd="url(#ah)" />
       <defs>
         <marker id="ah" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
           <path d="M0,0 L6,3 L0,6 Z" fill="#22c55e" />
