@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Image as ImageIcon, Loader2, Sparkles, Wand2 } from "lucide-react";
 import { ASPECT_RATIOS } from "@/app/projects/[projectId]/creative-hub/storyboard/page";
 
-import { createScriptPrevisualization } from "@/services/creative-hub";
+import { createScriptPrevisualization, getCameraAngles, CameraAngle } from "@/services/creative-hub";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 
@@ -18,7 +18,12 @@ export default function CreativePageModal({ isOpen, onClose, scriptId }: Creativ
   const [prompt, setPrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [cameraAngle, setCameraAngle] = useState("");
+  const [cameraAngles, setCameraAngles] = useState<CameraAngle[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    getCameraAngles().then(setCameraAngles).catch(() => {});
+  }, []);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -110,13 +115,16 @@ export default function CreativePageModal({ isOpen, onClose, scriptId }: Creativ
 
               <div>
                 <label className="block text-xs font-medium text-[#888] mb-1.5 uppercase tracking-wider">Camera Angle</label>
-                <input
-                  type="text"
-                  className="w-full bg-[#0a0a0a] border border-[#222] rounded-md text-sm text-white px-3 py-2 outline-none focus:border-emerald-500/50 transition-colors placeholder-[#444]"
-                  placeholder="e.g., Low angle, Eye level"
+                <select
+                  className="w-full bg-[#0a0a0a] border border-[#222] rounded-md text-sm text-white px-3 py-2 outline-none focus:border-emerald-500/50 transition-colors"
                   value={cameraAngle}
                   onChange={(e) => setCameraAngle(e.target.value)}
-                />
+                >
+                  <option value="">— Select angle —</option>
+                  {cameraAngles.map((a) => (
+                    <option key={a.id} value={a.name}>{a.name}</option>
+                  ))}
+                </select>
               </div>
 
             </div>

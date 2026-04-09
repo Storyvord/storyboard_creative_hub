@@ -2,7 +2,7 @@ import { Shot, Scene, Character } from "@/types/creative-hub";
 import { X, Film, User, ChevronLeft, ChevronRight, Clock, AlertTriangle, Upload, Pencil, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
-import { uploadPreviz, getShotPreviz, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails } from "@/services/creative-hub";
+import { uploadPreviz, getShotPreviz, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails, getCameraAngles, CameraAngle } from "@/services/creative-hub";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import MentionTextarea, { TaggedCharacter, SceneCharacterItem, GlobalCharacterItem } from "@/components/creative-hub/MentionTextarea";
@@ -18,16 +18,6 @@ const SHOT_TYPE_OPTIONS = [
     "Other",
 ];
 
-const CAMERA_ANGLE_OPTIONS = [
-    "Eye Level",
-    "High Angle",
-    "Low Angle",
-    "Dutch Angle",
-    "Bird's Eye View",
-    "Worm's Eye View",
-    "Overhead",
-    "Other",
-];
 
 const MOVEMENT_OPTIONS = [
     "Static",
@@ -99,6 +89,11 @@ export default function ShotDetailModal({
   const [editPrompt, setEditPrompt] = useState('');
   const [isEditingPreviz, setIsEditingPreviz] = useState(false);
   const [taggedCharacterIds, setTaggedCharacterIds] = useState<TaggedCharacter[]>([]);
+  const [cameraAngles, setCameraAngles] = useState<CameraAngle[]>([]);
+
+  useEffect(() => {
+    getCameraAngles().then(setCameraAngles).catch(() => {});
+  }, []);
 
   const hasActivePrevizImage = !!shot?.image_url;
     const hasEditPrompt = !!editPrompt.trim();
@@ -524,8 +519,8 @@ export default function ShotDetailModal({
                                                 disabled={disableDetails || savingDetails}
                                             >
                                                 <option value="">—</option>
-                                                {CAMERA_ANGLE_OPTIONS.map((opt) => (
-                                                    <option key={opt} value={opt}>{opt}</option>
+                                                {cameraAngles.map((a) => (
+                                                    <option key={a.id} value={a.name}>{a.name}</option>
                                                 ))}
                                             </select>
                                         </div>
