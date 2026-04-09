@@ -12,10 +12,13 @@ import {
   getLocations,
   ImageModel,
   getScriptPrevisualizations,
+  getCameraAngles,
+  CameraAngle,
 } from "@/services/creative-hub";
+import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
-import { ASPECT_RATIOS, CAMERA_ANGLES } from "@/app/projects/[projectId]/creative-hub/storyboard/page";
+import { ASPECT_RATIOS } from "@/app/projects/[projectId]/creative-hub/storyboard/page";
 import dayjs from "dayjs";
 import isToday from "dayjs/plugin/isToday";
 import isYesterday from "dayjs/plugin/isYesterday";
@@ -412,6 +415,7 @@ export default function CreativeSpacePage() {
   const [prompt,      setPrompt]      = useState("");
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [cameraAngle, setCameraAngle] = useState("");
+  const [cameraAngles, setCameraAngles] = useState<CameraAngle[]>([]);
   const [shotType,    setShotType]    = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -474,6 +478,10 @@ export default function CreativeSpacePage() {
       setIsFetchingHistory(false);
     }
   };
+
+  useEffect(() => {
+    getCameraAngles().then(setCameraAngles).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!projectId) return;
@@ -945,10 +953,12 @@ export default function CreativeSpacePage() {
 
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider whitespace-nowrap">Camera Angle</span>
-              <select className={PARAM_SELECT_CLS} value={cameraAngle} onChange={(e) => setCameraAngle(e.target.value)}>
-                <option value="">— Any —</option>
-                {CAMERA_ANGLES.map((ca) => <option key={ca} value={ca}>{ca}</option>)}
-              </select>
+              <CameraAngleSelector
+                angles={cameraAngles}
+                value={cameraAngle}
+                onChange={setCameraAngle}
+                size="sm"
+              />
             </div>
 
             <div className="flex items-center gap-2 ml-auto">
