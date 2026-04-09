@@ -1,9 +1,11 @@
 "use client";
 
+import { ReactElement } from "react";
+
 // Inline SVG diagrams illustrating each camera angle's framing.
 // Used as fallback when no reference_image is available from the backend.
 
-const diagrams: Record<string, JSX.Element> = {
+const diagrams: Record<string, ReactElement> = {
   "Eye Level": (
     <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <rect width="120" height="80" fill="#111" />
@@ -303,6 +305,6 @@ const diagrams: Record<string, JSX.Element> = {
   ),
 };
 
-export function getCameraAngleDiagram(name: string): JSX.Element | null {
+export function getCameraAngleDiagram(name: string): ReactElement | null {
   return diagrams[name] ?? null;
 }
