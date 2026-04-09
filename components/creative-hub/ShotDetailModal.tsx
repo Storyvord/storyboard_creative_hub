@@ -3,6 +3,7 @@ import { X, Film, User, ChevronLeft, ChevronRight, Clock, AlertTriangle, Upload,
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { uploadPreviz, getShotPreviz, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails, getCameraAngles, CameraAngle } from "@/services/creative-hub";
+import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import MentionTextarea, { TaggedCharacter, SceneCharacterItem, GlobalCharacterItem } from "@/components/creative-hub/MentionTextarea";
@@ -508,21 +509,16 @@ export default function ShotDetailModal({
                                         </div>
                                         <div>
                                             <span className="text-[9px] text-[#555] uppercase block mb-1">Camera Angle</span>
-                                            <select
+                                            <CameraAngleSelector
+                                                angles={cameraAngles}
                                                 value={detailsForm.camera_angle || ""}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
+                                                onChange={(val) => {
                                                     setDetailsForm((prev) => ({ ...prev, camera_angle: val }));
                                                     autoSaveField('camera_angle', val || null);
                                                 }}
-                                                className="w-full bg-[#111] border border-[#222] rounded-md text-xs text-[#ccc] px-2 py-2 outline-none focus:border-emerald-500/40"
                                                 disabled={disableDetails || savingDetails}
-                                            >
-                                                <option value="">—</option>
-                                                {cameraAngles.map((a) => (
-                                                    <option key={a.id} value={a.name}>{a.name}</option>
-                                                ))}
-                                            </select>
+                                                size="sm"
+                                            />
                                         </div>
                                         <div>
                                             <span className="text-[9px] text-[#555] uppercase block mb-1">Lighting</span>
