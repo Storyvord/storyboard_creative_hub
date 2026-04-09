@@ -637,3 +637,18 @@ export const discardSceneChanges = async (scriptId: number): Promise<{ script_id
     const response = await api.post(`/api/creative_hub/scripts/${scriptId}/scenes/discard/`);
     return response.data;
 }
+
+export interface CameraAngle {
+    id: number;
+    name: string;
+    description: string | null;
+    reference_image: string | null;
+    order: number;
+}
+
+export const getCameraAngles = async (): Promise<CameraAngle[]> => {
+    const response = await api.get("/api/creative_hub/camera-angles/");
+    if (Array.isArray(response.data)) return response.data;
+    if (response.data.results) return response.data.results;
+    return [];
+}
