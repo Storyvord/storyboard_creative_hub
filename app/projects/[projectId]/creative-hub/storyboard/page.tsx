@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardDataPaginated, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, updateScene, createShot, reorderShots as reorderShotsApi, getCharacters, updateShotDetails } from "@/services/creative-hub";
+import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardDataPaginated, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, updateScene, createShot, reorderShots as reorderShotsApi, getCharacters, updateShotDetails, getShotDetail } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { Scene, Shot, Script } from "@/types/creative-hub";
 import { Loader2, Film, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon, CheckCircle, Circle, AlertTriangle, GripVertical, Plus, X } from "lucide-react";
@@ -909,13 +909,19 @@ export default function StoryboardPage() {
                 tasksToComplete.forEach(async t => {
                     if (t.status === 'completed') {
                         try {
-                            const shotData = await getShotPreviz(t.shotId);
-                            if (shotData && shotData.length > 0) {
-                                const last = shotData[shotData.length - 1];
+                            // Fetch the authoritative shot state (has active_previz set by backend)
+                            const [shotDetail, previzList] = await Promise.all([
+                                getShotDetail(t.shotId),
+                                getShotPreviz(t.shotId),
+                            ]);
+                            // Find the active previz object using the FK from the shot
+                            const activePreviz = previzList.find((p: any) => p.id === shotDetail.active_previz)
+                                ?? (previzList.length > 0 ? previzList.reduce((a: any, b: any) =>
+                                    new Date(a.created_at) > new Date(b.created_at) ? a : b) : null);
+                            if (activePreviz) {
                                 setShotErrors(prev => { if (!prev[t.shotId]) return prev; const c = { ...prev }; delete c[t.shotId]; return c; });
-                                setShotsMap(prev => { const copy = { ...prev }; for (const [sid, shots] of Object.entries(copy)) { const idx = shots.findIndex(s => s.id === t.shotId); if (idx !== -1) { copy[parseInt(sid,10)] = [...shots.slice(0,idx), { ...shots[idx], image_url: last.image_url, previz: last }, ...shots.slice(idx+1)]; break; } } return copy; });
-                                // Automatically update active selected shot if it finished
-                                setSelectedShot(prev => prev && prev.id === t.shotId ? { ...prev, image_url: last.image_url, previz: last } : prev);
+                                setShotsMap(prev => { const copy = { ...prev }; for (const [sid, shots] of Object.entries(copy)) { const idx = shots.findIndex(s => s.id === t.shotId); if (idx !== -1) { copy[parseInt(sid,10)] = [...shots.slice(0,idx), { ...shots[idx], image_url: activePreviz.image_url, active_previz: activePreviz.id, previz: activePreviz }, ...shots.slice(idx+1)]; break; } } return copy; });
+                                setSelectedShot(prev => prev && prev.id === t.shotId ? { ...prev, image_url: activePreviz.image_url, active_previz: activePreviz.id, previz: activePreviz } : prev);
                             }
                         } catch (err) { console.error(err); }
                     } else if (t.status === 'failed') { 
