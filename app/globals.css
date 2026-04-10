@@ -89,6 +89,34 @@ body {
   background: rgb(var(--background-start-rgb));
 }
 
+/* ── Screenplay editor line colours (theme-aware) ── */
+.script-scene-heading  { color: var(--script-heading); font-weight: bold; }
+.script-character      { color: var(--script-character); }
+.script-parenthetical  { color: var(--script-parenthetical); }
+.script-dialogue       { color: var(--script-dialogue); }
+.script-transition     { color: var(--script-secondary); }
+.script-shot           { color: var(--script-secondary); }
+.script-action         { color: var(--script-action); }
+
+:root,
+[data-theme="dark"] {
+  --script-heading:      #f0f0f0;
+  --script-character:    #e8e8e8;
+  --script-parenthetical:#b0b0b0;
+  --script-dialogue:     #d0d0d0;
+  --script-secondary:    #e0e0e0;
+  --script-action:       #c8c8c8;
+}
+
+[data-theme="light"] {
+  --script-heading:      #0a0a0a;
+  --script-character:    #111111;
+  --script-parenthetical:#333333;
+  --script-dialogue:     #1a1a1a;
+  --script-secondary:    #111111;
+  --script-action:       #222222;
+}
+
 /* Inline select styling for shot cards */
 .shot-select {
   appearance: none;
