@@ -32,7 +32,7 @@ const SHOT_TYPES = [
 ];
 
 const PARAM_SELECT_CLS =
-  "bg-[#111] border border-[#1e1e1e] rounded-md text-xs text-white px-2 py-1.5 outline-none focus:border-emerald-500/40 transition-colors cursor-pointer";
+  "bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-primary)] px-2 py-1.5 outline-none focus:border-emerald-500/40 transition-colors cursor-pointer";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -236,15 +236,15 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
           >
             {/* Header */}
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#1f1f1f] sticky top-0 bg-[#141414] z-10">
-              <span className="text-[9px] font-bold uppercase tracking-widest text-[#444]">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
                 {mentionChar === "@" ? "Characters" : "Locations"}
                 {mentionQuery && (
-                  <span className="text-[#333] normal-case font-normal">
+                  <span className="text-[var(--text-muted)] normal-case font-normal">
                     {" "}· {dropdownItems.length} match{dropdownItems.length !== 1 ? "es" : ""}
                   </span>
                 )}
               </span>
-              <span className="text-[9px] text-[#333] font-mono">↑↓ · Tab/↵ select · Esc</span>
+              <span className="text-[9px] text-[var(--text-muted)] font-mono">↑↓ · Tab/↵ select · Esc</span>
             </div>
 
             {dropdownItems.map((d, i) => {
@@ -276,7 +276,7 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
                   className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
                     isSelected
                       ? isChar ? "bg-emerald-500/10" : "bg-sky-500/10"
-                      : "hover:bg-[#1a1a1a]"
+                      : "hover:bg-[var(--surface-hover)]"
                   }`}
                 >
                   <div className={`w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-[#1f1f1f] border ${
@@ -300,7 +300,7 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
                         : "text-sky-600 border-sky-900/50 bg-sky-950/40"
                     }`}>Tab</span>
                   ) : (
-                    <span className="text-[9px] text-[#333] font-mono">{isChar ? "@" : "#"}</span>
+                    <span className="text-[9px] text-[var(--text-muted)] font-mono">{isChar ? "@" : "#"}</span>
                   )}
                 </button>
               );
@@ -318,7 +318,7 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
     const parts: React.ReactNode[] = [];
 
     if (allNames.length === 0) {
-      parts.push(<span key={`t0`} className="text-white">{text}</span>);
+      parts.push(<span key={`t0`} className="text-[var(--text-primary)]">{text}</span>);
       return parts;
     }
 
@@ -675,15 +675,15 @@ export default function CreativeSpacePage() {
   }, {} as Record<string, any[]>);
 
   return (
-    <div className="relative flex flex-col h-full bg-[#0a0a0a] overflow-hidden">
+    <div className="relative flex flex-col h-full bg-[var(--background)] overflow-hidden">
 
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-[#1a1a1a] p-4 bg-[#0d0d0d] flex justify-between items-center z-10">
+      <div className="flex-shrink-0 border-b border-[var(--border)] p-4 bg-[var(--surface)] flex justify-between items-center z-10">
         <div>
-          <h1 className="text-xl text-white font-semibold flex items-center gap-2">
+          <h1 className="text-xl text-[var(--text-primary)] font-semibold flex items-center gap-2">
             <LayoutPanelTop className="w-5 h-5 text-emerald-500" /> Creative Space
           </h1>
-          <p className="text-xs text-[#666] mt-1">
+          <p className="text-xs text-[var(--text-secondary)] mt-1">
             Generate unassigned script previsualizations. Tag{" "}
             <span className="text-emerald-500 font-medium">@characters</span> and{" "}
             <span className="text-sky-500 font-medium">#locations</span> to include reference images.
@@ -697,7 +697,7 @@ export default function CreativeSpacePage() {
             }
             setShowHistory(!showHistory);
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] border border-[#333] rounded-md text-sm text-white transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-[var(--surface-hover)] hover:bg-[var(--border)] border border-[var(--border-hover)] rounded-md text-sm text-white transition-colors"
         >
           {showHistory ? (
             <>
@@ -728,10 +728,10 @@ export default function CreativeSpacePage() {
           )}
 
           {history.length === 0 && !isFetchingHistory ? (
-            <div className="h-full min-h-[50vh] flex flex-col items-center justify-center text-[#444]">
+            <div className="h-full min-h-[50vh] flex flex-col items-center justify-center text-[var(--text-muted)]">
               <MonitorPlay className="w-16 h-16 mb-4 opacity-20" />
               <p className="text-sm">Your generated imagery will appear here.</p>
-              <p className="text-xs mt-2 text-[#333]">
+              <p className="text-xs mt-2 text-[var(--text-muted)]">
                 Use <span className="text-emerald-600">@CharacterName</span> or{" "}
                 <span className="text-sky-600">#LocationName</span> in your prompt to inject reference images.
               </p>
@@ -740,9 +740,9 @@ export default function CreativeSpacePage() {
             Object.entries(groupedHistory).map(([dateLabel, items]) => (
               <div key={dateLabel} className="flex flex-col gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="h-px bg-[#1a1a1a] flex-1"></div>
-                  <span className="text-xs font-semibold uppercase tracking-widest text-[#555]">{dateLabel}</span>
-                  <div className="h-px bg-[#1a1a1a] flex-1"></div>
+                  <div className="h-px bg-[var(--surface-hover)] flex-1"></div>
+                  <span className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">{dateLabel}</span>
+                  <div className="h-px bg-[var(--surface-hover)] flex-1"></div>
                 </div>
 
                 <div className="flex flex-wrap gap-3">
@@ -755,7 +755,7 @@ export default function CreativeSpacePage() {
                     return (
                       <div 
                         key={item.id ?? idx} 
-                        className="bg-[#111] border border-[#222] rounded-lg overflow-hidden flex flex-col group relative"
+                        className="bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden flex flex-col group relative"
                         style={{
                           flexGrow: ratio,
                           flexBasis: `${ratio * 120}px`,
@@ -763,11 +763,11 @@ export default function CreativeSpacePage() {
                         }}
                       >
                         <div 
-                          className="bg-[#050505] relative flex items-center justify-center overflow-hidden"
+                          className="bg-[var(--background)] relative flex items-center justify-center overflow-hidden"
                           style={{ aspectRatio: `${w}/${h}` }}
                         >
                           {item.isGenerating ? (
-                            <div className="flex flex-col items-center justify-center h-full w-full bg-[#0a0a0a]">
+                            <div className="flex flex-col items-center justify-center h-full w-full bg-[var(--background)]">
                               <Loader2 className="w-6 h-6 text-emerald-500 animate-spin mb-2" />
                               <span className="text-emerald-400 text-[10px] font-medium animate-pulse">Generating</span>
                             </div>
@@ -779,7 +779,7 @@ export default function CreativeSpacePage() {
                           ) : item.image_url ? (
                             <img src={item.image_url} alt="Generated Previz" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                           ) : (
-                            <div className="text-[#333]"><MonitorPlay className="w-6 h-6" /></div>
+                            <div className="text-[var(--text-muted)]"><MonitorPlay className="w-6 h-6" /></div>
                           )}
 
                           {/* Top Meta Badges overlaid on top */}
@@ -804,17 +804,17 @@ export default function CreativeSpacePage() {
                         </div>
 
                         {/* Bottom Info area */}
-                        <div className="p-2 flex flex-col border-t border-[#1a1a1a] h-[72px] flex-shrink-0">
+                        <div className="p-2 flex flex-col border-t border-[var(--border)] h-[72px] flex-shrink-0">
                           <p className="text-[10px] text-[#ccc] line-clamp-2" title={item.description || item.prompt}>
                             {item.description || item.prompt}
                           </p>
 
                           <div className="flex flex-wrap gap-1 mt-auto overflow-hidden">
-                            <span className="text-[8px] bg-[#1a1a1a] px-1 py-0.5 rounded text-[#888] font-mono whitespace-nowrap">
+                            <span className="text-[8px] bg-[var(--surface-hover)] px-1 py-0.5 rounded text-[var(--text-secondary)] font-mono whitespace-nowrap">
                               {item.aspect_ratio || "16:9"}
                             </span>
                             {item.shot_type && (
-                              <span className="text-[8px] bg-[#1a1a1a] px-1 py-0.5 rounded text-[#888] truncate max-w-[80px]">
+                              <span className="text-[8px] bg-[var(--surface-hover)] px-1 py-0.5 rounded text-[var(--text-secondary)] truncate max-w-[80px]">
                                 {item.shot_type}
                               </span>
                             )}
@@ -845,9 +845,9 @@ export default function CreativeSpacePage() {
                   
                   return (
                     <div key={item.id || idx} className="flex flex-col gap-3 fade-in">
-                      <div className="relative w-full flex items-center justify-center bg-[#050505] border border-[#222] rounded-xl overflow-hidden shadow-2xl" style={{ aspectRatio: `${w}/${h}` }}>
+                      <div className="relative w-full flex items-center justify-center bg-[var(--background)] border border-[var(--border)] rounded-xl overflow-hidden shadow-2xl" style={{ aspectRatio: `${w}/${h}` }}>
                         {item.isGenerating ? (
-                          <div className="flex flex-col items-center justify-center h-full w-full bg-[#0a0a0a]">
+                          <div className="flex flex-col items-center justify-center h-full w-full bg-[var(--background)]">
                             <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mb-3" />
                             <span className="text-emerald-400 text-xs font-medium animate-pulse">Generating your vision...</span>
                           </div>
@@ -861,7 +861,7 @@ export default function CreativeSpacePage() {
                         ) : null}
                       </div>
                       <div className="px-2">
-                        <p className="text-[#888] text-sm leading-relaxed" title={item.prompt || item.description}>{item.prompt || item.description}</p>
+                        <p className="text-[var(--text-secondary)] text-sm leading-relaxed" title={item.prompt || item.description}>{item.prompt || item.description}</p>
                       </div>
                     </div>
                   );
@@ -869,13 +869,13 @@ export default function CreativeSpacePage() {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center text-[#444] text-center max-w-md h-full mx-auto">
-              <div className="w-20 h-20 rounded-2xl bg-[#111] border border-[#222] flex items-center justify-center mb-6 shadow-xl">
+            <div className="flex flex-col items-center justify-center text-[var(--text-muted)] text-center max-w-md h-full mx-auto">
+              <div className="w-20 h-20 rounded-2xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center mb-6 shadow-xl">
                 <LayoutPanelTop className="w-8 h-8 text-emerald-500/50" />
               </div>
-              <h2 className="text-lg text-white font-medium mb-2">Creative Space Generator</h2>
+              <h2 className="text-lg text-[var(--text-primary)] font-medium mb-2">Creative Space Generator</h2>
               <p className="text-sm">Describe your scene below to generate previsualizations.</p>
-              <p className="text-xs mt-3 text-[#333]">
+              <p className="text-xs mt-3 text-[var(--text-muted)]">
                 Use <span className="text-emerald-600">@CharacterName</span> or{" "}
                 <span className="text-sky-600">#LocationName</span> to inject reference images.
               </p>
@@ -886,14 +886,14 @@ export default function CreativeSpacePage() {
 
       {/* Floating bottom bar */}
       <div className="absolute bottom-0 left-0 right-0 pb-5 px-4 z-20 pointer-events-none">
-        <div className="w-3/4 mx-auto bg-[#0d0d0d]/70 backdrop-blur-xl border border-[#ffffff08] rounded-2xl p-4 lg:p-5 shadow-[0_-4px_48px_rgba(0,0,0,0.8)] flex flex-col gap-3 pointer-events-auto">
+        <div className="w-3/4 mx-auto bg-[var(--surface)]/70 backdrop-blur-xl border border-[#ffffff08] rounded-2xl p-4 lg:p-5 shadow-[0_-4px_48px_rgba(0,0,0,0.8)] flex flex-col gap-3 pointer-events-auto">
 
           {/* Live tag chips */}
           {(taggedCharacters.length > 0 || taggedLocations.length > 0) && (
             <div className="flex flex-wrap gap-1.5 px-1">
               {taggedCharacters.map((c) => (
                 <div key={`chip-char-${c.id}`} className="flex items-center gap-1.5 bg-emerald-950/50 border border-emerald-800/40 rounded-full pl-1 pr-1.5 py-0.5">
-                  <div className="w-4 h-4 rounded-full overflow-hidden bg-[#1a1a1a]">
+                  <div className="w-4 h-4 rounded-full overflow-hidden bg-[var(--surface-hover)]">
                     {c.image_url ? <img src={c.image_url} alt={c.name} className="w-full h-full object-cover" /> : <User className="w-2.5 h-2.5 m-auto mt-0.5 text-emerald-500/60" />}
                   </div>
                   <span className="text-[10px] text-emerald-300 font-medium">@{c.name}</span>
@@ -901,7 +901,7 @@ export default function CreativeSpacePage() {
               ))}
               {taggedLocations.map((l) => (
                 <div key={`chip-loc-${l.id}`} className="flex items-center gap-1.5 bg-sky-950/50 border border-sky-800/40 rounded-full pl-1 pr-1.5 py-0.5">
-                  <div className="w-4 h-4 rounded-full overflow-hidden bg-[#1a1a1a]">
+                  <div className="w-4 h-4 rounded-full overflow-hidden bg-[var(--surface-hover)]">
                     {l.image_url ? <img src={l.image_url} alt={l.name} className="w-full h-full object-cover" /> : <MapPin className="w-2.5 h-2.5 m-auto mt-0.5 text-sky-500/60" />}
                   </div>
                   <span className="text-[10px] text-sky-300 font-medium">#{l.name}</span>
@@ -912,7 +912,7 @@ export default function CreativeSpacePage() {
 
           {/* Input row */}
           <div className="flex gap-3 items-end">
-            <div className="flex-1 bg-[#111] border border-[#1e1e1e] rounded-xl p-2 focus-within:border-emerald-500/50 transition-colors flex items-center shadow-inner">
+            <div className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-2 focus-within:border-emerald-500/50 transition-colors flex items-center shadow-inner">
               <MentionInput
                 value={prompt}
                 onChange={setPrompt}
@@ -937,14 +937,14 @@ export default function CreativeSpacePage() {
           <div className="flex flex-wrap gap-x-5 gap-y-2.5 items-center px-1">
 
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider whitespace-nowrap">Aspect Ratio</span>
+              <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">Aspect Ratio</span>
               <select className={PARAM_SELECT_CLS} value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}>
                 {ASPECT_RATIOS.map((ar) => <option key={ar} value={ar}>{ar}</option>)}
               </select>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider whitespace-nowrap">Shot Type</span>
+              <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">Shot Type</span>
               <select className={PARAM_SELECT_CLS} value={shotType} onChange={(e) => setShotType(e.target.value)}>
                 <option value="">— Any —</option>
                 {SHOT_TYPES.map((st) => <option key={st} value={st}>{st}</option>)}
@@ -952,7 +952,7 @@ export default function CreativeSpacePage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider whitespace-nowrap">Camera Angle</span>
+              <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">Camera Angle</span>
               <CameraAngleSelector
                 angles={cameraAngles}
                 value={cameraAngle}
@@ -962,9 +962,9 @@ export default function CreativeSpacePage() {
             </div>
 
             <div className="flex items-center gap-2 ml-auto">
-              <span className="text-[10px] font-semibold text-[#555] uppercase tracking-wider whitespace-nowrap">Model</span>
+              <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">Model</span>
               {imageModels.length === 0 ? (
-                <div className="flex items-center gap-1.5 text-[#555] text-xs">
+                <div className="flex items-center gap-1.5 text-[var(--text-muted)] text-xs">
                   <Loader2 className="w-3 h-3 animate-spin" /> Loading...
                 </div>
               ) : (

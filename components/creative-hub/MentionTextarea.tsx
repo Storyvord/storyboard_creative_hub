@@ -413,7 +413,7 @@ export default function MentionTextarea({
           style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
         >
           {filteredScene.length > 0 && (
-            <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest text-[#444] border-b border-[#1f1f1f]">
+            <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)] border-b border-[#1f1f1f]">
               This Scene
             </div>
           )}
@@ -427,7 +427,7 @@ export default function MentionTextarea({
                 onMouseDown={(e) => { e.preventDefault(); insertMention(sc.character_name); }}
                 onMouseEnter={() => setSelectedIdx(idx)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
-                  selectedIdx === idx ? "bg-emerald-500/10" : "hover:bg-[#1a1a1a]"
+                  selectedIdx === idx ? "bg-emerald-500/10" : "hover:bg-[var(--surface-hover)]"
                 }`}
               >
                 <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-[#1f1f1f] border border-emerald-500/20">
@@ -444,7 +444,7 @@ export default function MentionTextarea({
           })}
 
           {filteredGlobal.length > 0 && (
-            <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest text-[#444] border-t border-[#1f1f1f] border-b">
+            <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)] border-t border-[#1f1f1f] border-b">
               Script Characters
             </div>
           )}
@@ -457,7 +457,7 @@ export default function MentionTextarea({
                 onMouseDown={(e) => { e.preventDefault(); insertMention(gc.name); }}
                 onMouseEnter={() => setSelectedIdx(idx)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
-                  selectedIdx === idx ? "bg-green-900/20" : "hover:bg-[#1a1a1a]"
+                  selectedIdx === idx ? "bg-green-900/20" : "hover:bg-[var(--surface-hover)]"
                 }`}
               >
                 <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-[#1f1f1f] border border-green-700/20">

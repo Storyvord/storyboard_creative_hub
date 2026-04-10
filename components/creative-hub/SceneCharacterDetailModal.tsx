@@ -243,19 +243,19 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-md w-full max-w-5xl h-[85vh] overflow-hidden flex flex-col shadow-2xl"
+          className="bg-[var(--surface)] border border-[var(--border)] rounded-md w-full max-w-5xl h-[85vh] overflow-hidden flex flex-col shadow-2xl"
         >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-[#1a1a1a] p-6">
+            <div className="flex items-center justify-between border-b border-[var(--border)] p-6">
                 <div>
-                    <h3 className="text-xl font-bold leading-6 text-white flex items-center gap-2">
+                    <h3 className="text-xl font-bold leading-6 text-[var(--text-primary)] flex items-center gap-2">
                     Fitting Room: <span className="text-emerald-400">{sceneCharacter?.character?.name}</span>
                     </h3>
                     <p className="text-sm text-gray-400 mt-1">Customize appearance for this scene</p>
                 </div>
                 <button
                 onClick={onClose}
-                className="rounded-md p-2 text-gray-400 hover:bg-[#1a1a1a] hover:text-white transition-colors"
+                className="rounded-md p-2 text-gray-400 hover:bg-[var(--surface-hover)] hover:text-white transition-colors"
                 >
                 <X className="h-5 w-5" />
                 </button>
@@ -264,8 +264,8 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
             {/* Content */}
             <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
                 {/* Left: Character Preview */}
-                <div className="w-full lg:w-1/3 bg-black/50 p-6 flex flex-col items-center border-b lg:border-r border-[#1a1a1a] overflow-y-auto">
-                    <div className="relative w-full aspect-[3/4] max-w-sm rounded-md overflow-hidden border border-[#222] bg-[#1a1a1a] flex-shrink-0 group/image">
+                <div className="w-full lg:w-1/3 bg-black/50 p-6 flex flex-col items-center border-b lg:border-r border-[var(--border)] overflow-y-auto">
+                    <div className="relative w-full aspect-[3/4] max-w-sm rounded-md overflow-hidden border border-[var(--border)] bg-[var(--surface-hover)] flex-shrink-0 group/image">
                             {/* Primary Image: Scene Character Image */}
                             {sceneCharacter?.image_url ? (
                                 <img
@@ -312,7 +312,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
 
                             {/* Fallback Reference Overlay (Small) */}
                             {sceneCharacter?.image_url && sceneCharacter?.character?.image_url && (
-                                <div className="absolute bottom-2 right-2 w-16 h-16 rounded-md border-2 border-[#222] overflow-hidden shadow-lg z-10">
+                                <div className="absolute bottom-2 right-2 w-16 h-16 rounded-md border-2 border-[var(--border)] overflow-hidden shadow-lg z-10">
                                     <img src={sceneCharacter.character.image_url} alt="Ref" className="w-full h-full object-cover" />
                                 </div>
                             )}
@@ -325,7 +325,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                                 value={editPrompt}
                                 onChange={(e) => setEditPrompt(e.target.value)}
                                 placeholder="Describe specific changes for this scene (e.g. 'wearing a red dress', 'dirty face')..."
-                                className="w-full bg-[#1a1a1a] border border-[#222] rounded-md p-3 text-sm text-gray-200 focus:outline-none focus:border-emerald-500 resize-none h-24"
+                                className="w-full bg-[var(--surface-hover)] border border-[var(--border)] rounded-md p-3 text-sm text-gray-200 focus:outline-none focus:border-emerald-500 resize-none h-24"
                             />
                         </div>
                         
@@ -350,9 +350,9 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                 </div>
 
                 {/* Right: Wardrobe Selection */}
-                <div className="w-full lg:w-2/3 flex flex-col h-full bg-[#0d0d0d]">
+                <div className="w-full lg:w-2/3 flex flex-col h-full bg-[var(--surface)]">
                     {/* Slots Navigation */}
-                    <div className="flex overflow-x-auto p-2 border-b border-[#1a1a1a] gap-2 hide-scrollbar bg-[#0d0d0d]">
+                    <div className="flex overflow-x-auto p-2 border-b border-[var(--border)] gap-2 hide-scrollbar bg-[var(--surface)]">
                         {CLOTH_SLOTS.map(slot => (
                             <button
                                 key={slot.id}
@@ -360,7 +360,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                                 className={`px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors flex flex-col items-center gap-1 ${
                                     activeSlot === slot.id 
                                     ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' 
-                                    : 'bg-[#1a1a1a] text-gray-400 hover:bg-[#222] hover:text-gray-200'
+                                    : 'bg-[var(--surface-hover)] text-gray-400 hover:bg-[var(--border)] hover:text-gray-200'
                                 }`}
                             >
                                 {slot.label}
@@ -372,7 +372,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                     </div>
 
                     {/* Cloth Grid */}
-                    <div className="flex-1 overflow-y-auto p-6 bg-[#0d0d0d]/50">
+                    <div className="flex-1 overflow-y-auto p-6 bg-[var(--surface)]/50">
                         <input 
                             type="file" 
                             ref={fileInputRef} 
@@ -388,13 +388,13 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                                 {/* Upload New Item Button */}
                                 <div 
                                     onClick={handleUploadClick}
-                                    className="aspect-square rounded-md border-2 border-dashed border-[#222] hover:border-emerald-500 hover:bg-[#1a1a1a] transition-all cursor-pointer flex flex-col items-center justify-center text-gray-500 hover:text-emerald-400 gap-2 group"
+                                    className="aspect-square rounded-md border-2 border-dashed border-[var(--border)] hover:border-emerald-500 hover:bg-[var(--surface-hover)] transition-all cursor-pointer flex flex-col items-center justify-center text-gray-500 hover:text-emerald-400 gap-2 group"
                                 >
                                     {uploading ? (
                                         <div className="animate-spin rounded-md h-8 w-8 border-b-2 border-emerald-500"></div>
                                     ) : (
                                         <>
-                                            <div className="p-3 rounded-md bg-[#1a1a1a] group-hover:bg-emerald-500/20 transition-colors">
+                                            <div className="p-3 rounded-md bg-[var(--surface-hover)] group-hover:bg-emerald-500/20 transition-colors">
                                                 <Plus className="h-6 w-6" />
                                             </div>
                                             <span className="text-xs font-medium">Add {CLOTH_SLOTS.find(s => s.id === activeSlot)?.label}</span>
@@ -409,18 +409,18 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                                         className={`group relative aspect-square rounded-md overflow-hidden border-2 cursor-pointer transition-all ${
                                             selectedCloths[activeSlot]?.id === cloth.id
                                             ? 'border-emerald-500 ring-2 ring-emerald-500/30'
-                                            : 'border-[#222] hover:border-gray-500'
+                                            : 'border-[var(--border)] hover:border-gray-500'
                                         }`}
                                     >
                                         {cloth.image_url ? (
                                             <img src={cloth.image_url} alt={cloth.name} className="w-full h-full object-cover" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-[#1a1a1a] text-gray-600">
+                                            <div className="w-full h-full flex items-center justify-center bg-[var(--surface-hover)] text-gray-600">
                                                 <Shirt className="h-8 w-8" />
                                             </div>
                                         )}
                                         <div className="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-sm p-2">
-                                            <p className="text-xs text-white font-medium truncate">{cloth.name}</p>
+                                            <p className="text-xs text-[var(--text-primary)] font-medium truncate">{cloth.name}</p>
                                         </div>
                                         
                                         {selectedCloths[activeSlot]?.id === cloth.id && (
@@ -443,7 +443,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                     </div>
 
                     {/* Footer */}
-                    <div className="p-4 border-t border-[#1a1a1a] bg-[#0d0d0d] flex justify-between items-center bg-[#0d0d0d]">
+                    <div className="p-4 border-t border-[var(--border)] bg-[var(--surface)] flex justify-between items-center bg-[var(--surface)]">
                         <div className="text-sm text-gray-400">
                             <span className="text-white font-bold">{Object.keys(selectedCloths).filter(k => selectedCloths[k]).length}</span> items selected
                         </div>

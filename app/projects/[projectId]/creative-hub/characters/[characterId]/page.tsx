@@ -140,23 +140,23 @@ function SceneLookEditor({
         {/* ── Header ── */}
         <div className="px-6 pt-4 pb-3.5 border-b border-[#151515] flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-4 min-w-0">
-            <div className="flex-shrink-0 flex flex-col items-center justify-center bg-[#111] border border-[#1e1e1e] rounded-lg px-3.5 py-2 min-w-[56px]">
+            <div className="flex-shrink-0 flex flex-col items-center justify-center bg-[var(--surface)] border border-[#1e1e1e] rounded-lg px-3.5 py-2 min-w-[56px]">
               <span className="text-[8px] text-[#3a3a3a] uppercase tracking-widest font-mono">SC</span>
-              <span className="text-xl font-black text-white leading-none font-mono tabular-nums">
+              <span className="text-xl font-black text-[var(--text-primary)] leading-none font-mono tabular-nums">
                 {String(appearance.scene_order).padStart(2, "0")}
               </span>
             </div>
             <div className="min-w-0">
-              <h3 className="text-base font-bold text-white leading-tight truncate">{appearance.scene_name}</h3>
+              <h3 className="text-base font-bold text-[var(--text-primary)] leading-tight truncate">{appearance.scene_name}</h3>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {appearance.scene_int_ext && (
-                  <span className="text-[9px] bg-[#111] border border-[#1e1e1e] text-[#4a4a4a] uppercase font-mono px-1.5 py-0.5 rounded tracking-wider">
+                  <span className="text-[9px] bg-[var(--surface)] border border-[#1e1e1e] text-[#4a4a4a] uppercase font-mono px-1.5 py-0.5 rounded tracking-wider">
                     {appearance.scene_int_ext}
                   </span>
                 )}
                 {appearance.scene_location && (
                   <span className="text-[10px] text-[#4a4a4a] flex items-center gap-1">
-                    <MapPin className="h-3 w-3 text-[#333]" />{appearance.scene_location}
+                    <MapPin className="h-3 w-3 text-[var(--text-muted)]" />{appearance.scene_location}
                   </span>
                 )}
                 {appearance.scene_environment && (
@@ -167,7 +167,7 @@ function SceneLookEditor({
               </div>
             </div>
           </div>
-          <button onClick={onClose} className="flex-shrink-0 p-2 rounded-xl hover:bg-[#151515] text-[#333] hover:text-white transition-colors ml-4">
+          <button onClick={onClose} className="flex-shrink-0 p-2 rounded-xl hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-white transition-colors ml-4">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -176,12 +176,12 @@ function SceneLookEditor({
         <div className="flex flex-1 overflow-hidden min-h-0">
 
           {/* ═══ LEFT PANEL: Character images ═══ */}
-          <div className="w-[420px] flex-shrink-0 border-r border-[#151515] flex gap-3 p-4 bg-[#050505]">
+          <div className="w-[420px] flex-shrink-0 border-r border-[var(--border)] flex gap-3 p-4 bg-[var(--background)]">
 
             {/* Character portrait reference */}
             <div className="flex flex-col gap-2 w-[140px] flex-shrink-0">
               <p className="text-[8px] text-[#2e2e2e] uppercase tracking-widest font-semibold">Character Ref</p>
-              <div className="aspect-[2/3] rounded-xl bg-[#0a0a0a] border border-[#191919] overflow-hidden relative">
+              <div className="aspect-[2/3] rounded-xl bg-[var(--background)] border border-[#191919] overflow-hidden relative">
                 {characterPortraitUrl ? (
                   <img
                     src={characterPortraitUrl}
@@ -196,7 +196,7 @@ function SceneLookEditor({
                 )}
                 {/* Character name tag */}
                 <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                  <p className="text-[8px] text-[#666] font-medium truncate">{characterName}</p>
+                  <p className="text-[8px] text-[var(--text-secondary)] font-medium truncate">{characterName}</p>
                 </div>
               </div>
             </div>
@@ -208,7 +208,7 @@ function SceneLookEditor({
                 {!generating && (
                   <button
                     onClick={() => fileRef.current?.click()}
-                    className="flex items-center gap-1 text-[8px] text-[#333] hover:text-[#666] transition-colors"
+                    className="flex items-center gap-1 text-[8px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
                   >
                     <Upload className="h-2.5 w-2.5" /> Upload
                   </button>
@@ -216,7 +216,7 @@ function SceneLookEditor({
               </div>
 
               <div
-                className="aspect-[2/3] rounded-xl bg-[#0a0a0a] border border-[#191919] overflow-hidden relative group cursor-pointer"
+                className="aspect-[2/3] rounded-xl bg-[var(--background)] border border-[#191919] overflow-hidden relative group cursor-pointer"
                 onClick={() => !generating && fileRef.current?.click()}
               >
                 {/* Shimmer when generating with no preview */}
@@ -254,7 +254,7 @@ function SceneLookEditor({
                       <p className="text-sm font-semibold text-indigo-300">
                         {genStep === "saving" ? "Saving…" : genStep === "queued" ? "In Queue…" : "Rendering…"}
                       </p>
-                      <p className="text-[10px] text-[#333] mt-1">
+                      <p className="text-[10px] text-[var(--text-muted)] mt-1">
                         {genStep === "saving" ? "Applying wardrobe selection" : genStep === "queued" ? "AI model is starting up" : "Building your character look"}
                       </p>
                     </div>
@@ -288,7 +288,7 @@ function SceneLookEditor({
               <button
                 onClick={() => !generating && setIsModelOpen(true)}
                 disabled={generating}
-                className="w-full py-3 text-[11px] font-bold bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:bg-[#111] disabled:text-[#2a2a2a] disabled:cursor-not-allowed text-white rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 text-[11px] font-bold bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:bg-[var(--surface)] disabled:text-[#2a2a2a] disabled:cursor-not-allowed text-white rounded-xl transition-colors flex items-center justify-center gap-2"
               >
                 {generating ? (
                   <><Loader2 className="h-4 w-4 animate-spin" /> {genStep === "queued" ? "In Queue…" : "Rendering…"}</>
@@ -300,19 +300,19 @@ function SceneLookEditor({
           </div>
 
           {/* ═══ CENTER PANEL: Wardrobe picker ═══ */}
-          <div className="flex-1 flex flex-col overflow-hidden border-r border-[#151515] min-w-0">
+          <div className="flex-1 flex flex-col overflow-hidden border-r border-[var(--border)] min-w-0">
 
             {/* Assigned costume rack */}
             <div className={`flex-shrink-0 px-5 pt-4 pb-3 border-b border-[#151515] ${selectedCloths.length === 0 ? "bg-[#080808]" : "bg-[#090909]"}`}>
               <div className="flex items-center justify-between mb-2.5">
-                <p className="text-[9px] text-[#333] uppercase tracking-widest font-semibold">
+                <p className="text-[9px] text-[var(--text-muted)] uppercase tracking-widest font-semibold">
                   Assigned Costume
                   {selectedCloths.length > 0 && (
                     <span className="ml-2 text-indigo-500 font-bold">{selectedCloths.length}</span>
                   )}
                 </p>
                 {selectedClothIds.length > 0 && (
-                  <button onClick={() => setSelectedClothIds([])} className="text-[9px] text-[#333] hover:text-red-400 transition-colors">
+                  <button onClick={() => setSelectedClothIds([])} className="text-[9px] text-[var(--text-muted)] hover:text-red-400 transition-colors">
                     Clear all
                   </button>
                 )}
@@ -327,7 +327,7 @@ function SceneLookEditor({
                 <div className="flex gap-2.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
                   {selectedCloths.map(c => (
                     <div key={c.id} className="flex-shrink-0 relative group/item">
-                      <div className="w-14 h-14 rounded-xl bg-[#0d0d0d] border border-indigo-500/25 overflow-hidden">
+                      <div className="w-14 h-14 rounded-xl bg-[var(--surface)] border border-indigo-500/25 overflow-hidden">
                         {c.image_url ? (
                           <img src={c.image_url} alt={c.name} className="w-full h-full object-contain" />
                         ) : (
@@ -338,9 +338,9 @@ function SceneLookEditor({
                       </div>
                       <button
                         onClick={() => toggleCloth(c.id)}
-                        className="absolute -top-1 -right-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded-full p-0.5 opacity-0 group-hover/item:opacity-100 transition-opacity"
+                        className="absolute -top-1 -right-1 bg-[var(--surface-hover)] border border-[#2a2a2a] rounded-full p-0.5 opacity-0 group-hover/item:opacity-100 transition-opacity"
                       >
-                        <X className="h-2.5 w-2.5 text-[#888]" />
+                        <X className="h-2.5 w-2.5 text-[var(--text-secondary)]" />
                       </button>
                       <p className="text-[8px] text-[#3a3a3a] text-center mt-1 truncate max-w-[56px]">{c.name}</p>
                     </div>
@@ -352,13 +352,13 @@ function SceneLookEditor({
             {/* All wardrobe */}
             <div className="flex-1 overflow-y-auto px-5 pt-4 pb-3">
               <p className="text-[9px] text-[#2a2a2a] uppercase tracking-widest font-semibold mb-3 flex items-center gap-1.5">
-                <Shirt className="h-3 w-3 text-[#333]" /> All Wardrobe
+                <Shirt className="h-3 w-3 text-[var(--text-muted)]" /> All Wardrobe
               </p>
 
               {availableCloths.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <Shirt className="h-10 w-10 text-[#151515] mb-3" />
-                  <p className="text-[11px] text-[#333]">No wardrobe items yet</p>
+                  <p className="text-[11px] text-[var(--text-muted)]">No wardrobe items yet</p>
                   <p className="text-[9px] text-[#222] mt-1">Add items in the Wardrobe section first.</p>
                 </div>
               ) : (
@@ -374,7 +374,7 @@ function SceneLookEditor({
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium border transition-all ${
                             effectiveTab === t
                               ? "bg-[#151515] border-[#2a2a2a] text-white"
-                              : "bg-transparent border-[#141414] text-[#3a3a3a] hover:border-[#222] hover:text-[#555]"
+                              : "bg-transparent border-[#141414] text-[#3a3a3a] hover:border-[var(--border)] hover:text-[var(--text-muted)]"
                           }`}
                         >
                           <span>{CLOTH_TYPE_LABELS[t] ?? t}</span>
@@ -400,7 +400,7 @@ function SceneLookEditor({
                             className={`group relative rounded-xl overflow-hidden border transition-all duration-150 text-left ${
                               selected
                                 ? "border-indigo-500/40 ring-1 ring-indigo-500/15 bg-indigo-950/20"
-                                : "border-[#151515] bg-[#0a0a0a] hover:border-[#252525] hover:bg-[#0d0d0d]"
+                                : "border-[#151515] bg-[var(--background)] hover:border-[#252525] hover:bg-[var(--surface)]"
                             }`}
                           >
                             <div className="aspect-[3/4] relative overflow-hidden">
@@ -449,7 +449,7 @@ function SceneLookEditor({
                 onChange={e => setPrompt(e.target.value)}
                 rows={4}
                 placeholder="Lighting, mood, era, color palette, visual style..."
-                className="w-full bg-[#0c0c0c] border border-[#161616] rounded-xl px-3 py-2.5 text-[10px] text-[#666] focus:outline-none focus:border-[#222] resize-none placeholder:text-[#222] leading-relaxed transition-colors"
+                className="w-full bg-[#0c0c0c] border border-[#161616] rounded-xl px-3 py-2.5 text-[10px] text-[var(--text-secondary)] focus:outline-none focus:border-[var(--border)] resize-none placeholder:text-[#222] leading-relaxed transition-colors"
               />
             </div>
 
@@ -458,7 +458,7 @@ function SceneLookEditor({
               <textarea
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
-                className="w-full flex-1 bg-[#0c0c0c] border border-[#161616] rounded-xl px-3 py-2.5 text-[10px] text-[#666] leading-relaxed focus:outline-none focus:border-[#222] resize-none placeholder:text-[#222] transition-colors"
+                className="w-full flex-1 bg-[#0c0c0c] border border-[#161616] rounded-xl px-3 py-2.5 text-[10px] text-[var(--text-secondary)] leading-relaxed focus:outline-none focus:border-[var(--border)] resize-none placeholder:text-[#222] transition-colors"
                 placeholder="Injuries, aging, makeup FX, blood, costume damage, props..."
               />
             </div>
@@ -740,7 +740,7 @@ export default function CharacterDetailPage() {
   }
 
   if (!character) {
-    return <div className="p-6 text-[#555] text-sm text-center">Character not found.</div>;
+    return <div className="p-6 text-[var(--text-muted)] text-sm text-center">Character not found.</div>;
   }
 
   const appearances = character.scene_appearances;
@@ -810,7 +810,7 @@ export default function CharacterDetailPage() {
                     <p className="text-sm font-semibold text-emerald-300 leading-none">
                       {portraitGenStep === "saving" ? "Saving…" : portraitGenStep === "queued" ? "In Queue…" : "Rendering Portrait…"}
                     </p>
-                    <p className="text-[10px] text-[#555] mt-1">
+                    <p className="text-[10px] text-[var(--text-muted)] mt-1">
                       {portraitGenStep === "saving" ? "Storing character data" : portraitGenStep === "queued" ? "AI model starting up" : "Building your portrait"}
                     </p>
                   </div>
@@ -867,7 +867,7 @@ export default function CharacterDetailPage() {
 
           {/* Character name */}
           <div>
-            <h1 className="text-lg font-black text-white tracking-tight">{character.name}</h1>
+            <h1 className="text-lg font-black text-[var(--text-primary)] tracking-tight">{character.name}</h1>
             <div className="flex items-center gap-3 mt-1">
               <span className="text-[10px] text-zinc-600 flex items-center gap-1">
                 <Film className="h-3 w-3 text-emerald-500" />{appearances.length} scenes
@@ -917,24 +917,24 @@ export default function CharacterDetailPage() {
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-zinc-900/40 border border-white/5 rounded-xl p-3">
               <Film className="h-3.5 w-3.5 text-emerald-500 mb-1.5" />
-              <p className="text-lg font-black text-white leading-none">{appearances.length}</p>
+              <p className="text-lg font-black text-[var(--text-primary)] leading-none">{appearances.length}</p>
               <p className="text-[9px] text-zinc-700 uppercase tracking-wider mt-0.5">Scenes</p>
             </div>
             <div className="bg-zinc-900/40 border border-white/5 rounded-xl p-3">
               <Shirt className="h-3.5 w-3.5 text-indigo-400 mb-1.5" />
-              <p className="text-lg font-black text-white leading-none">{uniqueWardrobeCount}</p>
+              <p className="text-lg font-black text-[var(--text-primary)] leading-none">{uniqueWardrobeCount}</p>
               <p className="text-[9px] text-zinc-700 uppercase tracking-wider mt-0.5">Wardrobe</p>
             </div>
             {appearances.length > 0 && (
               <>
                 <div className="bg-zinc-900/40 border border-white/5 rounded-xl p-3">
                   <Clock className="h-3.5 w-3.5 text-amber-500/60 mb-1.5" />
-                  <p className="text-sm font-bold text-white">SC {String(appearances[0].scene_order).padStart(2, "0")}</p>
+                  <p className="text-sm font-bold text-[var(--text-primary)]">SC {String(appearances[0].scene_order).padStart(2, "0")}</p>
                   <p className="text-[9px] text-zinc-700 uppercase tracking-wider mt-0.5">First</p>
                 </div>
                 <div className="bg-zinc-900/40 border border-white/5 rounded-xl p-3">
                   <Clock className="h-3.5 w-3.5 text-amber-500/60 mb-1.5" />
-                  <p className="text-sm font-bold text-white">SC {String(appearances[appearances.length - 1].scene_order).padStart(2, "0")}</p>
+                  <p className="text-sm font-bold text-[var(--text-primary)]">SC {String(appearances[appearances.length - 1].scene_order).padStart(2, "0")}</p>
                   <p className="text-[9px] text-zinc-700 uppercase tracking-wider mt-0.5">Last</p>
                 </div>
               </>
@@ -947,7 +947,7 @@ export default function CharacterDetailPage() {
           {/* Section header */}
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-bold text-white">Costume Breakdown</h2>
+              <h2 className="text-sm font-bold text-[var(--text-primary)]">Costume Breakdown</h2>
               <p className="text-[10px] text-zinc-600 mt-0.5">
                 {appearances.filter(a => a.cloths.length > 0).length} of {appearances.length} scenes have costume assigned
               </p>

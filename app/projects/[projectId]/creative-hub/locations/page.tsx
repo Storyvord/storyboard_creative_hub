@@ -122,14 +122,14 @@ export default function LocationsPage() {
 
 
 
-  if (loading) return <div className="p-6 flex justify-center"><Loader2 className="animate-spin h-6 w-6 text-[#333]" /></div>;
+  if (loading) return <div className="p-6 flex justify-center"><Loader2 className="animate-spin h-6 w-6 text-[var(--text-muted)]" /></div>;
 
   return (
     <div className="p-6">
       <header className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-xl font-bold mb-1 text-white">Locations</h1>
-          <p className="text-[#555] text-xs">Manage filming locations and environments</p>
+          <h1 className="text-xl font-bold mb-1 text-[var(--text-primary)]">Locations</h1>
+          <p className="text-[var(--text-muted)] text-xs">Manage filming locations and environments</p>
         </div>
         <button onClick={handleAdd} disabled={!script}
           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-30">
@@ -139,19 +139,19 @@ export default function LocationsPage() {
       </header>
 
       {locations.length === 0 ? (
-        <div className="text-center py-16 bg-[#0d0d0d] rounded-md border border-dashed border-[#1a1a1a]">
-          <MapPin className="h-8 w-8 text-[#333] mx-auto mb-3" />
-          <p className="text-[#555] text-xs">No locations found. Add manually or generate scenes first.</p>
+        <div className="text-center py-16 bg-[var(--surface)] rounded-md border border-dashed border-[var(--border)]">
+          <MapPin className="h-8 w-8 text-[var(--text-muted)] mx-auto mb-3" />
+          <p className="text-[var(--text-muted)] text-xs">No locations found. Add manually or generate scenes first.</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {locations.map((loc, idx) => (
-            <div key={loc.id} {...(idx === 0 ? { "data-tour": "location-card" } : {})} className="bg-[#0d0d0d] rounded-md border border-[#1a1a1a] overflow-hidden group hover:border-emerald-500/30 transition-all flex flex-col">
-              <div className="aspect-video bg-[#0a0a0a] relative group-hover:opacity-90 transition-opacity">
+            <div key={loc.id} {...(idx === 0 ? { "data-tour": "location-card" } : {})} className="bg-[var(--surface)] rounded-md border border-[var(--border)] overflow-hidden group hover:border-emerald-500/30 transition-all flex flex-col">
+              <div className="aspect-video bg-[var(--background)] relative group-hover:opacity-90 transition-opacity">
                 {loc.image_url ? (
                   <img src={loc.image_url} alt={loc.name} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-[#333]">
+                  <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
                     <MapPin className="h-8 w-8 mb-1 opacity-30" />
                     <span className="text-[9px] uppercase tracking-wider">No Image</span>
                   </div>
@@ -179,11 +179,11 @@ export default function LocationsPage() {
                 </div>
               </div>
               <div className="p-3 flex-1 flex flex-col">
-                <h3 className="font-bold text-sm mb-0.5 text-white">{loc.name}</h3>
+                <h3 className="font-bold text-sm mb-0.5 text-[var(--text-primary)]">{loc.name}</h3>
                 {loc.time && <p className="text-[10px] text-emerald-400/70 mb-1">{loc.time}</p>}
-                <p className="text-[10px] text-[#555] line-clamp-2 mb-3 flex-1">{loc.description || "No description."}</p>
+                <p className="text-[10px] text-[var(--text-muted)] line-clamp-2 mb-3 flex-1">{loc.description || "No description."}</p>
                 <button onClick={() => handleEdit(loc)}
-                  className="w-full py-1.5 text-[10px] font-medium bg-[#111] hover:bg-[#161616] text-[#888] rounded-md transition-colors border border-[#1a1a1a]">
+                  className="w-full py-1.5 text-[10px] font-medium bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-[var(--text-secondary)] rounded-md transition-colors border border-[var(--border)]">
                   View Details
                 </button>
               </div>
@@ -292,21 +292,21 @@ function LocationModal({ isOpen, onClose, location, scriptId, onUpdate, onGenera
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-md w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="p-5 border-b border-[#1a1a1a] flex justify-between items-center">
-          <h2 className="text-base font-bold text-white">{location ? "Edit Location" : "Add Location"}</h2>
-          <button onClick={onClose} className="p-1 hover:bg-[#1a1a1a] rounded-md text-[#666]"><X className="h-4 w-4" /></button>
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-md w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="p-5 border-b border-[var(--border)] flex justify-between items-center">
+          <h2 className="text-base font-bold text-[var(--text-primary)]">{location ? "Edit Location" : "Add Location"}</h2>
+          <button onClick={onClose} className="p-1 hover:bg-[var(--surface-hover)] rounded-md text-[var(--text-secondary)]"><X className="h-4 w-4" /></button>
         </div>
         <div className="p-5 space-y-4">
           {/* Image */}
           <div
-            className="aspect-video bg-[#0a0a0a] rounded-md border border-[#1a1a1a] overflow-hidden relative cursor-pointer group"
+            className="aspect-video bg-[var(--background)] rounded-md border border-[var(--border)] overflow-hidden relative cursor-pointer group"
             onClick={() => fileRef.current?.click()}
           >
             {imagePreview ? (
               <img src={imagePreview} alt="Location" className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-[#333]">
+              <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
                 <Upload className="h-6 w-6 mb-1 opacity-50" />
                 <span className="text-[10px]">Click to upload image</span>
               </div>
@@ -318,40 +318,40 @@ function LocationModal({ isOpen, onClose, location, scriptId, onUpdate, onGenera
           </div>
 
           <div>
-            <label className="text-[10px] text-[#555] uppercase tracking-widest block mb-1">Name *</label>
+            <label className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest block mb-1">Name *</label>
             <input
               type="text"
               value={form.name}
               onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-              className="w-full bg-[#111] border border-[#222] rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500/50"
+              className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-[var(--text-primary)] text-sm focus:outline-none focus:border-emerald-500/50"
               placeholder="e.g. Downtown Alley"
             />
           </div>
           <div>
-            <label className="text-[10px] text-[#555] uppercase tracking-widest block mb-1">Time of Day</label>
+            <label className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest block mb-1">Time of Day</label>
             <input
               type="text"
               value={form.time}
               onChange={e => setForm(p => ({ ...p, time: e.target.value }))}
-              className="w-full bg-[#111] border border-[#222] rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500/50"
+              className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-[var(--text-primary)] text-sm focus:outline-none focus:border-emerald-500/50"
               placeholder="e.g. Night, Golden Hour"
             />
           </div>
           <div>
-            <label className="text-[10px] text-[#555] uppercase tracking-widest block mb-1">Description</label>
+            <label className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest block mb-1">Description</label>
             <textarea
               value={form.description}
               onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
               rows={3}
-              className="w-full bg-[#111] border border-[#222] rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500/50 resize-none"
+              className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-[var(--text-primary)] text-sm focus:outline-none focus:border-emerald-500/50 resize-none"
               placeholder="Describe the location..."
             />
           </div>
 
-          <div className="bg-[#111] p-3 rounded-md border border-[#1a1a1a] flex items-center justify-between mt-4">
+          <div className="bg-[var(--surface)] p-3 rounded-md border border-[var(--border)] flex items-center justify-between mt-4">
               <div>
-                  <span className="text-xs text-[#999] font-medium block">AI Location Generation</span>
-                  <span className="text-[10px] text-[#555]">Instantly saves details and generates an image</span>
+                  <span className="text-xs text-[var(--text-secondary)] font-medium block">AI Location Generation</span>
+                  <span className="text-[10px] text-[var(--text-muted)]">Instantly saves details and generates an image</span>
               </div>
               <button
                   type="button"
@@ -364,8 +364,8 @@ function LocationModal({ isOpen, onClose, location, scriptId, onUpdate, onGenera
               </button>
           </div>
         </div>
-        <div className="p-4 border-t border-[#1a1a1a] flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] text-white rounded-md text-sm transition-colors">Cancel</button>
+        <div className="p-4 border-t border-[var(--border)] flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 bg-[var(--surface-hover)] hover:bg-[var(--border)] text-white rounded-md text-sm transition-colors">Cancel</button>
           <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm transition-colors flex items-center gap-2 disabled:opacity-50">
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {location ? "Save Changes" : "Create Location"}

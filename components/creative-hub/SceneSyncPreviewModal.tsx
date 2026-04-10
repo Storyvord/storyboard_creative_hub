@@ -132,12 +132,12 @@ export default function SceneSyncPreviewModal({
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-md w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+          className="bg-[var(--surface)] border border-[var(--border)] rounded-md w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
         >
           {/* Header */}
-          <div className="p-5 border-b border-[#1a1a1a] flex justify-between items-center">
+          <div className="p-5 border-b border-[var(--border)] flex justify-between items-center">
             <div>
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2">
                 <RefreshCw className="h-5 w-5 text-emerald-400" />
                 Re-sync Scenes
               </h2>
@@ -147,7 +147,7 @@ export default function SceneSyncPreviewModal({
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-[#1a1a1a] rounded-md text-gray-400 hover:text-white transition-colors"
+              className="p-2 hover:bg-[var(--surface-hover)] rounded-md text-gray-400 hover:text-white transition-colors"
             >
               <X className="h-5 w-5" />
             </button>
@@ -177,7 +177,7 @@ export default function SceneSyncPreviewModal({
                     { label: "New", count: diff.new_scenes.length, color: "text-gray-300", bg: "bg-gray-500/10 border-gray-500/20" },
                     { label: "Edited", count: diff.updated_scenes.length, color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
                     { label: "Removed", count: diff.deleted_scenes.length, color: "text-red-400", bg: "bg-red-500/10 border-red-500/20" },
-                    { label: "Unchanged", count: diff.unchanged_scenes.length, color: "text-gray-500", bg: "bg-[#1a1a1a]/50 border-[#1a1a1a]" },
+                    { label: "Unchanged", count: diff.unchanged_scenes.length, color: "text-gray-500", bg: "bg-[var(--surface-hover)]/50 border-[var(--border)]" },
                   ].map(({ label, count, color, bg }) => (
                     <div key={label} className={`rounded-md border p-3 text-center ${bg}`}>
                       <p className={`text-2xl font-bold ${color}`}>{count}</p>
@@ -340,10 +340,10 @@ export default function SceneSyncPreviewModal({
           </div>
 
           {/* Footer */}
-          <div className="p-4 border-t border-[#1a1a1a] flex justify-between items-center bg-[#0d0d0d]/50">
+          <div className="p-4 border-t border-[var(--border)] flex justify-between items-center bg-[var(--surface)]/50">
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] text-white rounded-md text-sm transition-colors"
+              className="px-4 py-2 bg-[var(--surface-hover)] hover:bg-[var(--border)] text-[var(--text-primary)] rounded-md text-sm transition-colors"
             >
               Cancel
             </button>
@@ -353,7 +353,7 @@ export default function SceneSyncPreviewModal({
                 <button
                   onClick={handleDiscard}
                   disabled={discarding || confirming}
-                  className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] text-red-400 border border-red-500/20 rounded-md text-sm flex items-center gap-2 transition-colors disabled:opacity-40"
+                  className="px-4 py-2 bg-[var(--surface-hover)] hover:bg-[var(--border)] text-red-400 border border-red-500/20 rounded-md text-sm flex items-center gap-2 transition-colors disabled:opacity-40"
                   title="Revert script content to match existing scenes (discard edits)"
                 >
                   {discarding ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
@@ -367,7 +367,7 @@ export default function SceneSyncPreviewModal({
                   className={`px-4 py-2 rounded-md text-sm flex items-center gap-2 transition-colors disabled:opacity-40 ${
                     hasChanges
                       ? "bg-emerald-600 hover:bg-emerald-500 text-white"
-                      : "bg-[#1a1a1a] text-gray-500 cursor-not-allowed"
+                      : "bg-[var(--surface-hover)] text-gray-500 cursor-not-allowed"
                   }`}
                 >
                   {confirming ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}

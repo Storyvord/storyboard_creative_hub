@@ -488,7 +488,7 @@ export default function PlatformTour({ projectId, onDone }: Props) {
           </div>
           <button
             onClick={handleSkip}
-            className="text-[#444] hover:text-[#777] transition-colors rounded p-0.5 ml-2 flex-shrink-0"
+            className="text-[var(--text-muted)] hover:text-[#777] transition-colors rounded p-0.5 ml-2 flex-shrink-0"
             aria-label="Close tour"
           >
             <X className="w-3.5 h-3.5" />
@@ -511,10 +511,10 @@ export default function PlatformTour({ projectId, onDone }: Props) {
           ))}
         </div>
 
-        <h3 className="text-sm font-semibold text-white mb-2 leading-snug">
+        <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2 leading-snug">
           {currentStep.title}
         </h3>
-        <p className="text-[12px] text-[#888] leading-relaxed mb-5 whitespace-pre-line">
+        <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed mb-5 whitespace-pre-line">
           {currentStep.content}
         </p>
 
@@ -522,7 +522,7 @@ export default function PlatformTour({ projectId, onDone }: Props) {
         <div className="flex items-center justify-between">
           <button
             onClick={handleSkip}
-            className="text-[10px] text-[#555] hover:text-[#777] transition-colors"
+            className="text-[10px] text-[var(--text-muted)] hover:text-[#777] transition-colors"
           >
             Skip tour
           </button>
@@ -530,7 +530,7 @@ export default function PlatformTour({ projectId, onDone }: Props) {
             {step > 0 && (
               <button
                 onClick={handlePrev}
-                className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] text-[#777] hover:text-white border border-[#222] hover:border-[#333] rounded-lg transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] text-[#777] hover:text-white border border-[var(--border)] hover:border-[var(--border-hover)] rounded-lg transition-colors"
               >
                 <ChevronLeft className="w-3 h-3" />
                 Back
@@ -558,7 +558,7 @@ export function PlatformTourTrigger({ onClick }: { onClick: () => void }) {
     <button
       onClick={onClick}
       title="Platform tour guide"
-      className="flex items-center justify-center w-7 h-7 rounded-md border border-[#222] bg-[#161616] hover:bg-[#1e1e1e] text-[#555] hover:text-emerald-400 transition-colors"
+      className="flex items-center justify-center w-7 h-7 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] hover:bg-[#1e1e1e] text-[var(--text-muted)] hover:text-emerald-400 transition-colors"
     >
       <HelpCircle className="w-3.5 h-3.5" />
     </button>

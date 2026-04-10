@@ -56,15 +56,15 @@ export default function ScenesPage() {
 
   if (loading) return (
     <div className="flex justify-center items-center h-full">
-      <Loader2 className="animate-spin h-6 w-6 text-[#333]" />
+      <Loader2 className="animate-spin h-6 w-6 text-[var(--text-muted)]" />
     </div>
   );
 
   if (!script) return (
-    <div className="p-6 text-center bg-[#0d0d0d] rounded-md border border-[#1a1a1a] m-6">
+    <div className="p-6 text-center bg-[var(--surface)] rounded-md border border-[var(--border)] m-6">
       <AlertCircle className="h-8 w-8 text-amber-500 mx-auto mb-3" />
-      <h2 className="text-base font-bold mb-1 text-white">No Script Found</h2>
-      <p className="text-[#555] text-xs">Please upload a script first.</p>
+      <h2 className="text-base font-bold mb-1 text-[var(--text-primary)]">No Script Found</h2>
+      <p className="text-[var(--text-muted)] text-xs">Please upload a script first.</p>
     </div>
   );
 
@@ -72,8 +72,8 @@ export default function ScenesPage() {
     <div className="p-6">
       <header className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-xl font-bold mb-1 text-white">Scenes</h1>
-          <p className="text-[#555] text-xs">Manage and visualize your script&apos;s scenes</p>
+          <h1 className="text-xl font-bold mb-1 text-[var(--text-primary)]">Scenes</h1>
+          <p className="text-[var(--text-muted)] text-xs">Manage and visualize your script&apos;s scenes</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -114,7 +114,7 @@ export default function ScenesPage() {
               className={`px-3 py-2 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 border ${
                 hasChanges
                   ? "bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border-orange-500/30"
-                  : "bg-[#161616] hover:bg-[#1a1a1a] text-white border-[#222]"
+                  : "bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] text-white border-[var(--border)]"
               }`}
             >
               <RefreshCw className={`h-3.5 w-3.5 ${hasChanges ? "text-orange-400" : "text-emerald-400"}`} />
@@ -136,10 +136,10 @@ export default function ScenesPage() {
               return (
                 <div
                   key={`new-${idx}`}
-                  className="border border-dashed border-gray-600/40 p-4 rounded-md bg-[#0a0a0a] opacity-60"
+                  className="border border-dashed border-gray-600/40 p-4 rounded-md bg-[var(--background)] opacity-60"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-14 h-14 bg-[#111] rounded-md flex flex-col items-center justify-center border border-dashed border-gray-600/40">
+                    <div className="flex-shrink-0 w-14 h-14 bg-[var(--surface)] rounded-md flex flex-col items-center justify-center border border-dashed border-gray-600/40">
                       <span className="text-[9px] text-gray-600 uppercase font-bold tracking-wider">SC</span>
                       <span className="text-lg font-bold text-gray-500">{s.order}</span>
                     </div>
@@ -151,10 +151,10 @@ export default function ScenesPage() {
                         </span>
                       </div>
                       {s.description && (
-                        <p className="text-[#555] text-xs line-clamp-2">{s.description}</p>
+                        <p className="text-[var(--text-muted)] text-xs line-clamp-2">{s.description}</p>
                       )}
                       {(s.location || s.int_ext || s.environment) && (
-                        <div className="flex items-center gap-2 mt-2 text-[10px] text-[#444]">
+                        <div className="flex items-center gap-2 mt-2 text-[10px] text-[var(--text-muted)]">
                           {s.int_ext && <span className="uppercase font-medium">{s.int_ext}</span>}
                           {s.location && (
                             <div className="flex items-center gap-1">
@@ -178,10 +178,10 @@ export default function ScenesPage() {
                 onClick={() => !isDeleted && s.id && router.push(`/projects/${projectId}/creative-hub/scenes/${s.id}`)}
                 className={`relative p-4 rounded-md border transition-all group ${
                   isDeleted
-                    ? "bg-[#0d0d0d] border-red-500/30 cursor-default"
+                    ? "bg-[var(--surface)] border-red-500/30 cursor-default"
                     : isUpdated
-                    ? "bg-[#0d0d0d] border-orange-500/30 hover:border-orange-500/60 hover:bg-[#111] cursor-pointer"
-                    : "bg-[#0d0d0d] border-[#1a1a1a] hover:border-emerald-500/30 hover:bg-[#111] cursor-pointer"
+                    ? "bg-[var(--surface)] border-orange-500/30 hover:border-orange-500/60 hover:bg-[var(--surface)] cursor-pointer"
+                    : "bg-[var(--surface)] border-[var(--border)] hover:border-emerald-500/30 hover:bg-[var(--surface)] cursor-pointer"
                 }`}
               >
                 {/* Coloured left accent bar */}
@@ -199,17 +199,17 @@ export default function ScenesPage() {
                       ? "bg-red-500/5 border-red-500/20"
                       : isUpdated
                       ? "bg-orange-500/5 border-orange-500/20 group-hover:border-orange-500/40"
-                      : "bg-[#111] border-[#1a1a1a] group-hover:border-emerald-500/20"
+                      : "bg-[var(--surface)] border-[var(--border)] group-hover:border-emerald-500/20"
                   }`}>
-                    <span className="text-[9px] text-[#555] uppercase font-bold tracking-wider">SC</span>
-                    <span className={`text-lg font-bold ${isDeleted ? "text-red-400/70" : isUpdated ? "text-orange-300" : "text-white"}`}>
+                    <span className="text-[9px] text-[var(--text-muted)] uppercase font-bold tracking-wider">SC</span>
+                    <span className={`text-lg font-bold ${isDeleted ? "text-red-400/70" : isUpdated ? "text-orange-300" : "text-[var(--text-primary)]"}`}>
                       {s.order}
                     </span>
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start mb-1">
-                      <h3 className={`text-sm font-bold truncate pr-4 ${isDeleted ? "text-red-400/80 line-through" : isUpdated ? "text-orange-200" : "text-white"}`}>
+                      <h3 className={`text-sm font-bold truncate pr-4 ${isDeleted ? "text-red-400/80 line-through" : isUpdated ? "text-orange-200" : "text-[var(--text-primary)]"}`}>
                         {s.scene_name}
                       </h3>
                       <div className="flex items-center gap-2">
@@ -233,17 +233,17 @@ export default function ScenesPage() {
                           </div>
                         )}
                         {!isUpdated && !isDeleted && (
-                          <div className="flex items-center gap-2 text-[10px] text-[#555] bg-[#111] px-2 py-0.5 rounded border border-[#1a1a1a]">
+                          <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)] bg-[var(--surface)] px-2 py-0.5 rounded border border-[var(--border)]">
                             <span className="uppercase font-medium">{s.int_ext}</span>
-                            <span className="text-[#333]">·</span>
+                            <span className="text-[var(--text-muted)]">·</span>
                             <span>{s.environment}</span>
                           </div>
                         )}
                       </div>
                     </div>
-                    <p className={`text-xs line-clamp-2 ${isDeleted ? "text-[#444]" : "text-[#666]"}`}>{s.description}</p>
+                    <p className={`text-xs line-clamp-2 ${isDeleted ? "text-[var(--text-muted)]" : "text-[var(--text-secondary)]"}`}>{s.description}</p>
 
-                    <div className="flex items-center gap-3 mt-2 text-[10px] text-[#555]">
+                    <div className="flex items-center gap-3 mt-2 text-[10px] text-[var(--text-muted)]">
                       <div className="flex items-center gap-1">
                         <MapPin className="h-3 w-3" />
                         <span className="truncate max-w-[120px]">{s.location}</span>
@@ -255,8 +255,8 @@ export default function ScenesPage() {
                   </div>
 
                   {!isDeleted && s.id && (
-                    <div className="flex items-center self-center pl-3 border-l border-[#1a1a1a]">
-                      <ChevronRight className={`h-4 w-4 transition-colors ${isUpdated ? "text-orange-500/40 group-hover:text-orange-400" : "text-[#444] group-hover:text-emerald-400"}`} />
+                    <div className="flex items-center self-center pl-3 border-l border-[var(--border)]">
+                      <ChevronRight className={`h-4 w-4 transition-colors ${isUpdated ? "text-orange-500/40 group-hover:text-orange-400" : "text-[var(--text-muted)] group-hover:text-emerald-400"}`} />
                     </div>
                   )}
                 </div>
@@ -265,9 +265,9 @@ export default function ScenesPage() {
           })}
         </div>
       ) : (
-        <div className="text-center py-16 bg-[#0d0d0d] rounded-md border border-dashed border-[#1a1a1a]">
-          <p className="text-[#555] text-xs">No scenes synced yet.</p>
-          <p className="text-[10px] text-[#444] mt-1">Click &quot;Sync Scenes&quot; to parse your script.</p>
+        <div className="text-center py-16 bg-[var(--surface)] rounded-md border border-dashed border-[var(--border)]">
+          <p className="text-[var(--text-muted)] text-xs">No scenes synced yet.</p>
+          <p className="text-[10px] text-[var(--text-muted)] mt-1">Click &quot;Sync Scenes&quot; to parse your script.</p>
         </div>
       )}
 

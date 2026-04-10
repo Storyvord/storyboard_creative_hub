@@ -99,17 +99,17 @@ function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isR
           : isDragging
             ? "border-emerald-400 ring-2 ring-emerald-400/30 bg-emerald-950/20 opacity-50"
             : isSelected
-              ? "border-emerald-500/40 ring-1 ring-emerald-500/20 hover:border-emerald-500/60 bg-[#111] group"
-              : "border-[#222] hover:border-[#333] bg-[#111] group"
+              ? "border-emerald-500/40 ring-1 ring-emerald-500/20 hover:border-emerald-500/60 bg-[var(--surface)] group"
+              : "border-[var(--border)] hover:border-[#333] bg-[var(--surface)] group"
       )}
     >
       {/* Image */}
-      <div className="aspect-video bg-[#0a0a0a] relative cursor-pointer" onClick={onClick}>
+      <div className="aspect-video bg-[var(--background)] relative cursor-pointer" onClick={onClick}>
         {shot.image_url ? (
           <img src={shot.image_url} alt={`Shot ${shot.order}`} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <ImageIcon className="w-5 h-5 text-[#333]" />
+            <ImageIcon className="w-5 h-5 text-[var(--text-muted)]" />
           </div>
         )}
 
@@ -148,17 +148,17 @@ function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isR
 
       {/* Metadata row */}
       <div className="px-2.5 pt-2 pb-1 flex items-center gap-2">
-        <span className="text-[10px] font-mono text-[#666] font-bold">#{String(shot.order).padStart(2, '0')}</span>
+        <span className="text-[10px] font-mono text-[var(--text-secondary)] font-bold">#{String(shot.order).padStart(2, '0')}</span>
         <span className="text-[9px] font-bold tracking-wider text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">{getAbbrev(shot.type)}</span>
-        {shot.previz?.aspect_ratio && <span className="text-[9px] text-[#555] font-mono">{shot.previz.aspect_ratio}</span>}
+        {shot.previz?.aspect_ratio && <span className="text-[9px] text-[var(--text-muted)] font-mono">{shot.previz.aspect_ratio}</span>}
         {(shot.camera_angle || shot.previz?.camera_angle) && (
-          <span className="text-[9px] text-[#444] truncate ml-auto">{shot.camera_angle || shot.previz?.camera_angle}</span>
+          <span className="text-[9px] text-[var(--text-muted)] truncate ml-auto">{shot.camera_angle || shot.previz?.camera_angle}</span>
         )}
       </div>
 
       {/* Inline dropdowns */}
       <div className="px-2.5 pb-1.5 flex items-center gap-1.5">
-        <select className="shot-select bg-[#0a0a0a] border border-[#222] rounded text-[9px] text-[#999] px-1.5 py-1 outline-none focus:border-emerald-500/40 transition-colors flex-1 min-w-0"
+        <select className="shot-select bg-[var(--background)] border border-[var(--border)] rounded text-[9px] text-[var(--text-secondary)] px-1.5 py-1 outline-none focus:border-emerald-500/40 transition-colors flex-1 min-w-0"
           value={shot.type || ""} onChange={(e) => onUpdateShot(shot.id, "type", e.target.value)} onClick={(e) => e.stopPropagation()}>
           {SHOT_TYPES.map(t => <option key={t} value={t}>{getAbbrev(t)} — {t}</option>)}
         </select>
@@ -173,7 +173,7 @@ function ShotCard({ shot, onClick, isSelected, onToggleSelect, isGenerating, isR
           sceneCharacters={sceneCharacters}
           globalCharacters={globalCharacters}
           placeholder="Shot description... (type @ to tag characters)"
-          className="w-full bg-transparent text-[11px] text-[#999] leading-[1.4] outline-none resize-none overflow-y-auto focus:text-white transition-colors"
+          className="w-full bg-transparent text-[11px] text-[var(--text-secondary)] leading-[1.4] outline-none resize-none overflow-y-auto focus:text-white transition-colors"
           style={{ minHeight: '3em', maxHeight: '4.2em' }}
           rows={2}
           onBlur={handleDescBlur as any}
@@ -206,12 +206,12 @@ function AddShotCard({ onAdd }: { onAdd: () => void }) {
   return (
     <button
       onClick={onAdd}
-      className="flex-shrink-0 w-56 min-h-[200px] border border-dashed border-[#222] hover:border-emerald-500/40 rounded-md flex flex-col items-center justify-center gap-2 bg-[#0a0a0a] hover:bg-emerald-500/5 transition-all group/add"
+      className="flex-shrink-0 w-56 min-h-[200px] border border-dashed border-[var(--border)] hover:border-emerald-500/40 rounded-md flex flex-col items-center justify-center gap-2 bg-[var(--background)] hover:bg-emerald-500/5 transition-all group/add"
     >
       <div className="w-8 h-8 rounded-full border border-[#333] group-hover/add:border-emerald-500/50 flex items-center justify-center transition-colors">
-        <Plus className="w-4 h-4 text-[#555] group-hover/add:text-emerald-400 transition-colors" />
+        <Plus className="w-4 h-4 text-[var(--text-muted)] group-hover/add:text-emerald-400 transition-colors" />
       </div>
-      <span className="text-[11px] text-[#555] group-hover/add:text-emerald-400 font-medium transition-colors">Add Shot</span>
+      <span className="text-[11px] text-[var(--text-muted)] group-hover/add:text-emerald-400 font-medium transition-colors">Add Shot</span>
     </button>
   );
 }
@@ -246,17 +246,17 @@ function AddShotModal({ isOpen, onClose, onSubmit, insertOrder, sceneName, isSub
         <div className="p-4 border-b border-[#1f1f1f] flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold text-white">Add Shot #{insertOrder}</h3>
-            <p className="text-[10px] text-[#666] mt-0.5">{sceneName}</p>
+            <p className="text-[10px] text-[var(--text-secondary)] mt-0.5">{sceneName}</p>
           </div>
-          <button onClick={onClose} className="text-[#888] hover:text-white"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-white"><X className="h-4 w-4" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-4 space-y-3">
           <div>
-            <label className="text-[10px] text-[#888] uppercase tracking-wider block mb-1">Description *</label>
+            <label className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Description *</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-[#0a0a0a] border border-[#222] rounded-md px-3 py-2 text-xs text-white placeholder-[#444] focus:outline-none focus:border-emerald-500/40 resize-none"
+              className="w-full bg-[var(--background)] border border-[var(--border)] rounded-md px-3 py-2 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-emerald-500/40 resize-none"
               rows={3}
               placeholder="Describe the shot..."
               autoFocus
@@ -264,38 +264,38 @@ function AddShotModal({ isOpen, onClose, onSubmit, insertOrder, sceneName, isSub
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] text-[#888] uppercase tracking-wider block mb-1">Shot Type</label>
+              <label className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Shot Type</label>
               <select
                 value={shotType}
                 onChange={(e) => setShotType(e.target.value)}
-                className="w-full bg-[#0a0a0a] border border-[#222] rounded-md px-2 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/40"
+                className="w-full bg-[var(--background)] border border-[var(--border)] rounded-md px-2 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-emerald-500/40"
               >
                 {SHOT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-[10px] text-[#888] uppercase tracking-wider block mb-1">Camera Angle</label>
+              <label className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Camera Angle</label>
               <select
                 value={cameraAngle}
                 onChange={(e) => setCameraAngle(e.target.value)}
-                className="w-full bg-[#0a0a0a] border border-[#222] rounded-md px-2 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/40"
+                className="w-full bg-[var(--background)] border border-[var(--border)] rounded-md px-2 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-emerald-500/40"
               >
                 {CAMERA_ANGLES.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
           </div>
           <div>
-            <label className="text-[10px] text-[#888] uppercase tracking-wider block mb-1">Camera Movement (optional)</label>
+            <label className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Camera Movement (optional)</label>
             <input
               value={movement}
               onChange={(e) => setMovement(e.target.value)}
-              className="w-full bg-[#0a0a0a] border border-[#222] rounded-md px-3 py-2 text-xs text-white placeholder-[#444] focus:outline-none focus:border-emerald-500/40"
+              className="w-full bg-[var(--background)] border border-[var(--border)] rounded-md px-3 py-2 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-emerald-500/40"
               placeholder="e.g. Pan left, Dolly in..."
             />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
-              className="px-3 py-1.5 text-xs text-[#888] hover:text-white rounded border border-[#222] hover:bg-[#1a1a1a] transition-colors">
+              className="px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:text-white rounded border border-[var(--border)] hover:bg-[var(--surface-hover)] transition-colors">
               Cancel
             </button>
             <button type="submit" disabled={!description.trim() || isSubmitting}
@@ -403,35 +403,35 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
   return (
     <div className={clsx(
       "border rounded-md overflow-hidden transition-all mb-5",
-      isSelected ? "border-emerald-500/30 bg-[#0d0d0d]" : "border-[#1a1a1a] bg-[#0d0d0d] hover:border-[#282828]"
+      isSelected ? "border-emerald-500/30 bg-[var(--surface)]" : "border-[var(--border)] bg-[var(--surface)] hover:border-[#282828]"
     )}>
       {/* Scene Header */}
-      <div className="px-4 py-3 border-b border-[#1a1a1a] flex items-center gap-3">
+      <div className="px-4 py-3 border-b border-[var(--border)] flex items-center gap-3">
         <button onClick={(e) => { e.stopPropagation(); onToggleSelect(scene.id); }}
-          className="text-[#444] hover:text-emerald-400 transition-colors flex-shrink-0">
+          className="text-[var(--text-muted)] hover:text-emerald-400 transition-colors flex-shrink-0">
           {isSelected ? <CheckSquare className="w-4 h-4 text-emerald-500" /> : <Square className="w-4 h-4" />}
         </button>
 
-        <span className="flex-shrink-0 text-[10px] font-mono text-[#555] font-bold tracking-wider bg-[#161616] px-2 py-0.5 rounded">
+        <span className="flex-shrink-0 text-[10px] font-mono text-[var(--text-muted)] font-bold tracking-wider bg-[var(--surface-raised)] px-2 py-0.5 rounded">
           SC {String(scene.order).padStart(2, '0')}
         </span>
 
-        <h3 className="font-semibold text-sm text-white truncate">{scene.scene_name || "Untitled Scene"}</h3>
+        <h3 className="font-semibold text-sm text-[var(--text-primary)] truncate">{scene.scene_name || "Untitled Scene"}</h3>
 
-        <div className="hidden md:flex items-center gap-2 text-[10px] text-[#444] ml-auto">
+        <div className="hidden md:flex items-center gap-2 text-[10px] text-[var(--text-muted)] ml-auto">
           {scene.int_ext && <span className="uppercase tracking-wider">{scene.int_ext}</span>}
-          {scene.location && <><span className="text-[#333]">·</span><span className="truncate max-w-[120px]">{scene.location}</span></>}
-          {scene.time && <><span className="text-[#333]">·</span><span>{scene.time}</span></>}
+          {scene.location && <><span className="text-[var(--text-muted)]">·</span><span className="truncate max-w-[120px]">{scene.location}</span></>}
+          {scene.time && <><span className="text-[var(--text-muted)]">·</span><span>{scene.time}</span></>}
         </div>
 
-        <span className="text-[10px] text-[#444] ml-2">{shots.length} shot{shots.length !== 1 ? 's' : ''}</span>
+        <span className="text-[10px] text-[var(--text-muted)] ml-2">{shots.length} shot{shots.length !== 1 ? 's' : ''}</span>
 
         <div className="flex items-center gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
           <select
             className={clsx(
-              "bg-[#161616] border border-[#222] rounded text-[10px] px-1.5 py-1 outline-none focus:border-emerald-500/40 transition-colors",
+              "bg-[var(--surface-raised)] border border-[var(--border)] rounded text-[10px] px-1.5 py-1 outline-none focus:border-emerald-500/40 transition-colors",
               scene.storyboarding_type === null || scene.storyboarding_type === undefined
-                ? "text-[#555] italic"
+                ? "text-[var(--text-muted)] italic"
                 : "text-white"
             )}
             value={scene.storyboarding_type || activeScriptStoryboardingType || 'hd'}
@@ -446,7 +446,7 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
           {scene.storyboarding_type !== null && scene.storyboarding_type !== undefined && (
             <button
               onClick={() => onUpdateSceneStyle(scene.id as number, null)}
-              className="text-[#555] hover:text-white transition-colors p-0.5"
+              className="text-[var(--text-muted)] hover:text-white transition-colors p-0.5"
               title="Reset to project default"
             >
               <X className="w-3 h-3" />
@@ -513,14 +513,14 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
           <div
             className={clsx(
               "flex items-center gap-4 py-4 rounded-md transition-colors",
-              globalDraggingId ? "border border-dashed border-[#333] bg-[#0a0a0a]" : ""
+              globalDraggingId ? "border border-dashed border-[#333] bg-[var(--background)]" : ""
             )}
             onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
             onDrop={(e) => handleDrop(e, null)}
           >
             <AddShotCard onAdd={() => onInsertShot(scene.id, 1)} />
             <div className="flex flex-col items-start gap-2">
-              <p className="text-[#444] text-xs">{globalDraggingId ? "Drop shot here" : "Add your first shot manually or generate with AI"}</p>
+              <p className="text-[var(--text-muted)] text-xs">{globalDraggingId ? "Drop shot here" : "Add your first shot manually or generate with AI"}</p>
               {!globalDraggingId && (
                 <button onClick={() => onGenerateShots(scene.id)}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5">
@@ -1203,23 +1203,23 @@ export default function StoryboardPage() {
       });
   }, [selectedSceneIds, selectedShotIds, getAllShots, shotsMap, scenes]);
 
-  if (loadingScenes) return <div className="h-full flex items-center justify-center bg-[#0a0a0a]"><Loader2 className="animate-spin h-6 w-6 text-[#333]" /></div>;
+  if (loadingScenes) return <div className="h-full flex items-center justify-center bg-[var(--background)]"><Loader2 className="animate-spin h-6 w-6 text-[var(--text-muted)]" /></div>;
 
   return (
-    <div className="flex h-full bg-[#0a0a0a] overflow-hidden relative">
+    <div className="flex h-full bg-[var(--background)] overflow-hidden relative">
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Toolbar */}
-        <div className="h-14 border-b border-[#1a1a1a] bg-[#0d0d0d] flex items-center justify-between px-5 z-10">
+        <div className="h-14 border-b border-[var(--border)] bg-[var(--surface)] flex items-center justify-between px-5 z-10">
           <div className="flex items-center gap-3">
-            <h1 className="text-base font-bold text-white">Storyboard</h1>
-            <span className="text-[#333]">|</span>
+            <h1 className="text-base font-bold text-[var(--text-primary)]">Storyboard</h1>
+            <span className="text-[var(--text-muted)]">|</span>
 
             {/* Script Aspect Ratio */}
             {activeScript && (
               <div data-tour="aspect-ratio" className="flex items-center gap-2 mr-2">
-                <span className="text-[11px] font-medium text-[#888]">Aspect Ratio:</span>
+                <span className="text-[11px] font-medium text-[var(--text-secondary)]">Aspect Ratio:</span>
                 <select
-                  className="bg-[#161616] hover:bg-[#1a1a1a] border border-[#222] rounded-md text-[11px] font-medium transition-colors text-white px-2 py-1.5 outline-none focus:border-emerald-500/40"
+                  className="bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] border border-[var(--border)] rounded-md text-[11px] font-medium transition-colors text-[var(--text-primary)] px-2 py-1.5 outline-none focus:border-emerald-500/40"
                   value={activeScript.aspect_ratio || "16:9"}
                   onChange={async (e) => {
                     const newValue = e.target.value;
@@ -1240,9 +1240,9 @@ export default function StoryboardPage() {
             {/* Storyboarding Type */}
             {activeScript && (
               <div data-tour="style" className="flex items-center gap-2 mr-2">
-                <span className="text-[11px] font-medium text-[#888]">Style:</span>
+                <span className="text-[11px] font-medium text-[var(--text-secondary)]">Style:</span>
                 <select
-                  className="bg-[#161616] hover:bg-[#1a1a1a] border border-[#222] rounded-md text-[11px] font-medium transition-colors text-white px-2 py-1.5 outline-none focus:border-emerald-500/40"
+                  className="bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] border border-[var(--border)] rounded-md text-[11px] font-medium transition-colors text-[var(--text-primary)] px-2 py-1.5 outline-none focus:border-emerald-500/40"
                   value={activeScript.storyboarding_type || "hd"}
                   onChange={async (e) => {
                     const newValue = e.target.value as 'sketch' | 'storyboard' | 'hd' | 'anime';
@@ -1262,22 +1262,22 @@ export default function StoryboardPage() {
               </div>
             )}
 
-            <span className="text-[#333]">|</span>
+            <span className="text-[var(--text-muted)]">|</span>
 
             {/* Quick Jump */}
             <div data-tour="jump" className="relative group">
-              <button className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#161616] hover:bg-[#1a1a1a] rounded-md text-[11px] font-medium transition-colors text-[#888] border border-[#222]">
+              <button className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] rounded-md text-[11px] font-medium transition-colors text-[var(--text-secondary)] border border-[var(--border)]">
                 Jump <ChevronRight className="w-3 h-3 rotate-90" />
               </button>
-              <div className="absolute top-full left-0 mt-1.5 w-56 max-h-80 overflow-y-auto bg-[#111] border border-[#222] rounded-md shadow-xl p-1.5 hidden group-hover:block z-50">
+              <div className="absolute top-full left-0 mt-1.5 w-56 max-h-80 overflow-y-auto bg-[var(--surface)] border border-[var(--border)] rounded-md shadow-xl p-1.5 hidden group-hover:block z-50">
                 {allScenesMeta.map(scene => {
                   const isLoaded = scenes.some(s => s.id === scene.id);
                   return (
                     <button key={scene.id} onClick={() => handleJumpToScene(scene.id)}
-                      className="w-full text-left px-2.5 py-2 rounded text-[11px] text-[#888] hover:bg-[#1a1a1a] hover:text-white truncate transition-colors flex items-center gap-2">
-                      <span className="flex-shrink-0 text-[9px] font-mono text-[#555]">{String(scene.order).padStart(2,'0')}</span>
+                      className="w-full text-left px-2.5 py-2 rounded text-[11px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-white truncate transition-colors flex items-center gap-2">
+                      <span className="flex-shrink-0 text-[9px] font-mono text-[var(--text-muted)]">{String(scene.order).padStart(2,'0')}</span>
                       <span className="truncate">{scene.scene_name || "Untitled"}</span>
-                      {!isLoaded && <span className="ml-auto text-[8px] text-[#444]">⏳</span>}
+                      {!isLoaded && <span className="ml-auto text-[8px] text-[var(--text-muted)]">⏳</span>}
                     </button>
                   );
                 })}
@@ -1285,7 +1285,7 @@ export default function StoryboardPage() {
             </div>
 
             <button data-tour="select-all" onClick={handleSelectAll}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#161616] hover:bg-[#1a1a1a] rounded-md text-[11px] font-medium transition-colors text-[#888] border border-[#222]">
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] rounded-md text-[11px] font-medium transition-colors text-[var(--text-secondary)] border border-[var(--border)]">
               {selectedSceneIds.size === scenes.length && scenes.length > 0 ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
               {selectedSceneIds.size === scenes.length && scenes.length > 0 ? "Deselect" : "Select All"}
             </button>
@@ -1303,20 +1303,20 @@ export default function StoryboardPage() {
             <button
               data-tour="creative-space"
               onClick={() => window.location.href = `/projects/${projectId}/creative-hub/creative-space`}
-              className="bg-[#161616] hover:bg-[#1a1a1a] text-white px-3 py-2 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5 border border-[#222]"
+              className="bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] px-3 py-2 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5 border border-[var(--border)]"
             >
               <ImageIcon className="w-3.5 h-3.5 text-indigo-400" /> Creative Space
             </button>
 
             <button data-tour="slideshow" onClick={() => setIsSlideshowOpen(true)} disabled={scenes.length === 0}
-              className="bg-[#161616] hover:bg-[#1a1a1a] text-white px-3 py-2 rounded-md text-[11px] font-medium transition-colors disabled:opacity-30 flex items-center gap-1.5 border border-[#222]">
+              className="bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] px-3 py-2 rounded-md text-[11px] font-medium transition-colors disabled:opacity-30 flex items-center gap-1.5 border border-[var(--border)]">
               <Play className="w-3.5 h-3.5 text-emerald-400" /> Slideshow
             </button>
 
             {(selectedSceneIds.size > 0 || selectedShotIds.size > 0) && (
               <>
                 <button disabled={isBulkGenerating || selectedSceneIds.size === 0} onClick={handleBulkGenerateShots}
-                  className="bg-[#161616] hover:bg-[#1a1a1a] text-white px-3 py-2 rounded-md text-[11px] font-medium transition-colors disabled:opacity-30 flex items-center gap-1.5 border border-[#222]">
+                  className="bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] px-3 py-2 rounded-md text-[11px] font-medium transition-colors disabled:opacity-30 flex items-center gap-1.5 border border-[var(--border)]">
                   {isBulkGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Film className="w-3.5 h-3.5" />} Bulk Shots
                 </button>
                 <button disabled={isBulkGenerating} onClick={handleBulkGeneratePreviz}
@@ -1359,16 +1359,16 @@ export default function StoryboardPage() {
                 ))}
                 {/* Sentinel – triggers fetching the next API page when scrolled near */}
                 {nextPage !== null && (
-                  <div ref={sentinelRef} className="flex items-center justify-center py-6 text-[11px] text-[#555]">
+                  <div ref={sentinelRef} className="flex items-center justify-center py-6 text-[11px] text-[var(--text-muted)]">
                     {isLoadingMore ? (
-                      <><Loader2 className="w-4 h-4 animate-spin mr-2 text-[#444]" /> Loading more scenes…</>
+                      <><Loader2 className="w-4 h-4 animate-spin mr-2 text-[var(--text-muted)]" /> Loading more scenes…</>
                     ) : (
-                      <span className="text-[#444]">{scenes.length} of {totalSceneCount} scenes loaded</span>
+                      <span className="text-[var(--text-muted)]">{scenes.length} of {totalSceneCount} scenes loaded</span>
                     )}
                   </div>
                 )}
               </>
-            ) : <div className="text-center py-20"><p className="text-[#444]">No scenes found.</p></div>}
+            ) : <div className="text-center py-20"><p className="text-[var(--text-muted)]">No scenes found.</p></div>}
             <div className="h-20" />
           </div>
         </div>

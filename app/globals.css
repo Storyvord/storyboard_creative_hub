@@ -15,6 +15,9 @@
   --accent-border: rgba(34, 197, 94, 0.2);
   --accent-glow: rgba(34, 197, 94, 0.15);
 
+  /* Background */
+  --background: #0a0a0a;
+
   /* Surfaces */
   --surface: #111111;
   --surface-raised: #161616;
@@ -39,6 +42,9 @@
   --accent-subtle: rgba(34, 197, 94, 0.1);
   --accent-border: rgba(34, 197, 94, 0.2);
   --accent-glow: rgba(34, 197, 94, 0.15);
+
+  /* Background */
+  --background: #f9f9f9;
 
   /* Surfaces */
   --surface: #ffffff;

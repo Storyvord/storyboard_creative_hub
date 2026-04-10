@@ -23,17 +23,17 @@ export default function SceneItem({
 }: SceneItemProps) {
     return (
         <div className={clsx(
-            "bg-[#0d0d0d] border rounded-md overflow-hidden transition-all mb-8",
-            isSelected ? "border-emerald-500/50 shadow-lg shadow-emerald-900/20" : "border-[#1a1a1a] hover:border-[#222]"
+            "bg-[var(--surface)] border rounded-md overflow-hidden transition-all mb-8",
+            isSelected ? "border-emerald-500/50 shadow-lg shadow-emerald-900/20" : "border-[var(--border)] hover:border-[var(--border)]"
         )}>
             {/* Scene Header */}
-            <div className="p-4 border-b border-[#1a1a1a] flex items-start gap-4 bg-[#0d0d0d]/50">
+            <div className="p-4 border-b border-[var(--border)] flex items-start gap-4 bg-[var(--surface)]/50">
                 <div className="pt-1">
                     <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => onToggleSelect(scene.id)}
-                        className="h-5 w-5 rounded border-[#222] bg-[#1a1a1a] text-emerald-600 focus:ring-emerald-500/50 cursor-pointer"
+                        className="h-5 w-5 rounded border-[var(--border)] bg-[var(--surface-hover)] text-emerald-600 focus:ring-emerald-500/50 cursor-pointer"
                     />
                 </div>
                 <div className="flex-1">
@@ -41,7 +41,7 @@ export default function SceneItem({
                         <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded text-xs font-medium border border-emerald-500/20">
                             Scene {scene.order}
                         </span>
-                        <h3 className="font-bold text-lg text-white">{scene.scene_name || "Untitled Scene"}</h3>
+                        <h3 className="font-bold text-lg text-[var(--text-primary)]">{scene.scene_name || "Untitled Scene"}</h3>
                     </div>
                     <p className="text-gray-400 text-sm line-clamp-2">{scene.description}</p>
                 </div>
@@ -72,7 +72,7 @@ export default function SceneItem({
                                 onClick={() => onShotClick(shot)}
                                 className="flex-shrink-0 w-64 group cursor-pointer"
                             >
-                                <div className="aspect-video bg-[#0d0d0d] rounded-md overflow-hidden border border-[#1a1a1a] group-hover:border-emerald-500/50 transition-all relative">
+                                <div className="aspect-video bg-[var(--surface)] rounded-md overflow-hidden border border-[var(--border)] group-hover:border-emerald-500/50 transition-all relative">
                                     {(shot.previz && shot.previz.image_url) || shot.image_url ? (
                                         <img src={(shot.previz && shot.previz.image_url) || shot.image_url} alt={`Shot ${shot.order}`} className="w-full h-full object-cover" />
                                     ) : (

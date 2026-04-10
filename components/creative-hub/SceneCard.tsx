@@ -30,11 +30,11 @@ export default function SceneCard({ scene, onUpdate }: SceneCardProps) {
   };
 
   return (
-    <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-md p-6 hover:border-[#222] transition-all group relative overflow-hidden">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-md p-6 hover:border-[var(--border)] transition-all group relative overflow-hidden">
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="text-lg font-bold text-gray-100 flex items-center gap-2">
-            <span className="bg-[#1a1a1a] text-gray-400 text-xs px-2 py-1 rounded">#{scene.order}</span>
+            <span className="bg-[var(--surface-hover)] text-gray-400 text-xs px-2 py-1 rounded">#{scene.order}</span>
             {scene.scene_name || `Scene ${scene.order}`}
           </h3>
           <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
@@ -54,7 +54,7 @@ export default function SceneCard({ scene, onUpdate }: SceneCardProps) {
         {scene.description}
       </p>
 
-      <div className="flex gap-3 mt-auto pt-4 border-t border-[#1a1a1a]/50">
+      <div className="flex gap-3 mt-auto pt-4 border-t border-[var(--border)]/50">
         <button
           onClick={handleGenerateShots}
           disabled={generatingShots}

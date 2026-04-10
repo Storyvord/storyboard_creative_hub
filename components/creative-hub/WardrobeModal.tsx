@@ -126,17 +126,17 @@ export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpda
             exit={{ scale: 0.96, opacity: 0 }}
             transition={{ duration: 0.18 }}
             onClick={e => e.stopPropagation()}
-            className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl w-full max-w-lg shadow-2xl overflow-hidden"
+            className="bg-[var(--surface)] border border-[var(--border)] rounded-xl w-full max-w-lg shadow-2xl overflow-hidden"
           >
             {/* Header */}
-            <div className="px-5 py-4 border-b border-[#1a1a1a] flex items-center justify-between">
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+            <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between">
+              <h2 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
                 {cloth ? <Edit className="h-4 w-4 text-emerald-400" /> : <Plus className="h-4 w-4 text-emerald-400" />}
                 {cloth ? "Edit Wardrobe Item" : "Add Wardrobe Item"}
               </h2>
               <button
                 onClick={onClose}
-                className="p-1.5 hover:bg-[#1a1a1a] rounded-lg text-[#555] hover:text-white transition-colors"
+                className="p-1.5 hover:bg-[var(--surface-hover)] rounded-lg text-[var(--text-muted)] hover:text-white transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -146,19 +146,19 @@ export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpda
               <div className="p-5 space-y-4">
                 {/* Image upload area */}
                 <div>
-                  <label className="text-[9px] text-[#555] uppercase tracking-widest font-semibold block mb-2">
+                  <label className="text-[9px] text-[var(--text-muted)] uppercase tracking-widest font-semibold block mb-2">
                     Reference Image
                   </label>
                   <div
-                    className="relative aspect-[3/4] rounded-lg bg-[#0a0a0a] border border-[#1a1a1a] overflow-hidden cursor-pointer group"
+                    className="relative aspect-[3/4] rounded-lg bg-[var(--background)] border border-[var(--border)] overflow-hidden cursor-pointer group"
                     onClick={() => fileRef.current?.click()}
                   >
                     {imagePreview ? (
                       <img src={imagePreview} alt="Preview" className="w-full h-full object-contain" />
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-[#333] gap-2">
+                      <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-muted)] gap-2">
                         <Shirt className="h-8 w-8 opacity-30" />
-                        <span className="text-[10px] text-[#444]">Click to upload image</span>
+                        <span className="text-[10px] text-[var(--text-muted)]">Click to upload image</span>
                       </div>
                     )}
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5">
@@ -192,26 +192,26 @@ export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpda
                 {/* Name + Type row */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2 sm:col-span-1">
-                    <label className="text-[9px] text-[#555] uppercase tracking-widest font-semibold block mb-1.5">
+                    <label className="text-[9px] text-[var(--text-muted)] uppercase tracking-widest font-semibold block mb-1.5">
                       Name *
                     </label>
                     <input
                       type="text"
                       value={name}
                       onChange={e => setName(e.target.value)}
-                      className="w-full bg-[#111] border border-[#222] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-[#444]"
+                      className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--text-primary)] text-sm focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-[var(--text-muted)]"
                       placeholder="e.g. Leather Jacket"
                       required
                     />
                   </div>
                   <div className="col-span-2 sm:col-span-1">
-                    <label className="text-[9px] text-[#555] uppercase tracking-widest font-semibold block mb-1.5">
+                    <label className="text-[9px] text-[var(--text-muted)] uppercase tracking-widest font-semibold block mb-1.5">
                       Category
                     </label>
                     <select
                       value={clothType}
                       onChange={e => setClothType(e.target.value)}
-                      className="w-full bg-[#111] border border-[#222] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500/50 transition-colors"
+                      className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--text-primary)] text-sm focus:outline-none focus:border-emerald-500/50 transition-colors"
                     >
                       {CLOTH_TYPES.map(t => (
                         <option key={t.value} value={t.value}>{t.label}</option>
@@ -222,7 +222,7 @@ export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpda
 
                 {/* Description */}
                 <div>
-                  <label className="text-[9px] text-[#555] uppercase tracking-widest font-semibold block mb-1.5">
+                  <label className="text-[9px] text-[var(--text-muted)] uppercase tracking-widest font-semibold block mb-1.5">
                     Description
                   </label>
                   <textarea
@@ -230,13 +230,13 @@ export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpda
                     onChange={e => setDescription(e.target.value)}
                     rows={3}
                     placeholder="Material, colour, condition, era, special details…"
-                    className="w-full bg-[#111] border border-[#222] rounded-lg px-3 py-2 text-sm text-[#bbb] focus:outline-none focus:border-emerald-500/50 transition-colors resize-none placeholder:text-[#444]"
+                    className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[#bbb] focus:outline-none focus:border-emerald-500/50 transition-colors resize-none placeholder:text-[var(--text-muted)]"
                   />
                 </div>
               </div>
 
               {/* Footer */}
-              <div className="px-5 py-4 border-t border-[#1a1a1a] flex justify-end gap-3">
+              <div className="px-5 py-4 border-t border-[var(--border)] flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={onClose}
