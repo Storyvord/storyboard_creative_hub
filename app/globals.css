@@ -2,7 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+:root,
+[data-theme="dark"] {
   --foreground-rgb: 255, 255, 255;
   --background-start-rgb: 10, 10, 10;
   --background-end-rgb: 10, 10, 10;
@@ -13,6 +14,9 @@
   --accent-subtle: rgba(34, 197, 94, 0.1);
   --accent-border: rgba(34, 197, 94, 0.2);
   --accent-glow: rgba(34, 197, 94, 0.15);
+
+  /* Background */
+  --background: #0a0a0a;
 
   /* Surfaces */
   --surface: #111111;
@@ -25,6 +29,34 @@
   --text-primary: #ffffff;
   --text-secondary: #a0a0a0;
   --text-muted: #555555;
+}
+
+[data-theme="light"] {
+  --foreground-rgb: 17, 17, 17;
+  --background-start-rgb: 255, 255, 255;
+  --background-end-rgb: 255, 255, 255;
+
+  /* Green accent system — unchanged */
+  --accent: #22c55e;
+  --accent-hover: #16a34a;
+  --accent-subtle: rgba(34, 197, 94, 0.1);
+  --accent-border: rgba(34, 197, 94, 0.2);
+  --accent-glow: rgba(34, 197, 94, 0.15);
+
+  /* Background */
+  --background: #f9f9f9;
+
+  /* Surfaces */
+  --surface: #ffffff;
+  --surface-raised: #f5f5f5;
+  --surface-hover: #ebebeb;
+  --border: #e0e0e0;
+  --border-hover: #cccccc;
+
+  /* Text */
+  --text-primary: #0a0a0a;
+  --text-secondary: #1a1a1a;
+  --text-muted: #3a3a3a;
 }
 
 /* Custom Scrollbar */
@@ -55,6 +87,34 @@
 body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-start-rgb));
+}
+
+/* ── Screenplay editor line colours (theme-aware) ── */
+.script-scene-heading  { color: var(--script-heading); font-weight: bold; }
+.script-character      { color: var(--script-character); }
+.script-parenthetical  { color: var(--script-parenthetical); }
+.script-dialogue       { color: var(--script-dialogue); }
+.script-transition     { color: var(--script-secondary); }
+.script-shot           { color: var(--script-secondary); }
+.script-action         { color: var(--script-action); }
+
+:root,
+[data-theme="dark"] {
+  --script-heading:      #f0f0f0;
+  --script-character:    #e8e8e8;
+  --script-parenthetical:#b0b0b0;
+  --script-dialogue:     #d0d0d0;
+  --script-secondary:    #e0e0e0;
+  --script-action:       #c8c8c8;
+}
+
+[data-theme="light"] {
+  --script-heading:      #0a0a0a;
+  --script-character:    #111111;
+  --script-parenthetical:#333333;
+  --script-dialogue:     #1a1a1a;
+  --script-secondary:    #111111;
+  --script-action:       #222222;
 }
 
 /* Inline select styling for shot cards */

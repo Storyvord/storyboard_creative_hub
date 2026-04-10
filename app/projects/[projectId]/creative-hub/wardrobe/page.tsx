@@ -95,18 +95,18 @@ export default function WardrobePage() {
       } catch (error) { console.error(error); toast.error(extractApiError(error, "Failed to delete item.")); }
   };
 
-  if (loading) return <div className="p-6 flex justify-center"><Loader2 className="animate-spin h-6 w-6 text-[#333]" /></div>;
+  if (loading) return <div className="p-6 flex justify-center"><Loader2 className="animate-spin h-6 w-6 text-[var(--text-muted)]" /></div>;
 
   return (
     <div className="p-6">
       <header className="flex justify-between items-center mb-6">
         <div>
-           <h1 className="text-xl font-bold mb-1 text-white">Wardrobe</h1>
-           <p className="text-[#555] text-xs">Manage costumes and props</p>
+           <h1 className="text-xl font-bold mb-1 text-[var(--text-primary)]">Wardrobe</h1>
+           <p className="text-[var(--text-muted)] text-xs">Manage costumes and props</p>
         </div>
         <div className="flex gap-2">
              <button data-tour="fitting-room-btn" onClick={() => setIsFittingRmOpen(true)} disabled={!script}
-                className="px-3 py-2 bg-[#161616] hover:bg-[#1a1a1a] text-white rounded-md text-xs font-medium border border-[#222] transition-all flex items-center gap-1.5 disabled:opacity-30">
+                className="px-3 py-2 bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] text-white rounded-md text-xs font-medium border border-[var(--border)] transition-all flex items-center gap-1.5 disabled:opacity-30">
                 <Shirt className="h-3.5 w-3.5" />
                 Fitting Room
             </button>
@@ -119,18 +119,18 @@ export default function WardrobePage() {
       </header>
       
       {cloths.length === 0 ? (
-        <div className="text-center py-16 bg-[#0d0d0d] rounded-md border border-dashed border-[#1a1a1a]">
-            <p className="text-[#555] text-xs">No items found. Generate scenes or add manually.</p>
+        <div className="text-center py-16 bg-[var(--surface)] rounded-md border border-dashed border-[var(--border)]">
+            <p className="text-[var(--text-muted)] text-xs">No items found. Generate scenes or add manually.</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {cloths.map((item) => (
-            <div key={item.id} className="bg-[#0d0d0d] rounded-md border border-[#1a1a1a] overflow-hidden group hover:border-emerald-500/30 transition-all flex flex-col">
-               <div className="aspect-[3/4] bg-[#0a0a0a] relative group-hover:opacity-90 transition-opacity">
+            <div key={item.id} className="bg-[var(--surface)] rounded-md border border-[var(--border)] overflow-hidden group hover:border-emerald-500/30 transition-all flex flex-col">
+               <div className="aspect-[3/4] bg-[var(--background)] relative group-hover:opacity-90 transition-opacity">
                    {item.image_url ? (
                        <img src={item.image_url} alt={item.name} className="w-full h-full object-contain" />
                    ) : (
-                       <div className="w-full h-full flex flex-col items-center justify-center text-[#333]">
+                       <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
                            <span className="text-base font-bold mb-1 text-center px-2">{item.cloth_type}</span>
                            <span className="text-[9px] uppercase tracking-wider">No Image</span>
                        </div>
@@ -154,10 +154,10 @@ export default function WardrobePage() {
                    </div>
                </div>
                <div className="p-3 flex-1 flex flex-col">
-                   <h3 className="font-bold text-sm mb-0.5 text-white">{item.name}</h3>
-                   <p className="text-[10px] text-[#555] line-clamp-2 mb-3 flex-1">{item.description}</p>
+                   <h3 className="font-bold text-sm mb-0.5 text-[var(--text-primary)]">{item.name}</h3>
+                   <p className="text-[10px] text-[var(--text-muted)] line-clamp-2 mb-3 flex-1">{item.description}</p>
                    <button onClick={() => handleEdit(item)}
-                        className="w-full py-1.5 text-[10px] font-medium bg-[#111] hover:bg-[#161616] text-[#888] rounded-md transition-colors border border-[#1a1a1a]">
+                        className="w-full py-1.5 text-[10px] font-medium bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-[var(--text-secondary)] rounded-md transition-colors border border-[var(--border)]">
                        View Details
                    </button>
                </div>

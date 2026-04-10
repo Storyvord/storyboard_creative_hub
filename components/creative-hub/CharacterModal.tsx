@@ -121,16 +121,16 @@ export default function CharacterModal({ character, scriptId, isOpen, onClose, o
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.97, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-md w-full max-w-lg overflow-hidden flex flex-col shadow-2xl"
+            className="bg-[var(--surface)] border border-[var(--border)] rounded-md w-full max-w-lg overflow-hidden flex flex-col shadow-2xl"
           >
-            <div className="p-5 border-b border-[#1a1a1a] flex justify-between items-center">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <div className="p-5 border-b border-[var(--border)] flex justify-between items-center">
+              <h2 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
                   {character ? <Edit className="h-4 w-4 text-emerald-500" /> : <Plus className="h-4 w-4 text-emerald-500" />}
                   {character ? "Edit Character" : "Add Character"}
               </h2>
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-[#1a1a1a] rounded-md text-[#555] hover:text-white transition-colors"
+                className="p-2 hover:bg-[var(--surface-hover)] rounded-md text-[var(--text-muted)] hover:text-white transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -140,13 +140,13 @@ export default function CharacterModal({ character, scriptId, isOpen, onClose, o
                  <div className="flex gap-4">
                      {/* Image Uploader */}
                      <div 
-                         className="w-32 h-32 shrink-0 bg-[#0a0a0a] rounded-md border border-[#1a1a1a] overflow-hidden relative cursor-pointer group"
+                         className="w-32 h-32 shrink-0 bg-[var(--background)] rounded-md border border-[var(--border)] overflow-hidden relative cursor-pointer group"
                          onClick={() => fileRef.current?.click()}
                      >
                          {imagePreview ? (
                              <img src={imagePreview} alt="Character" className="w-full h-full object-cover" />
                          ) : (
-                             <div className="w-full h-full flex flex-col items-center justify-center text-[#333]">
+                             <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
                                  <Upload className="h-5 w-5 mb-1 opacity-50" />
                                  <span className="text-[9px] text-center px-2">Upload Avatar</span>
                              </div>
@@ -159,32 +159,32 @@ export default function CharacterModal({ character, scriptId, isOpen, onClose, o
 
                      <div className="flex-1 space-y-4">
                          <div>
-                             <label className="block text-[10px] font-bold text-[#555] uppercase tracking-widest mb-1.5">Name *</label>
+                             <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-1.5">Name *</label>
                              <input 
                                   type="text" 
                                   value={name}
                                   onChange={(e) => setName(e.target.value)}
-                                  className="w-full bg-[#111] border border-[#222] rounded-md px-3 py-2 text-white text-sm focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-500/40 outline-none transition-all"
+                                  className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-white text-sm focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-500/40 outline-none transition-all"
                                   placeholder="Character Name"
                                   required
                              />
                          </div>
                          <div>
-                             <label className="block text-[10px] font-bold text-[#555] uppercase tracking-widest mb-1.5">Description</label>
+                             <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-1.5">Description</label>
                              <textarea 
                                   value={description}
                                   onChange={(e) => setDescription(e.target.value)}
-                                  className="w-full bg-[#111] border border-[#222] rounded-md px-3 py-2 text-white text-sm focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-500/40 outline-none transition-all h-16 resize-none"
+                                  className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-white text-sm focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-500/40 outline-none transition-all h-16 resize-none"
                                   placeholder="Character description..."
                              />
                          </div>
                      </div>
                  </div>
 
-                 <div className="bg-[#111] p-3 rounded-md border border-[#1a1a1a] flex items-center justify-between mt-4">
+                 <div className="bg-[var(--surface)] p-3 rounded-md border border-[var(--border)] flex items-center justify-between mt-4">
                      <div>
-                         <span className="text-xs text-[#999] font-medium block">AI Portrait Generation</span>
-                         <span className="text-[10px] text-[#555]">Instantly saves details and generates an image</span>
+                         <span className="text-xs text-[var(--text-secondary)] font-medium block">AI Portrait Generation</span>
+                         <span className="text-[10px] text-[var(--text-muted)]">Instantly saves details and generates an image</span>
                      </div>
                      <button
                          type="button"
@@ -201,7 +201,7 @@ export default function CharacterModal({ character, scriptId, isOpen, onClose, o
                       <button
                           type="button"
                           onClick={onClose}
-                          className="px-4 py-2 text-[#888] hover:text-white transition-colors text-sm"
+                          className="px-4 py-2 text-[var(--text-secondary)] hover:text-white transition-colors text-sm"
                       >
                           Cancel
                       </button>

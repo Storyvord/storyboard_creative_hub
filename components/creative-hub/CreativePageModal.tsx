@@ -53,13 +53,13 @@ export default function CreativePageModal({ isOpen, onClose, scriptId }: Creativ
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-      <div className="relative w-full max-w-4xl bg-[#0d0d0d] border border-[#222] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-4xl bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a]">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+          <h2 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-emerald-500" /> Creative Page
           </h2>
-          <button onClick={onClose} className="text-[#666] hover:text-white transition-colors">
+          <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -68,12 +68,12 @@ export default function CreativePageModal({ isOpen, onClose, scriptId }: Creativ
         <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
           
           {/* Main Preview Area */}
-          <div className="flex-1 p-6 flex flex-col relative bg-[#050505]">
-            <div className="flex-1 border border-[#222] rounded-lg bg-[#0a0a0a] flex items-center justify-center overflow-hidden">
+          <div className="flex-1 p-6 flex flex-col relative bg-[var(--background)]">
+            <div className="flex-1 border border-[var(--border)] rounded-lg bg-[var(--background)] flex items-center justify-center overflow-hidden">
               {generatedImageUrl ? (
                 <img src={generatedImageUrl} alt="Generated Previz" className="w-full h-full object-contain" />
               ) : (
-                <div className="text-center text-[#444] flex flex-col items-center">
+                <div className="text-center text-[var(--text-muted)] flex flex-col items-center">
                   <ImageIcon className="w-12 h-12 mb-3 opacity-20" />
                   <p className="text-sm">Describe a scene and generate your previsualization.</p>
                 </div>
@@ -89,13 +89,13 @@ export default function CreativePageModal({ isOpen, onClose, scriptId }: Creativ
           </div>
 
           {/* Right Sidebar / Bottom Bar (Parameters) */}
-          <div className="w-full md:w-80 bg-[#111] border-l border-[#1a1a1a] flex flex-col overflow-y-auto">
+          <div className="w-full md:w-80 bg-[var(--surface)] border-l border-[var(--border)] flex flex-col overflow-y-auto">
             <div className="p-5 space-y-5">
               
               <div>
-                <label className="block text-xs font-medium text-[#888] mb-1.5 uppercase tracking-wider">Prompt</label>
+                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Prompt</label>
                 <textarea
-                  className="w-full bg-[#0a0a0a] border border-[#222] rounded-md text-sm text-white px-3 py-2 outline-none focus:border-emerald-500/50 transition-colors resize-none placeholder-[#444]"
+                  className="w-full bg-[var(--background)] border border-[var(--border)] rounded-md text-sm text-white px-3 py-2 outline-none focus:border-emerald-500/50 transition-colors resize-none placeholder-[#444]"
                   rows={4}
                   placeholder="Describe the environment, characters, and action in detail..."
                   value={prompt}
@@ -104,9 +104,9 @@ export default function CreativePageModal({ isOpen, onClose, scriptId }: Creativ
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-[#888] mb-1.5 uppercase tracking-wider">Aspect Ratio</label>
+                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Aspect Ratio</label>
                 <select
-                  className="w-full bg-[#0a0a0a] border border-[#222] rounded-md text-sm text-white px-3 py-2 outline-none focus:border-emerald-500/50 transition-colors"
+                  className="w-full bg-[var(--background)] border border-[var(--border)] rounded-md text-sm text-white px-3 py-2 outline-none focus:border-emerald-500/50 transition-colors"
                   value={aspectRatio}
                   onChange={(e) => setAspectRatio(e.target.value)}
                 >
@@ -115,7 +115,7 @@ export default function CreativePageModal({ isOpen, onClose, scriptId }: Creativ
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-[#888] mb-1.5 uppercase tracking-wider">Camera Angle</label>
+                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Camera Angle</label>
                 <CameraAngleSelector
                   angles={cameraAngles}
                   value={cameraAngle}
@@ -125,7 +125,7 @@ export default function CreativePageModal({ isOpen, onClose, scriptId }: Creativ
 
             </div>
             
-            <div className="p-5 border-t border-[#1a1a1a] mt-auto">
+            <div className="p-5 border-t border-[var(--border)] mt-auto">
               <button 
                 className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20"
                 onClick={handleGenerate}

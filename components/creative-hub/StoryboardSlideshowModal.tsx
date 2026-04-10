@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Shot } from "@/types/creative-hub";
-import { X, Play, Pause, ChevronLeft, ChevronRight, Image as ImageIcon } from "lucide-react";
+import { X, Play, Pause, ChevronLeft, ChevronRight, Image as ImageIcon, Maximize2, Minimize2, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface StoryboardSlideshowModalProps {
@@ -10,244 +12,289 @@ interface StoryboardSlideshowModalProps {
     initialShotId?: number;
 }
 
+const DURATION = 4000;
+
 export default function StoryboardSlideshowModal({ isOpen, onClose, shots, initialShotId }: StoryboardSlideshowModalProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isPlaying, setIsPlaying] = useState(true);
     const [progress, setProgress] = useState(0);
-    
-    // Auto-advance duration in ms
-    const duration = 4000;
-    
+    const [showInfo, setShowInfo] = useState(true);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const progressRef = useRef<NodeJS.Timeout | null>(null);
     const startTimeRef = useRef<number>(Date.now());
+    const containerRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (isOpen && shots.length > 0) {
-            if (initialShotId) {
-                const index = shots.findIndex(s => s.id === initialShotId);
-                if (index !== -1) {
-                    setCurrentIndex(index);
-                }
-            } else {
-                setCurrentIndex(0);
-            }
-            setIsPlaying(true);
-            setProgress(0);
-        }
-    }, [isOpen, shots, initialShotId]);
-
-    // Cleanup timers
-    useEffect(() => {
-        return () => {
-            if (timerRef.current) clearTimeout(timerRef.current);
-            if (progressRef.current) clearInterval(progressRef.current);
-        };
+    const clearTimers = useCallback(() => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        if (progressRef.current) clearInterval(progressRef.current);
     }, []);
 
+    const handleNext = useCallback(() => {
+        setProgress(0);
+        startTimeRef.current = Date.now();
+        setCurrentIndex(prev => {
+            if (prev < shots.length - 1) return prev + 1;
+            setIsPlaying(false);
+            return prev;
+        });
+    }, [shots.length]);
+
+    const handlePrev = useCallback(() => {
+        setProgress(0);
+        startTimeRef.current = Date.now();
+        setCurrentIndex(prev => (prev > 0 ? prev - 1 : prev));
+        setIsPlaying(true);
+    }, []);
+
+    const togglePlayPause = useCallback(() => {
+        setIsPlaying(prev => {
+            if (!prev) {
+                setCurrentIndex(ci => {
+                    if (ci === shots.length - 1) { setProgress(0); return 0; }
+                    return ci;
+                });
+                setProgress(0);
+            }
+            return !prev;
+        });
+    }, [shots.length]);
+
+    const toggleFullscreen = useCallback(() => {
+        if (!document.fullscreenElement) {
+            containerRef.current?.requestFullscreen().catch(() => {});
+            setIsFullscreen(true);
+        } else {
+            document.exitFullscreen().catch(() => {});
+            setIsFullscreen(false);
+        }
+    }, []);
+
+    // Sync isFullscreen with browser fullscreen changes (e.g. user presses Esc)
+    useEffect(() => {
+        const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+        document.addEventListener("fullscreenchange", onFsChange);
+        return () => document.removeEventListener("fullscreenchange", onFsChange);
+    }, []);
+
+    // Initialise on open
     useEffect(() => {
         if (!isOpen || shots.length === 0) return;
+        const index = initialShotId ? Math.max(0, shots.findIndex(s => s.id === initialShotId)) : 0;
+        setCurrentIndex(index);
+        setIsPlaying(true);
+        setProgress(0);
+        setShowInfo(true);
+        setIsFullscreen(false);
+    }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Auto-advance + progress bar
+    useEffect(() => {
+        if (!isOpen || shots.length === 0) return;
+        clearTimers();
         if (isPlaying) {
-            startTimeRef.current = Date.now() - (progress / 100) * duration;
-            
-            // Progress bar animation
+            startTimeRef.current = Date.now() - (progress / 100) * DURATION;
             progressRef.current = setInterval(() => {
                 const elapsed = Date.now() - startTimeRef.current;
-                const newProgress = Math.min((elapsed / duration) * 100, 100);
-                setProgress(newProgress);
+                setProgress(Math.min((elapsed / DURATION) * 100, 100));
             }, 50);
-
-            // Auto-advance
-            timerRef.current = setTimeout(() => {
-                handleNext();
-            }, duration - ((progress / 100) * duration));
-            
-        } else {
-            if (timerRef.current) clearTimeout(timerRef.current);
-            if (progressRef.current) clearInterval(progressRef.current);
+            const remaining = DURATION - (progress / 100) * DURATION;
+            timerRef.current = setTimeout(handleNext, remaining);
         }
+        return clearTimers;
+    }, [isPlaying, currentIndex, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-        return () => {
-            if (timerRef.current) clearTimeout(timerRef.current);
-            if (progressRef.current) clearInterval(progressRef.current);
-        };
-    }, [isPlaying, currentIndex, isOpen, shots]);
-
-    const handleNext = () => {
-        setProgress(0);
-        startTimeRef.current = Date.now();
-        if (currentIndex < shots.length - 1) {
-            setCurrentIndex(prev => prev + 1);
-        } else {
-            // End of slideshow, close or loop? Let's stop
-            setIsPlaying(false);
-            setProgress(100);
-        }
-    };
-
-    const handlePrev = () => {
-        setProgress(0);
-        startTimeRef.current = Date.now();
-        if (currentIndex > 0) {
-            setCurrentIndex(prev => prev - 1);
-            if (!isPlaying) setIsPlaying(true); // Auto-play again if moving back
-        }
-    };
-
-    const togglePlayPause = () => {
-        if (!isPlaying && currentIndex === shots.length - 1) {
-            // Restart from beginning if at the end
-            setCurrentIndex(0);
-            setProgress(0);
-        }
-        setIsPlaying(!isPlaying);
-    };
+    useEffect(() => clearTimers, [clearTimers]);
 
     // Keyboard navigation
     useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (!isOpen) return;
-            if (e.key === 'ArrowRight') handleNext();
-            if (e.key === 'ArrowLeft') handlePrev();
-            if (e.key === ' ') {
-                e.preventDefault();
-                togglePlayPause();
-            }
-            if (e.key === 'Escape') onClose();
+        if (!isOpen) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "ArrowRight") handleNext();
+            else if (e.key === "ArrowLeft") handlePrev();
+            else if (e.key === " ") { e.preventDefault(); togglePlayPause(); }
+            else if (e.key === "Escape" && !document.fullscreenElement) onClose();
+            else if (e.key === "f" || e.key === "F") toggleFullscreen();
+            else if (e.key === "i" || e.key === "I") setShowInfo(p => !p);
         };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, currentIndex, isPlaying]);
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [isOpen, handleNext, handlePrev, togglePlayPause, onClose, toggleFullscreen]);
 
     if (!isOpen || shots.length === 0) return null;
 
     const currentShot = shots[currentIndex];
+    const hasMetadata = currentShot.camera_angle || currentShot.movement || currentShot.lighting;
 
     return (
         <AnimatePresence>
             <motion.div
+                ref={containerRef}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[60] flex flex-col bg-black overflow-hidden"
+                className="fixed inset-0 z-[60] flex flex-col bg-[var(--background)] overflow-hidden"
             >
-                {/* Header / Controls overlay */}
-                <div className="absolute top-0 inset-x-0 p-4 bg-gradient-to-b from-black/80 to-transparent z-10 flex items-center justify-between">
-                    <div className="flex items-center gap-4 text-white">
-                        <span className="bg-white/20 backdrop-blur px-3 py-1.5 rounded-full text-sm font-medium">
-                            {currentIndex + 1} / {shots.length}
-                        </span>
-                        <h2 className="text-lg font-bold drop-shadow-md truncate max-w-md">
-                            Scene {currentShot.scene} • Shot {currentShot.order}
-                        </h2>
-                    </div>
-                    
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={togglePlayPause}
-                            className="bg-white/20 hover:bg-white/30 backdrop-blur text-white p-2.5 rounded-full transition-colors focus:outline-none"
-                            title={isPlaying ? "Pause (Space)" : "Play (Space)"}
-                        >
-                            {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
-                        </button>
-                        <button
-                            onClick={onClose}
-                            className="bg-black/50 hover:bg-red-500/80 text-white p-2.5 rounded-full transition-colors focus:outline-none ml-4"
-                            title="Close (Esc)"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Progress bar */}
-                <div className="absolute top-0 inset-x-0 h-1 bg-white/20 z-20">
-                    <motion.div 
+                {/* Progress bar — always on top */}
+                <div className="absolute top-0 inset-x-0 h-1 bg-[var(--border)] z-30">
+                    <div
                         className="h-full bg-emerald-500"
-                        style={{ width: `${progress}%` }}
-                        transition={{ ease: "linear" }}
+                        style={{ width: `${progress}%`, transition: "none" }}
                     />
                 </div>
 
-                {/* Main Content */}
-                <div className="flex-1 flex items-center justify-center relative w-full h-full group">
-                    {/* Navigation Overlays */}
-                    <div className="absolute inset-y-0 left-0 w-1/4 flex items-center justify-start p-6 z-10">
-                        <button 
-                            onClick={handlePrev}
-                            disabled={currentIndex === 0}
-                            className="p-4 bg-black/40 hover:bg-black/80 rounded-full text-white backdrop-blur transition-all opacity-0 group-hover:opacity-100 disabled:opacity-0 transform hover:-translate-x-1"
-                        >
-                            <ChevronLeft className="w-8 h-8" />
-                        </button>
-                    </div>
+                {/* ── Header controls ── */}
+                {!isFullscreen && (
+                    <div className="relative z-20 flex items-center justify-between px-4 py-2 border-b border-[var(--border)] bg-[var(--surface)] flex-shrink-0">
+                        {/* Left: counter + title */}
+                        <div className="flex items-center gap-3 min-w-0">
+                            <span className="bg-[var(--surface-raised)] border border-[var(--border)] px-2.5 py-0.5 rounded-full text-xs font-medium text-[var(--text-primary)] flex-shrink-0">
+                                {currentIndex + 1} / {shots.length}
+                            </span>
+                            <h2 className="text-sm font-semibold text-[var(--text-primary)] truncate">
+                                Scene {currentShot.scene} · Shot {currentShot.order} · {currentShot.type}
+                            </h2>
+                        </div>
 
-                    <div className="absolute inset-y-0 right-0 w-1/4 flex items-center justify-end p-6 z-10">
-                        <button 
-                            onClick={handleNext}
-                            disabled={currentIndex === shots.length - 1}
-                            className="p-4 bg-black/40 hover:bg-black/80 rounded-full text-white backdrop-blur transition-all opacity-0 group-hover:opacity-100 disabled:opacity-0 transform hover:translate-x-1"
-                        >
-                            <ChevronRight className="w-8 h-8" />
-                        </button>
-                    </div>
+                        {/* Right: controls */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button onClick={handlePrev} disabled={currentIndex === 0}
+                                title="Previous (←)"
+                                className="p-1.5 rounded-md bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] border border-[var(--border)] text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <button onClick={togglePlayPause}
+                                title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+                                className="p-1.5 rounded-md bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] border border-[var(--border)] text-[var(--text-primary)] transition-colors">
+                                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                            </button>
+                            <button onClick={handleNext} disabled={currentIndex === shots.length - 1}
+                                title="Next (→)"
+                                className="p-1.5 rounded-md bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] border border-[var(--border)] text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
 
-                    {/* Image Container */}
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={currentShot.id}
-                            initial={{ opacity: 0, scale: 0.98 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.3 }}
-                            className="w-full h-full flex flex-col items-center justify-center p-8 pb-32"
-                        >
-                            {currentShot.image_url ? (
-                                <img 
-                                    src={currentShot.image_url} 
-                                    alt={`Shot ${currentShot.order}`} 
-                                    className="max-w-full max-h-full object-contain rounded-md shadow-2xl ring-1 ring-white/10"
-                                />
-                            ) : (
-                                <div className="w-full max-w-4xl aspect-video bg-gray-900 border border-gray-800 rounded-md flex flex-col items-center justify-center text-gray-500 shadow-2xl">
-                                    <ImageIcon className="w-20 h-20 opacity-20 mb-4" />
-                                    <p className="text-xl">No Image Generated Yet</p>
-                                </div>
-                            )}
-                        </motion.div>
-                    </AnimatePresence>
+                            <div className="w-px h-5 bg-[var(--border)] mx-1" />
 
-                    {/* Bottom Info Overlay */}
-                    <div className="absolute bottom-0 inset-x-0 p-8 bg-gradient-to-t from-black via-black/80 to-transparent z-10 flex flex-col items-center justify-end">
-                        <div className="max-w-4xl w-full text-center">
-                            <h3 className="text-2xl font-bold text-white mb-3 drop-shadow-md">
-                                {currentShot.type}
-                            </h3>
-                            <p className="text-lg text-gray-300 drop-shadow max-w-3xl mx-auto line-clamp-3">
-                                {currentShot.description}
-                            </p>
-                            
-                            <div className="flex justify-center flex-wrap gap-4 mt-6 text-sm">
-                                {currentShot.camera_angle && (
-                                    <span className="bg-gray-800 text-gray-300 px-3 py-1 rounded-md border border-gray-700">
-                                        Angle: {currentShot.camera_angle}
-                                    </span>
-                                )}
-                                {currentShot.movement && (
-                                    <span className="bg-gray-800 text-gray-300 px-3 py-1 rounded-md border border-gray-700">
-                                        Move: {currentShot.movement}
-                                    </span>
-                                )}
-                                {currentShot.lighting && (
-                                    <span className="bg-gray-800 text-gray-300 px-3 py-1 rounded-md border border-gray-700">
-                                        Light: {currentShot.lighting}
-                                    </span>
-                                )}
-                            </div>
+                            <button onClick={() => setShowInfo(p => !p)}
+                                title="Toggle info (I)"
+                                className={`p-1.5 rounded-md border transition-colors ${showInfo ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500" : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text-muted)]"}`}>
+                                <Info className="w-4 h-4" />
+                            </button>
+                            <button onClick={toggleFullscreen}
+                                title="Fullscreen image (F)"
+                                className="p-1.5 rounded-md bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] border border-[var(--border)] text-[var(--text-primary)] transition-colors">
+                                <Maximize2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={onClose}
+                                title="Close (Esc)"
+                                className="p-1.5 rounded-md bg-[var(--surface-raised)] hover:bg-red-500/20 border border-[var(--border)] text-[var(--text-primary)] hover:text-red-500 transition-colors ml-1">
+                                <X className="w-4 h-4" />
+                            </button>
                         </div>
                     </div>
+                )}
+
+                {/* ── Body: image + optional info panel ── */}
+                <div className="flex-1 flex flex-col min-h-0">
+
+                    {/* Image area — takes all remaining space */}
+                    <div className="flex-1 relative min-h-0 bg-[var(--surface-raised)]">
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={currentShot.id}
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.25 }}
+                                className="absolute inset-0 flex items-center justify-center p-4"
+                            >
+                                {currentShot.image_url ? (
+                                    <img
+                                        src={currentShot.image_url}
+                                        alt={`Shot ${currentShot.order}`}
+                                        className="max-w-full max-h-full object-contain rounded-md shadow-md"
+                                        style={{ display: "block" }}
+                                    />
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
+                                        <ImageIcon className="w-16 h-16 opacity-20" />
+                                        <p className="text-sm">No image generated yet</p>
+                                    </div>
+                                )}
+                            </motion.div>
+                        </AnimatePresence>
+
+                        {/* Fullscreen exit button — only shown when in fullscreen */}
+                        {isFullscreen && (
+                            <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+                                <button onClick={handlePrev} disabled={currentIndex === 0}
+                                    className="p-2 rounded-full bg-black/50 hover:bg-black/70 text-white disabled:opacity-30 transition-colors backdrop-blur-sm">
+                                    <ChevronLeft className="w-5 h-5" />
+                                </button>
+                                <button onClick={togglePlayPause}
+                                    className="p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors backdrop-blur-sm">
+                                    {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                                </button>
+                                <button onClick={handleNext} disabled={currentIndex === shots.length - 1}
+                                    className="p-2 rounded-full bg-black/50 hover:bg-black/70 text-white disabled:opacity-30 transition-colors backdrop-blur-sm">
+                                    <ChevronRight className="w-5 h-5" />
+                                </button>
+                                <button onClick={toggleFullscreen}
+                                    className="p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors backdrop-blur-sm">
+                                    <Minimize2 className="w-5 h-5" />
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Fullscreen shot counter */}
+                        {isFullscreen && (
+                            <div className="absolute top-4 left-4 z-10">
+                                <span className="bg-black/50 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full">
+                                    {currentIndex + 1} / {shots.length}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── Info panel (toggleable, never shown in fullscreen) ── */}
+                    <AnimatePresence>
+                        {showInfo && !isFullscreen && (
+                            <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden flex-shrink-0 border-t border-[var(--border)] bg-[var(--surface)]"
+                            >
+                                <div className="px-6 py-4 max-w-4xl mx-auto text-center">
+                                    <p className="text-sm text-[var(--text-secondary)] leading-relaxed line-clamp-3">
+                                        {currentShot.description || <span className="italic text-[var(--text-muted)]">No description.</span>}
+                                    </p>
+                                    {hasMetadata && (
+                                        <div className="flex justify-center flex-wrap gap-2 mt-3">
+                                            {currentShot.camera_angle && (
+                                                <span className="bg-[var(--surface-raised)] text-[var(--text-secondary)] text-xs px-2.5 py-1 rounded border border-[var(--border)]">
+                                                    Angle: {currentShot.camera_angle}
+                                                </span>
+                                            )}
+                                            {currentShot.movement && (
+                                                <span className="bg-[var(--surface-raised)] text-[var(--text-secondary)] text-xs px-2.5 py-1 rounded border border-[var(--border)]">
+                                                    Move: {currentShot.movement}
+                                                </span>
+                                            )}
+                                            {currentShot.lighting && (
+                                                <span className="bg-[var(--surface-raised)] text-[var(--text-secondary)] text-xs px-2.5 py-1 rounded border border-[var(--border)]">
+                                                    Light: {currentShot.lighting}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </motion.div>
         </AnimatePresence>

@@ -42,41 +42,41 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0a0a0a] p-4">
-      <div className="w-full max-w-sm space-y-6 rounded-md bg-[#0d0d0d] p-8 border border-[#1a1a1a]">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--background)] p-4">
+      <div className="w-full max-w-sm space-y-6 rounded-md bg-[var(--surface)] p-8 border border-[var(--border)]">
         <div className="text-center">
           <div className="flex items-center justify-center gap-2 mb-6">
             <Video className="h-6 w-6 text-emerald-500" />
-            <span className="text-xl font-bold text-white tracking-tight">Storyvord</span>
+            <span className="text-xl font-bold text-[var(--text-primary)] tracking-tight">Storyvord</span>
           </div>
-          <h2 className="text-lg font-bold text-white">Welcome Back</h2>
-          <p className="mt-1 text-xs text-[#666]">Sign in to access your Creative Hub</p>
+          <h2 className="text-lg font-bold text-[var(--text-primary)]">Welcome Back</h2>
+          <p className="mt-1 text-xs text-[var(--text-secondary)]">Sign in to access your Creative Hub</p>
         </div>
         <form className="space-y-4" onSubmit={handleLogin}>
           <div className="space-y-3">
             <div>
-              <label htmlFor="email" className="block text-[10px] font-bold text-[#555] uppercase tracking-widest mb-1.5">Email</label>
+              <label htmlFor="email" className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-1.5">Email</label>
               <input
                 id="email"
                 name="email"
                 type="email"
                 autoComplete="email"
                 required
-                className="block w-full rounded-md bg-[#111] p-3 text-white text-sm placeholder:text-[#444] border border-[#222] outline-none focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 transition-all"
+                className="block w-full rounded-md bg-[var(--surface)] p-3 text-[var(--text-primary)] text-sm placeholder:text-[var(--text-muted)] border border-[var(--border)] outline-none focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 transition-all"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="password" className="block text-[10px] font-bold text-[#555] uppercase tracking-widest mb-1.5">Password</label>
+              <label htmlFor="password" className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-1.5">Password</label>
               <input
                 id="password"
                 name="password"
                 type="password"
                 autoComplete="current-password"
                 required
-                className="block w-full rounded-md bg-[#111] p-3 text-white text-sm placeholder:text-[#444] border border-[#222] outline-none focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 transition-all"
+                className="block w-full rounded-md bg-[var(--surface)] p-3 text-[var(--text-primary)] text-sm placeholder:text-[var(--text-muted)] border border-[var(--border)] outline-none focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 transition-all"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

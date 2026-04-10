@@ -53,7 +53,7 @@ export default function FittingRoom({ isOpen, onClose, characters, cloths }: Fit
             <div className="h-16 border-b border-gray-800 flex justify-between items-center px-6 bg-gray-900">
                 <div className="flex items-center gap-3">
                     <Sparkles className="text-pink-500 h-6 w-6" />
-                    <h1 className="text-xl font-bold text-white tracking-wider">FITTING ROOM</h1>
+                    <h1 className="text-xl font-bold text-[var(--text-primary)] tracking-wider">FITTING ROOM</h1>
                 </div>
                 <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors">
                     <X className="h-8 w-8" />
@@ -197,7 +197,7 @@ export default function FittingRoom({ isOpen, onClose, characters, cloths }: Fit
                                             )}
                                         </div>
                                         <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
-                                            <p className="text-xs font-medium text-white truncate">{item.name}</p>
+                                            <p className="text-xs font-medium text-[var(--text-primary)] truncate">{item.name}</p>
                                         </div>
                                         {isEquipped && (
                                             <div className="absolute top-2 right-2 bg-pink-500 rounded-full p-1 shadow-lg">

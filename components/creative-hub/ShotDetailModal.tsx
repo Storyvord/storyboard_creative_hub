@@ -348,7 +348,7 @@ export default function ShotDetailModal({
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.97, opacity: 0 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-md w-full max-w-6xl h-[90vh] overflow-hidden flex flex-col md:flex-row shadow-2xl relative"
+          className="bg-[var(--surface)] border border-[var(--border)] rounded-md w-full max-w-6xl h-[90vh] overflow-hidden flex flex-col md:flex-row shadow-2xl relative"
         >
             <button
               onClick={onClose}
@@ -358,12 +358,12 @@ export default function ShotDetailModal({
             </button>
 
             {/* Left Column: Image */}
-            <div className="flex-1 bg-black flex flex-col relative group">
+            <div className="flex-1 bg-[var(--surface-raised)] flex flex-col relative group">
                 <div className="flex-1 flex items-center justify-center p-4">
                     {shot.image_url ? (
                         <img src={shot.image_url} alt={`Shot ${shot.order}`} className="max-h-full max-w-full object-contain" />
                     ) : (
-                        <div className="text-[#333] flex flex-col items-center gap-3">
+                        <div className="text-[var(--text-muted)] flex flex-col items-center gap-3">
                             <Film className="h-12 w-12 opacity-30" />
                             <span className="text-sm font-medium">No Previz Available</span>
                         </div>
@@ -392,17 +392,17 @@ export default function ShotDetailModal({
             </div>
 
             {/* Right Column: Details */}
-            <div className="w-full md:w-96 bg-[#0d0d0d] border-l border-[#1a1a1a] flex flex-col overflow-hidden">
-                <div className="p-5 border-b border-[#1a1a1a]">
+            <div className="w-full md:w-96 bg-[var(--surface)] border-l border-[var(--border)] flex flex-col overflow-hidden">
+                <div className="p-5 border-b border-[var(--border)]">
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2 text-xs font-medium tracking-wider uppercase">
                             <span className="text-emerald-400">Shot {shot.order}</span>
-                            <span className="w-1 h-1 bg-[#333] rounded-full"></span>
-                            <span className="text-[#888]">{shot.type}</span>
+                            <span className="w-1 h-1 bg-[var(--surface-raised)] rounded-full"></span>
+                            <span className="text-[var(--text-secondary)]">{shot.type}</span>
                         </div>
                     </div>
                     {scene && (
-                        <h2 className="text-[#555] text-xs">
+                        <h2 className="text-[var(--text-muted)] text-xs">
                             Scene {scene.order}: {scene.scene_name}
                         </h2>
                     )}
@@ -422,16 +422,16 @@ export default function ShotDetailModal({
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-[#1a1a1a] px-4">
+                <div className="flex border-b border-[var(--border)] px-4">
                     <button 
                         onClick={() => setActiveTab('shot')}
-                        className={`px-4 py-3 text-xs font-medium border-b-2 transition-colors ${activeTab === 'shot' ? 'border-emerald-500 text-white' : 'border-transparent text-[#666] hover:text-[#999]'}`}
+                        className={`px-4 py-3 text-xs font-medium border-b-2 transition-colors ${activeTab === 'shot' ? 'border-emerald-500 text-white' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-secondary)]'}`}
                     >
                         Shot Details
                     </button>
                     <button 
                         onClick={() => setActiveTab('script')}
-                        className={`px-4 py-3 text-xs font-medium border-b-2 transition-colors ${activeTab === 'script' ? 'border-emerald-500 text-white' : 'border-transparent text-[#666] hover:text-[#999]'}`}
+                        className={`px-4 py-3 text-xs font-medium border-b-2 transition-colors ${activeTab === 'script' ? 'border-emerald-500 text-white' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-secondary)]'}`}
                     >
                         Script Previz
                     </button>
@@ -452,7 +452,7 @@ export default function ShotDetailModal({
                             )}
 
                                 <section>
-                                <h3 className="text-[10px] font-bold text-[#555] uppercase tracking-widest mb-2">Description</h3>
+                                <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Description</h3>
                                 <MentionTextarea
                                     value={detailsForm.description}
                                     onChange={(val) => setDetailsForm((prev) => ({ ...prev, description: val }))}
@@ -468,7 +468,7 @@ export default function ShotDetailModal({
                                         character_image_url: sc.character?.image_url,
                                     }))}
                                     globalCharacters={globalCharacters}
-                                    className={`w-full leading-relaxed text-sm bg-[#111] p-3 rounded-md border border-[#1a1a1a] resize-none min-h-[84px] focus:outline-none focus:border-emerald-500/40 ${disableDetails ? 'text-[#555] opacity-60 cursor-not-allowed' : 'text-[#999]'}`}
+                                    className={`w-full leading-relaxed text-sm bg-[var(--surface)] p-3 rounded-md border border-[var(--border)] resize-none min-h-[84px] focus:outline-none focus:border-emerald-500/40 ${disableDetails ? 'text-[var(--text-muted)] opacity-60 cursor-not-allowed' : 'text-[var(--text-secondary)]'}`}
                                     disabled={disableDetails || savingDetails}
                                     placeholder="Shot description... (type @ to tag characters)"
                                     rows={4}
@@ -480,10 +480,10 @@ export default function ShotDetailModal({
                                 />
 
                                 <div className={`mt-3 space-y-2 ${disableDetails ? 'opacity-50 pointer-events-none' : ''}`}>
-                                    <h4 className="text-[10px] font-bold text-[#555] uppercase tracking-widest">Shot Details</h4>
+                                    <h4 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest">Shot Details</h4>
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                            <span className="text-[9px] text-[#555] uppercase block mb-1">Shot Type</span>
+                                            <span className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Shot Type</span>
                                             <select
                                                 value={detailsForm.type}
                                                 onChange={(e) => {
@@ -491,7 +491,7 @@ export default function ShotDetailModal({
                                                     setDetailsForm((prev) => ({ ...prev, type: val }));
                                                     autoSaveField('type', val);
                                                 }}
-                                                className="w-full bg-[#111] border border-[#222] rounded-md text-xs text-[#ccc] px-2 py-2 outline-none focus:border-emerald-500/40"
+                                                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-secondary)] px-2 py-2 outline-none focus:border-emerald-500/40"
                                                 disabled={disableDetails || savingDetails}
                                             >
                                                 {SHOT_TYPE_OPTIONS.map((opt) => (
@@ -500,7 +500,7 @@ export default function ShotDetailModal({
                                             </select>
                                         </div>
                                         <div>
-                                            <span className="text-[9px] text-[#555] uppercase block mb-1">Movement</span>
+                                            <span className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Movement</span>
                                             <select
                                                 value={detailsForm.movement || ""}
                                                 onChange={(e) => {
@@ -508,7 +508,7 @@ export default function ShotDetailModal({
                                                     setDetailsForm((prev) => ({ ...prev, movement: val }));
                                                     autoSaveField('movement', val || null);
                                                 }}
-                                                className="w-full bg-[#111] border border-[#222] rounded-md text-xs text-[#ccc] px-2 py-2 outline-none focus:border-emerald-500/40"
+                                                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-secondary)] px-2 py-2 outline-none focus:border-emerald-500/40"
                                                 disabled={disableDetails || savingDetails}
                                             >
                                                 <option value="">—</option>
@@ -518,7 +518,7 @@ export default function ShotDetailModal({
                                             </select>
                                         </div>
                                         <div>
-                                            <span className="text-[9px] text-[#555] uppercase block mb-1">Camera Angle</span>
+                                            <span className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Camera Angle</span>
                                             <CameraAngleSelector
                                                 angles={cameraAngles}
                                                 value={detailsForm.camera_angle || ""}
@@ -531,7 +531,7 @@ export default function ShotDetailModal({
                                             />
                                         </div>
                                         <div>
-                                            <span className="text-[9px] text-[#555] uppercase block mb-1">Lighting</span>
+                                            <span className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Lighting</span>
                                             <select
                                                 value={detailsForm.lighting || ""}
                                                 onChange={(e) => {
@@ -539,7 +539,7 @@ export default function ShotDetailModal({
                                                     setDetailsForm((prev) => ({ ...prev, lighting: val }));
                                                     autoSaveField('lighting', val || null);
                                                 }}
-                                                className="w-full bg-[#111] border border-[#222] rounded-md text-xs text-[#ccc] px-2 py-2 outline-none focus:border-emerald-500/40"
+                                                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-secondary)] px-2 py-2 outline-none focus:border-emerald-500/40"
                                                 disabled={disableDetails || savingDetails}
                                             >
                                                 <option value="">—</option>
@@ -550,7 +550,7 @@ export default function ShotDetailModal({
                                         </div>
                                     </div>
                                     {savingDetails && (
-                                        <p className="text-[9px] text-[#555] text-center animate-pulse">Saving...</p>
+                                        <p className="text-[9px] text-[var(--text-muted)] text-center animate-pulse">Saving...</p>
                                     )}
                                 </div>
 
@@ -568,12 +568,12 @@ export default function ShotDetailModal({
                                             value={editPrompt}
                                             onChange={(e) => setEditPrompt(e.target.value)}
                                             placeholder={disableEditPrompt ? 'Clear unsaved shot detail changes to use edit prompt.' : 'e.g. Change lighting to golden hour, add fog in background...'}
-                                            className="w-full bg-[#0a0a0a] border border-purple-900/40 text-white text-xs rounded-md p-2.5 resize-none focus:outline-none focus:border-purple-500/60 placeholder:text-[#555] min-h-[64px]"
+                                            className="w-full bg-[var(--background)] border border-purple-900/40 text-[var(--text-primary)] text-xs rounded-md p-2.5 resize-none focus:outline-none focus:border-purple-500/60 placeholder:text-[var(--text-muted)] min-h-[64px]"
                                             rows={3}
                                             disabled={isEditingPreviz || disableEditPrompt}
                                         />
                                         {!hasActivePrevizImage && (
-                                            <p className="text-[10px] text-[#777] mt-2">Generate or upload a previz first to use edit prompt.</p>
+                                            <p className="text-[10px] text-[var(--text-muted)] mt-2">Generate or upload a previz first to use edit prompt.</p>
                                         )}
                                     </div>
                                 </div>
@@ -591,7 +591,7 @@ export default function ShotDetailModal({
                                                 ? (hasEditPrompt ? "Editing..." : "Generating...")
                                                 : (hasEditPrompt ? "Edit Previz" : "Generate Previz")}
                                         </button>
-                                        <label className={`flex-1 bg-[#1a1a1a] text-white py-2 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-2 border border-[#333] ${hasEditPrompt ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[#222] cursor-pointer'}`}>
+                                        <label className={`flex-1 bg-[var(--surface-hover)] text-[var(--text-primary)] py-2 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-2 border border-[var(--border-hover)] ${hasEditPrompt ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[var(--border)] cursor-pointer'}`}>
                                             {uploading ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white/20 border-t-white"></div> : <Upload className="w-3.5 h-3.5" />}
                                             Upload Previz
                                             <input type="file" className="hidden" accept="image/*" onChange={handlePrevizUpload} disabled={uploading || hasEditPrompt} />
@@ -603,19 +603,19 @@ export default function ShotDetailModal({
                             {/* Previz Details */}
                             {shot.previz && (
                                 <section>
-                                    <h3 className="text-[10px] font-bold text-[#555] uppercase tracking-widest mb-2">Previz Specs</h3>
+                                    <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Previz Specs</h3>
                                     <div className="grid grid-cols-2 gap-2">
-                                        <div className="bg-[#111] p-2.5 rounded-md border border-[#1a1a1a]">
-                                            <span className="text-[9px] text-[#444] uppercase tracking-wider block mb-0.5">Aspect Ratio</span>
-                                            <span className="text-[#ccc] text-xs font-medium">{shot.previz.aspect_ratio || "16:9"}</span>
+                                        <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)]">
+                                            <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Aspect Ratio</span>
+                                            <span className="text-[var(--text-secondary)] text-xs font-medium">{shot.previz.aspect_ratio || "16:9"}</span>
                                         </div>
-                                        <div className="bg-[#111] p-2.5 rounded-md border border-[#1a1a1a]">
-                                            <span className="text-[9px] text-[#444] uppercase tracking-wider block mb-0.5">Camera</span>
-                                            <span className="text-[#ccc] text-xs font-medium">{shot.previz.camera_angle || shot.camera_angle || "—"}</span>
+                                        <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)]">
+                                            <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Camera</span>
+                                            <span className="text-[var(--text-secondary)] text-xs font-medium">{shot.previz.camera_angle || shot.camera_angle || "—"}</span>
                                         </div>
                                         {shot.previz.audio_url && (
-                                             <div className="bg-[#111] p-2.5 rounded-md border border-[#1a1a1a] col-span-2">
-                                                <span className="text-[9px] text-[#444] uppercase tracking-wider block mb-0.5">Audio</span>
+                                             <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)] col-span-2">
+                                                <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Audio</span>
                                                 <a href={shot.previz.audio_url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 text-xs truncate block">
                                                     Open Audio File
                                                 </a>
@@ -627,70 +627,70 @@ export default function ShotDetailModal({
 
                             {/* Linked Characters */}
                             <section>
-                                 <h3 className="text-[10px] font-bold text-[#555] uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                 <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2 flex items-center gap-1.5">
                                      <User className="h-3 w-3 text-emerald-500" />
                                      Linked Characters
                                 </h3>
                                 {linkedCharacters.length > 0 ? (
                                     <div className="space-y-2">
                                         {linkedCharacters.map((char: any, idx: number) => (
-                                            <div key={idx} className="flex items-center gap-2.5 bg-[#111] p-2 rounded-md border border-[#1a1a1a]">
-                                                 <div className="w-7 h-7 bg-[#1a1a1a] rounded-full overflow-hidden flex-shrink-0">
+                                            <div key={idx} className="flex items-center gap-2.5 bg-[var(--surface)] p-2 rounded-md border border-[var(--border)]">
+                                                 <div className="w-7 h-7 bg-[var(--surface-hover)] rounded-full overflow-hidden flex-shrink-0">
                                                      {char.image_url ? (
                                                          <img src={char.image_url} className="w-full h-full object-cover" alt={char.character?.name || char.character_name || "Character"} />
                                                      ) : char.character?.image_url ? (
                                                          <img src={char.character.image_url} className="w-full h-full object-cover opacity-80" alt={char.character.name} />
                                                      ) : (
-                                                         <User className="h-3 w-3 m-auto mt-2 text-[#444]" />
+                                                         <User className="h-3 w-3 m-auto mt-2 text-[var(--text-muted)]" />
                                                      )}
                                                  </div>
-                                                 <span className="text-xs text-[#999]">{char.character_name || char.character?.name || char.name || "Unknown"}</span>
+                                                 <span className="text-xs text-[var(--text-secondary)]">{char.character_name || char.character?.name || char.name || "Unknown"}</span>
                                             </div>
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="text-[10px] text-[#444] italic">No characters linked.</p>
+                                    <p className="text-[10px] text-[var(--text-muted)] italic">No characters linked.</p>
                                 )}
                             </section>
 
                             {/* Previz History */}
                             <section>
-                                <h3 className="text-[10px] font-bold text-[#555] uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2 flex items-center gap-1.5">
                                      <Clock className="h-3 w-3 text-emerald-500" />
                                      Previz History
                                 </h3>
                                 {loadingHistory ? (
-                                    <div className="text-[10px] text-[#444]">Loading...</div>
+                                    <div className="text-[10px] text-[var(--text-muted)]">Loading...</div>
                                 ) : previzHistory.length > 0 ? (
                                     <div className="grid grid-cols-2 gap-3">
                                         {previzHistory.map((previz: any, idx) => (
-                                            <div key={idx} className={`bg-[#0a0a0a] rounded-md overflow-hidden border ${shot.active_previz === previz.id ? 'border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'border-[#222]'} group relative flex flex-col`}>
+                                            <div key={idx} className={`bg-[var(--background)] rounded-md overflow-hidden border ${shot.active_previz === previz.id ? 'border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'border-[var(--border)]'} group relative flex flex-col`}>
                                                 <div className="aspect-video relative">
                                                     <img src={previz.image_url} className="w-full h-full object-cover" />
                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 gap-2">
                                                         <button 
                                                             disabled={settingActive || shot.active_previz === previz.id}
                                                             onClick={() => handleSetActive(previz.id)}
-                                                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-3 py-1.5 rounded disabled:opacity-50 disabled:bg-[#333]"
+                                                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-3 py-1.5 rounded disabled:opacity-50 disabled:bg-[var(--surface-raised)]"
                                                         >
                                                             {shot.active_previz === previz.id ? 'Active' : 'Set Active'}
                                                         </button>
                                                     </div>
                                                 </div>
-                                                <div className="p-2 border-t border-[#1a1a1a] flex flex-col gap-1">
+                                                <div className="p-2 border-t border-[var(--border)] flex flex-col gap-1">
                                                     {previz.added_by ? (
-                                                        <div className="flex items-center gap-1.5 text-[#666]">
+                                                        <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
                                                             <User className="w-3 h-3 text-emerald-500/80" />
                                                             <span className="text-[9px] truncate" title={previz.added_by.email}>{previz.added_by.name || previz.added_by.email}</span>
                                                         </div>
                                                     ) : (
-                                                        <div className="flex items-center gap-1.5 text-[#444]">
+                                                        <div className="flex items-center gap-1.5 text-[var(--text-muted)]">
                                                             <User className="w-3 h-3" />
                                                             <span className="text-[9px]">API Generated</span>
                                                         </div>
                                                     )}
                                                     {previz.assignment_date && (
-                                                        <div className="text-[8px] text-[#444]">
+                                                        <div className="text-[8px] text-[var(--text-muted)]">
                                                             Linked: {new Date(previz.assignment_date).toLocaleDateString()}
                                                         </div>
                                                     )}
@@ -699,44 +699,44 @@ export default function ShotDetailModal({
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="text-[10px] text-[#444]">No history available.</p>
+                                    <p className="text-[10px] text-[var(--text-muted)]">No history available.</p>
                                 )}
                             </section>
                         </>
                     ) : (
                         <section>
-                            <h3 className="text-[10px] font-bold text-[#555] uppercase tracking-widest mb-4">Script Previz Bank</h3>
+                            <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-4">Script Previz Bank</h3>
                             {loadingHistory ? (
-                                <div className="text-[10px] text-[#444]">Loading...</div>
+                                <div className="text-[10px] text-[var(--text-muted)]">Loading...</div>
                             ) : scriptPreviz.length > 0 ? (
                                 <div className="grid grid-cols-2 gap-3">
                                     {scriptPreviz.map((previz: any, idx) => (
-                                        <div key={idx} className="bg-[#0a0a0a] rounded-md overflow-hidden border border-[#222] group relative flex flex-col">
+                                        <div key={idx} className="bg-[var(--background)] rounded-md overflow-hidden border border-[var(--border)] group relative flex flex-col">
                                             <div className="aspect-video relative">
                                                 <img src={previz.image_url} className="w-full h-full object-cover" />
                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 gap-2">
                                                     <button 
                                                         disabled={settingActive || shot.active_previz === previz.id}
                                                         onClick={() => handleSetActive(previz.id)}
-                                                        className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-3 py-1.5 rounded disabled:opacity-50 disabled:bg-[#333]"
+                                                        className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-3 py-1.5 rounded disabled:opacity-50 disabled:bg-[var(--surface-raised)]"
                                                     >
                                                         {shot.active_previz === previz.id ? 'Active' : 'Link to Shot'}
                                                     </button>
                                                 </div>
                                             </div>
-                                            <div className="p-2 border-t border-[#1a1a1a] flex flex-col gap-1">
+                                            <div className="p-2 border-t border-[var(--border)] flex flex-col gap-1">
                                                 {previz.description && (
-                                                    <p className="text-[9px] text-[#666] line-clamp-2" title={previz.description}>
+                                                    <p className="text-[9px] text-[var(--text-secondary)] line-clamp-2" title={previz.description}>
                                                         "{previz.description}"
                                                     </p>
                                                 )}
                                                 {previz.added_by ? (
-                                                    <div className="flex items-center gap-1.5 text-[#666]">
+                                                    <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
                                                         <User className="w-3 h-3 text-emerald-500/80" />
                                                         <span className="text-[9px] truncate" title={previz.added_by.email}>{previz.added_by.name || previz.added_by.email}</span>
                                                     </div>
                                                 ) : (
-                                                    <div className="flex items-center gap-1.5 text-[#444]">
+                                                    <div className="flex items-center gap-1.5 text-[var(--text-muted)]">
                                                         <User className="w-3 h-3" />
                                                         <span className="text-[9px]">Script Level</span>
                                                     </div>
@@ -746,7 +746,7 @@ export default function ShotDetailModal({
                                     ))}
                                 </div>
                             ) : (
-                                <p className="text-[10px] text-[#444]">No script-level previz available.</p>
+                                <p className="text-[10px] text-[var(--text-muted)]">No script-level previz available.</p>
                             )}
                         </section>
                     )}

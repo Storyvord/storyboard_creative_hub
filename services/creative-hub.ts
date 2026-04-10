@@ -648,6 +648,7 @@ export interface CameraAngle {
     name: string;
     description: string | null;
     reference_image: string | null;
+    reference_image_light: string | null;
     order: number;
 }
 

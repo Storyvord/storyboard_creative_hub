@@ -93,14 +93,14 @@ export default function CharactersPage() {
       } catch (error) { console.error(error); toast.error(extractApiError(error, "Failed to delete character.")); }
   };
 
-  if (loading) return <div className="p-6 flex justify-center"><Loader2 className="animate-spin h-6 w-6 text-[#333]" /></div>;
+  if (loading) return <div className="p-6 flex justify-center"><Loader2 className="animate-spin h-6 w-6 text-[var(--text-muted)]" /></div>;
 
   return (
     <div className="p-6">
       <header className="flex justify-between items-center mb-4">
         <div>
-           <h1 className="text-xl font-bold mb-1 text-white">Characters</h1>
-           <p className="text-[#555] text-xs">Manage cast and character details</p>
+           <h1 className="text-xl font-bold mb-1 text-[var(--text-primary)]">Characters</h1>
+           <p className="text-[var(--text-muted)] text-xs">Manage cast and character details</p>
         </div>
         <button data-tour="add-character-btn" onClick={handleAdd} disabled={!script}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-30">
@@ -110,15 +110,15 @@ export default function CharactersPage() {
       </header>
 
       {/* Characters vs Scene Characters explainer */}
-      <div data-tour="characters-vs-scene-info" className="mb-6 rounded-md border border-[#1a1a1a] bg-[#0d0d0d] p-4">
+      <div data-tour="characters-vs-scene-info" className="mb-6 rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
         <div className="flex gap-4">
-          <div className="flex-1 border-r border-[#1a1a1a] pr-4">
+          <div className="flex-1 border-r border-[var(--border)] pr-4">
             <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Characters (this page)</p>
-            <p className="text-[11px] text-[#888] leading-relaxed">The <span className="text-white font-medium">global reference portrait</span> for each cast member — their canonical face, build, and appearance. Used as the base for all AI generation.</p>
+            <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">The <span className="text-[var(--text-primary)] font-medium">global reference portrait</span> for each cast member — their canonical face, build, and appearance. Used as the base for all AI generation.</p>
           </div>
           <div className="flex-1 pl-4">
             <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Scene Characters (inside each scene)</p>
-            <p className="text-[11px] text-[#888] leading-relaxed">The <span className="text-white font-medium">scene-specific look</span> for the same character — different costume, injury, aging, makeup effects. Same actor, different state per scene. Set using the <span className="text-indigo-300">Fitting Room</span> inside each scene's detail view.</p>
+            <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">The <span className="text-[var(--text-primary)] font-medium">scene-specific look</span> for the same character — different costume, injury, aging, makeup effects. Same actor, different state per scene. Set using the <span className="text-indigo-300">Fitting Room</span> inside each scene's detail view.</p>
           </div>
         </div>
       </div>
@@ -130,7 +130,7 @@ export default function CharactersPage() {
                       <Wand2 className="h-4 w-4 animate-pulse" />
                   </div>
                   <div>
-                      <h4 className="font-semibold text-sm text-white">Generating Characters</h4>
+                      <h4 className="font-semibold text-sm text-[var(--text-primary)]">Generating Characters</h4>
                       <p className="text-[10px] text-emerald-300/70">{globalTask.progress_message || `Task: ${globalTask.task_id}`}</p>
                   </div>
               </div>
@@ -142,18 +142,18 @@ export default function CharactersPage() {
       )}
       
       {characters.length === 0 ? (
-        <div className="text-center py-16 bg-[#0d0d0d] rounded-md border border-dashed border-[#1a1a1a]">
-            <p className="text-[#555] text-xs">No characters found. Generate scenes or add manually.</p>
+        <div className="text-center py-16 bg-[var(--surface)] rounded-md border border-dashed border-[var(--border)]">
+            <p className="text-[var(--text-muted)] text-xs">No characters found. Generate scenes or add manually.</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {characters.map((char, idx) => (
-            <div key={char.id} {...(idx === 0 ? { "data-tour": "character-card" } : {})} className="bg-[#0d0d0d] rounded-md border border-[#1a1a1a] overflow-hidden group hover:border-emerald-500/30 transition-all flex flex-col cursor-pointer" onClick={() => router.push(`/projects/${projectId}/creative-hub/characters/${char.id}`)}>
-               <div className="aspect-square bg-[#0a0a0a] relative group-hover:opacity-90 transition-opacity">
+            <div key={char.id} {...(idx === 0 ? { "data-tour": "character-card" } : {})} className="bg-[var(--surface)] rounded-md border border-[var(--border)] overflow-hidden group hover:border-emerald-500/30 transition-all flex flex-col cursor-pointer" onClick={() => router.push(`/projects/${projectId}/creative-hub/characters/${char.id}`)}>
+               <div className="aspect-square bg-[var(--background)] relative group-hover:opacity-90 transition-opacity">
                    {char.image_url ? (
                        <img src={char.image_url} alt={char.name} className="w-full h-full object-cover" />
                    ) : (
-                       <div className="w-full h-full flex flex-col items-center justify-center text-[#333]">
+                       <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
                            <span className="text-3xl font-bold mb-1">{char.name.charAt(0)}</span>
                            <span className="text-[9px] uppercase tracking-wider">No Image</span>
                        </div>
@@ -171,9 +171,9 @@ export default function CharactersPage() {
                    )}
                </div>
                <div className="p-3 flex-1 flex flex-col">
-                   <h3 className="font-bold text-sm mb-0.5 text-white">{char.name}</h3>
-                   <p className="text-[10px] text-[#555] line-clamp-2 mb-3 flex-1">{char.description || "No description."}</p>
-                   <div className="w-full py-1.5 text-[10px] font-medium bg-[#111] text-[#888] rounded-md text-center border border-[#1a1a1a]">
+                   <h3 className="font-bold text-sm mb-0.5 text-[var(--text-primary)]">{char.name}</h3>
+                   <p className="text-[10px] text-[var(--text-muted)] line-clamp-2 mb-3 flex-1">{char.description || "No description."}</p>
+                   <div className="w-full py-1.5 text-[10px] font-medium bg-[var(--surface)] text-[var(--text-secondary)] rounded-md text-center border border-[var(--border)]">
                        View Details
                    </div>
                </div>

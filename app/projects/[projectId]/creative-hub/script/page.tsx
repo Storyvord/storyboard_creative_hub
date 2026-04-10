@@ -718,17 +718,17 @@ export default function ScriptPage() {
   /* ═══════════════════════ Render ══════════════════════════ */
 
   return (
-    <div className="h-full flex flex-col bg-[#0a0a0a]">
+    <div className="h-full flex flex-col bg-[var(--background)]">
       {/* ─── Top bar ─────────────────────────────────────── */}
-      <header className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-[#1a1a1a]">
+      <header className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-[var(--border)]">
         <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold text-white tracking-wide">
+          <h1 className="text-sm font-semibold text-[var(--text-primary)] tracking-wide">
             Script Editor
           </h1>
 
           {/* Element indicator pill */}
           {isEditorVisible && (
-            <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-[#1a1a1a] text-[#888] border border-[#222]">
+            <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-secondary)] border border-[var(--border)]">
               {activeElement.replace("_", " ")}
             </span>
           )}
@@ -738,7 +738,7 @@ export default function ScriptPage() {
           {/* Shortcuts */}
           <button
             onClick={() => setShowShortcuts(true)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] rounded border border-[#222] text-[#888] hover:text-white hover:bg-[#151515] transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] rounded border border-[var(--border)] text-[var(--text-secondary)] hover:text-white hover:bg-[var(--surface)] transition-colors"
             title="Keyboard Shortcuts"
           >
             <Keyboard className="h-3.5 w-3.5" />
@@ -750,7 +750,7 @@ export default function ScriptPage() {
             <button
               data-tour="script-analytics-btn"
               onClick={() => setShowAnalytics(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] rounded border border-[#222] text-[#888] hover:text-white hover:bg-[#151515] transition-colors"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] rounded border border-[var(--border)] text-[var(--text-secondary)] hover:text-white hover:bg-[var(--surface)] transition-colors"
               title="Script Analytics"
             >
               <BarChart2 className="h-3.5 w-3.5" />
@@ -771,7 +771,7 @@ export default function ScriptPage() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] rounded border border-[#222] text-[#888] hover:text-white hover:bg-[#151515] transition-colors"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] rounded border border-[var(--border)] text-[var(--text-secondary)] hover:text-white hover:bg-[var(--surface)] transition-colors"
                 title="Upload new script"
               >
                 {uploading ? (
@@ -849,19 +849,19 @@ export default function ScriptPage() {
         {/* Loading */}
         {loading && (
           <div className="flex-1 flex items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-[#333]" />
+            <Loader2 className="h-6 w-6 animate-spin text-[var(--text-muted)]" />
           </div>
         )}
 
         {/* Upload zone (no script yet) */}
         {showUpload && (
           <div className="flex-1 flex items-center justify-center p-8">
-            <div data-tour="script-upload-zone" className="w-full max-w-md border border-dashed border-[#222] rounded-lg p-12 flex flex-col items-center bg-[#0d0d0d] hover:border-[#333] transition-colors">
-              <Upload className="h-10 w-10 text-[#333] mb-4" />
-              <h3 className="text-sm font-medium text-white mb-1">
+            <div data-tour="script-upload-zone" className="w-full max-w-md border border-dashed border-[var(--border)] rounded-lg p-12 flex flex-col items-center bg-[var(--surface)] hover:border-[var(--border-hover)] transition-colors">
+              <Upload className="h-10 w-10 text-[var(--text-muted)] mb-4" />
+              <h3 className="text-sm font-medium text-[var(--text-primary)] mb-1">
                 Upload your screenplay
               </h3>
-              <p className="text-[#555] text-xs mb-6">
+              <p className="text-[var(--text-muted)] text-xs mb-6">
                 Supports .fdx, .pdf, .docx, .doc, .rtf, .txt
               </p>
               <input
@@ -893,7 +893,7 @@ export default function ScriptPage() {
           <div className="flex-1 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
-                <div className="h-16 w-16 rounded-full border-2 border-[#1a1a1a] flex items-center justify-center">
+                <div className="h-16 w-16 rounded-full border-2 border-[var(--border)] flex items-center justify-center">
                   <Loader2 className="h-7 w-7 animate-spin text-emerald-400" />
                 </div>
                 <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
@@ -901,10 +901,10 @@ export default function ScriptPage() {
                 </div>
               </div>
               <div className="text-center">
-                <h3 className="text-white text-sm font-medium mb-1">
+                <h3 className="text-[var(--text-primary)] text-sm font-medium mb-1">
                   Converting your screenplay…
                 </h3>
-                <p className="text-[#666] text-xs max-w-xs">
+                <p className="text-[var(--text-secondary)] text-xs max-w-xs">
                   We&apos;re parsing and structuring your script. This usually
                   takes 30–90 seconds.
                 </p>
@@ -918,7 +918,7 @@ export default function ScriptPage() {
           <>
             {/* Editor area */}
             <div className="flex-1 min-w-0 flex flex-col">
-              <div className="flex-1 min-h-0 overflow-auto bg-[#080808]">
+              <div className="flex-1 min-h-0 overflow-auto bg-[var(--background)]">
                 {/*
                   Screenplay page — US Letter proportions (8.5 × 11 in)
                   Industry standard margins (Final Draft / Celtx / Arc Studio):
@@ -930,7 +930,7 @@ export default function ScriptPage() {
                     Dialogue:      CENTERED, ~3.5in wide
                     Transition:    right-aligned
                 */}
-                <div data-tour="script-editor" className="w-[720px] max-w-full mx-auto my-8 bg-[#0e0e0e] border border-[#1a1a1a] rounded shadow-2xl shadow-black/40 min-h-[calc(100vh-220px)]">
+                <div data-tour="script-editor" className="w-[720px] max-w-full mx-auto my-8 bg-[var(--surface)] border border-[var(--border)] rounded shadow-2xl shadow-black/40 min-h-[calc(100vh-220px)]">
                   <div className="relative">
                     {/* Formatted screenplay TipTap render */}
                     <ScriptEditor
@@ -950,7 +950,7 @@ export default function ScriptPage() {
               </div>
 
               {/* Bottom status bar */}
-              <div className="flex-shrink-0 px-5 py-1.5 border-t border-[#1a1a1a] flex items-center justify-between text-[10px] text-[#555]">
+              <div className="flex-shrink-0 px-5 py-1.5 border-t border-[var(--border)] flex items-center justify-between text-[10px] text-[var(--text-muted)]">
                 <div className="flex items-center gap-4">
                   <span>
                     {editorContent.split("\n").length} lines
@@ -968,15 +968,15 @@ export default function ScriptPage() {
             </div>
 
             {/* Scene Navigator sidebar */}
-            <aside data-tour="scene-navigator" className="w-56 flex-shrink-0 border-l border-[#1a1a1a] bg-[#0d0d0d] flex flex-col min-h-0">
-              <div className="px-3 py-3 border-b border-[#1a1a1a]">
-                <h3 className="text-[11px] font-semibold text-[#999] uppercase tracking-wider">
+            <aside data-tour="scene-navigator" className="w-56 flex-shrink-0 border-l border-[var(--border)] bg-[var(--surface)] flex flex-col min-h-0">
+              <div className="px-3 py-3 border-b border-[var(--border)]">
+                <h3 className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
                   Scenes
                 </h3>
               </div>
               <div className="flex-1 overflow-y-auto py-1">
                 {scriptHeadings.length === 0 ? (
-                  <p className="px-3 py-4 text-[11px] text-[#444]">
+                  <p className="px-3 py-4 text-[11px] text-[var(--text-muted)]">
                     No scene headings found. Start with INT. or EXT.
                   </p>
                 ) : (
@@ -984,10 +984,10 @@ export default function ScriptPage() {
                     <button
                       key={`${h.index}-${i}`}
                       onClick={() => jumpToHeading(h)}
-                      className="w-full text-left px-3 py-2 hover:bg-[#151515] transition-colors group flex items-start gap-2"
+                      className="w-full text-left px-3 py-2 hover:bg-[var(--surface)] transition-colors group flex items-start gap-2"
                     >
-                      <ChevronRight className="h-3 w-3 text-[#333] group-hover:text-emerald-400 mt-0.5 flex-shrink-0" />
-                      <span className="text-[11px] text-[#aaa] group-hover:text-white leading-tight line-clamp-2">
+                      <ChevronRight className="h-3 w-3 text-[var(--text-muted)] group-hover:text-emerald-400 mt-0.5 flex-shrink-0" />
+                      <span className="text-[11px] text-[var(--text-secondary)] group-hover:text-white leading-tight line-clamp-2">
                         {h.text}
                       </span>
                     </button>
@@ -1002,14 +1002,14 @@ export default function ScriptPage() {
       {/* ═══════════ Shortcuts Modal ═══════════════════════ */}
       {showShortcuts && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-xl rounded-lg border border-[#2a2a2a] bg-[#101010]">
-            <div className="p-4 border-b border-[#1f1f1f] flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">
+          <div className="w-full max-w-xl rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+            <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                 Keyboard Shortcuts
               </h3>
               <button
                 onClick={() => setShowShortcuts(false)}
-                className="text-[#888] hover:text-white"
+                className="text-[var(--text-secondary)] hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1017,28 +1017,28 @@ export default function ScriptPage() {
             <div className="p-4 grid grid-cols-2 gap-y-2 gap-x-6 text-xs text-[#ccc]">
               <div className="flex justify-between">
                 <span>Save script</span>
-                <kbd className="text-[#888]">⌘ S</kbd>
+                <kbd className="text-[var(--text-secondary)]">⌘ S</kbd>
               </div>
               <div className="flex justify-between">
                 <span>Shortcut map</span>
-                <kbd className="text-[#888]">⌘ /</kbd>
+                <kbd className="text-[var(--text-secondary)]">⌘ /</kbd>
               </div>
               <div className="flex justify-between">
                 <span>Analytics</span>
-                <kbd className="text-[#888]">⌘ ⇧ A</kbd>
+                <kbd className="text-[var(--text-secondary)]">⌘ ⇧ A</kbd>
               </div>
               <div className="flex justify-between">
                 <span>Cycle element</span>
-                <kbd className="text-[#888]">Tab</kbd>
+                <kbd className="text-[var(--text-secondary)]">Tab</kbd>
               </div>
-              <div className="col-span-2 border-t border-[#1f1f1f] my-2" />
-              <div className="col-span-2 text-[10px] text-[#666] uppercase tracking-wider mb-1">
+              <div className="col-span-2 border-t border-[var(--border)] my-2" />
+              <div className="col-span-2 text-[10px] text-[var(--text-secondary)] uppercase tracking-wider mb-1">
                 Element shortcuts
               </div>
               {ELEMENT_CYCLE.map((el, i) => (
                 <div key={el} className="flex justify-between">
                   <span className="capitalize">{el.replace("_", " ")}</span>
-                  <kbd className="text-[#888]">⌘ {i + 1}</kbd>
+                  <kbd className="text-[var(--text-secondary)]">⌘ {i + 1}</kbd>
                 </div>
               ))}
             </div>
@@ -1049,15 +1049,15 @@ export default function ScriptPage() {
       {/* ═══════════ Analytics Modal ══════════════════════= */}
       {showAnalytics && script && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl rounded-lg border border-[#2a2a2a] bg-[#101010] max-h-[85vh] overflow-y-auto">
-            <div className="p-4 border-b border-[#1f1f1f] flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+          <div className="w-full max-w-3xl rounded-lg border border-[var(--border)] bg-[var(--surface)] max-h-[85vh] overflow-y-auto">
+            <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
                 <BarChart2 className="h-4 w-4 text-emerald-400" /> Script
                 Analytics
               </h3>
               <button
                 onClick={() => setShowAnalytics(false)}
-                className="text-[#888] hover:text-white"
+                className="text-[var(--text-secondary)] hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1065,28 +1065,28 @@ export default function ScriptPage() {
             <div className="p-5">
               {/* Stat cards — 5 cols */}
               <div className="grid grid-cols-5 gap-3 mb-6">
-                <div className="p-3 bg-[#111] rounded-md border border-[#1a1a1a] text-center">
-                  <span className="text-[9px] text-[#555] uppercase tracking-wider">Scenes</span>
+                <div className="p-3 bg-[var(--surface)] rounded-md border border-[var(--border)] text-center">
+                  <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">Scenes</span>
                   <p className="text-xl font-bold text-emerald-400 mt-1">
                     {script.analysis?.scene_count || scenes.length || scriptHeadings.length}
                   </p>
                 </div>
-                <div className="p-3 bg-[#111] rounded-md border border-[#1a1a1a] text-center">
-                  <span className="text-[9px] text-[#555] uppercase tracking-wider">Characters</span>
+                <div className="p-3 bg-[var(--surface)] rounded-md border border-[var(--border)] text-center">
+                  <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">Characters</span>
                   <p className="text-xl font-bold text-emerald-400 mt-1">
                     {characters.length || script.analysis?.character_count || 0}
                   </p>
                 </div>
-                <div className="p-3 bg-[#111] rounded-md border border-[#1a1a1a] text-center">
-                  <span className="text-[9px] text-[#555] uppercase tracking-wider">Interior</span>
+                <div className="p-3 bg-[var(--surface)] rounded-md border border-[var(--border)] text-center">
+                  <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">Interior</span>
                   <p className="text-xl font-bold text-emerald-400 mt-1">{intCount}</p>
                 </div>
-                <div className="p-3 bg-[#111] rounded-md border border-[#1a1a1a] text-center">
-                  <span className="text-[9px] text-[#555] uppercase tracking-wider">Exterior</span>
+                <div className="p-3 bg-[var(--surface)] rounded-md border border-[var(--border)] text-center">
+                  <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">Exterior</span>
                   <p className="text-xl font-bold text-emerald-400 mt-1">{extCount}</p>
                 </div>
-                <div className="p-3 bg-[#111] rounded-md border border-[#1a1a1a] text-center">
-                  <span className="text-[9px] text-[#555] uppercase tracking-wider">Lines</span>
+                <div className="p-3 bg-[var(--surface)] rounded-md border border-[var(--border)] text-center">
+                  <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">Lines</span>
                   <p className="text-xl font-bold text-emerald-400 mt-1">
                     {editorContent.split("\n").length}
                   </p>
@@ -1098,8 +1098,8 @@ export default function ScriptPage() {
                   {/* Row 1 — Scene-by-Scene line chart (full width) */}
                   {sceneBreakdownData.length > 1 && (
                     <div className="mb-4">
-                      <div className="bg-[#111] p-4 rounded-md border border-[#1a1a1a]">
-                        <h4 className="text-xs font-semibold text-[#999] mb-3 text-center">
+                      <div className="bg-[var(--surface)] p-4 rounded-md border border-[var(--border)]">
+                        <h4 className="text-xs font-semibold text-[var(--text-secondary)] mb-3 text-center">
                           Scene-by-Scene Breakdown
                         </h4>
                         <div className="h-64">
@@ -1128,8 +1128,8 @@ export default function ScriptPage() {
                   {/* Row 2 — Characters bar (left) + Locations bar (right) */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
                     {characterData.length > 0 && (
-                      <div className="bg-[#111] p-4 rounded-md border border-[#1a1a1a]">
-                        <h4 className="text-xs font-semibold text-[#999] mb-3 text-center">Top Characters</h4>
+                      <div className="bg-[var(--surface)] p-4 rounded-md border border-[var(--border)]">
+                        <h4 className="text-xs font-semibold text-[var(--text-secondary)] mb-3 text-center">Top Characters</h4>
                         <div className="h-52">
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={characterData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -1148,8 +1148,8 @@ export default function ScriptPage() {
                     )}
 
                     {locationData.length > 0 && (
-                      <div className="bg-[#111] p-4 rounded-md border border-[#1a1a1a]">
-                        <h4 className="text-xs font-semibold text-[#999] mb-3 text-center">Top Locations</h4>
+                      <div className="bg-[var(--surface)] p-4 rounded-md border border-[var(--border)]">
+                        <h4 className="text-xs font-semibold text-[var(--text-secondary)] mb-3 text-center">Top Locations</h4>
                         <div className="h-52">
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={locationData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -1172,8 +1172,8 @@ export default function ScriptPage() {
                   {(dialogueDistData.length > 0 || script?.analysis?.action_vs_dialogue) && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       {dialogueDistData.length > 0 && (
-                        <div className="bg-[#111] p-4 rounded-md border border-[#1a1a1a]">
-                          <h4 className="text-xs font-semibold text-[#999] mb-3 text-center">Dialogue Distribution</h4>
+                        <div className="bg-[var(--surface)] p-4 rounded-md border border-[var(--border)]">
+                          <h4 className="text-xs font-semibold text-[var(--text-secondary)] mb-3 text-center">Dialogue Distribution</h4>
                           <div className="h-52">
                             <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
@@ -1191,8 +1191,8 @@ export default function ScriptPage() {
                       )}
 
                       {script?.analysis?.action_vs_dialogue && (
-                        <div className="bg-[#111] p-4 rounded-md border border-[#1a1a1a]">
-                          <h4 className="text-xs font-semibold text-[#999] mb-3 text-center">Action vs Dialogue</h4>
+                        <div className="bg-[var(--surface)] p-4 rounded-md border border-[var(--border)]">
+                          <h4 className="text-xs font-semibold text-[var(--text-secondary)] mb-3 text-center">Action vs Dialogue</h4>
                           <div className="h-52">
                             <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
@@ -1224,23 +1224,23 @@ export default function ScriptPage() {
       {/* ═══════════ Delete Modal ═════════════════════════ */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-lg border border-[#2a2a2a] bg-[#101010] shadow-2xl">
-            <div className="p-4 border-b border-[#1f1f1f] flex items-center justify-between">
+          <div className="w-full max-w-sm rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-2xl">
+            <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
               <h3 className="text-sm font-semibold text-red-400 flex items-center gap-2">
                 <Trash2 className="h-4 w-4" /> Delete Script
               </h3>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="text-[#888] hover:text-white transition-colors"
+                className="text-[var(--text-secondary)] hover:text-white transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="p-5">
-              <p className="text-xs text-[#999] mb-4">
+              <p className="text-xs text-[var(--text-secondary)] mb-4">
                 This action is permanent and cannot be undone. All scenes, characters, and shots associated with this script will be lost.
               </p>
-              <p className="text-xs text-white font-medium mb-2">
+              <p className="text-xs text-[var(--text-primary)] font-medium mb-2">
                 Type <strong className="text-red-400">CONFIRM</strong> to proceed:
               </p>
               <input
@@ -1248,13 +1248,13 @@ export default function ScriptPage() {
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                 placeholder="CONFIRM"
-                className="w-full bg-[#1a1a1a] border border-[#333] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500 transition-colors mb-5 placeholder:text-[#444]"
+                className="w-full bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-red-500 transition-colors mb-5 placeholder:text-[var(--text-muted)]"
                 autoFocus
               />
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="px-4 py-2 rounded text-xs text-[#999] hover:text-white hover:bg-[#222] transition-colors"
+                  className="px-4 py-2 rounded text-xs text-[var(--text-secondary)] hover:text-white hover:bg-[var(--border)] transition-colors"
                 >
                   Cancel
                 </button>

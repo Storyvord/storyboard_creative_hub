@@ -5,7 +5,8 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Check, ChevronDown } from "lucide-react";
 import { CameraAngle } from "@/services/creative-hub";
-import { getCameraAngleDiagram } from "@/components/creative-hub/CameraAngleDiagram";
+import { CameraAngleDiagramThemed } from "@/components/creative-hub/CameraAngleDiagram";
+import { useTheme } from "@/context/ThemeContext";
 
 interface CameraAngleSelectorProps {
   angles: CameraAngle[];
@@ -16,23 +17,31 @@ interface CameraAngleSelectorProps {
 }
 
 function AnglePreview({ angle, className }: { angle: CameraAngle; className?: string }) {
+  const { theme } = useTheme();
   const [imgFailed, setImgFailed] = useState(false);
-  const diagram = getCameraAngleDiagram(angle.name);
 
-  if (angle.reference_image && !imgFailed) {
+  // Reset failed flag whenever the theme changes so we re-attempt the new src
+  useEffect(() => { setImgFailed(false); }, [theme]);
+
+  const src = theme === "light"
+    ? (angle.reference_image_light ?? angle.reference_image)  // prefer light, fall back to dark
+    : angle.reference_image;
+
+  if (src && !imgFailed) {
     return (
       <img
-        src={angle.reference_image}
+        src={src}
         alt={angle.name}
         className={className ?? "w-full h-full object-cover"}
         onError={() => setImgFailed(true)}
       />
     );
   }
-  if (diagram) return <div className={className ?? "w-full h-full"}>{diagram}</div>;
+
+  // Inline SVG fallback if backend image is missing or failed to load
   return (
-    <div className="w-full h-full flex items-center justify-center">
-      <span className="text-[#333] text-xs">{angle.name[0]}</span>
+    <div className={className ?? "w-full h-full"}>
+      <CameraAngleDiagramThemed name={angle.name} />
     </div>
   );
 }
@@ -120,8 +129,8 @@ export default function CameraAngleSelector({
 
   const triggerCls =
     size === "sm"
-      ? "w-full bg-[#111] border border-[#222] rounded-md text-xs text-[#ccc] px-2 py-2 outline-none focus:border-emerald-500/40 flex items-center justify-between gap-1"
-      : "w-full bg-[#0a0a0a] border border-[#222] rounded-md text-sm text-white px-3 py-2 outline-none focus:border-emerald-500/50 flex items-center justify-between gap-2";
+      ? "w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[#ccc] px-2 py-2 outline-none focus:border-emerald-500/40 flex items-center justify-between gap-1"
+      : "w-full bg-[var(--background)] border border-[var(--border)] rounded-md text-sm text-white px-3 py-2 outline-none focus:border-emerald-500/50 flex items-center justify-between gap-2";
 
   const thumbSize = size === "sm" ? "w-6 h-4" : "w-8 h-5";
 
@@ -139,7 +148,7 @@ export default function CameraAngleSelector({
 
       {/* Panel — driven entirely by `animate`, no exit */}
       <motion.div
-        className="fixed overflow-hidden flex flex-col bg-[#0d0d0d] border border-[#222] shadow-2xl"
+        className="fixed overflow-hidden flex flex-col bg-[var(--surface)] border border-[var(--border)] shadow-2xl"
         style={{ zIndex: 9999 }}
         initial={getCollapsed()}
         animate={panelAnimate}
@@ -161,13 +170,13 @@ export default function CameraAngleSelector({
             >
               {/* Header */}
               <motion.div
-                className="flex items-center justify-between px-5 py-4 border-b border-[#1a1a1a] flex-shrink-0"
+                className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] flex-shrink-0"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.25, delay: EXPAND_DUR * 0.55 }}
               >
-                <span className="text-sm font-semibold text-white tracking-wide">Select Camera Angle</span>
-                <button onClick={handleDismiss} className="text-[#555] hover:text-white transition-colors">
+                <span className="text-sm font-semibold text-[var(--text-primary)] tracking-wide">Select Camera Angle</span>
+                <button onClick={handleDismiss} className="text-[var(--text-muted)] hover:text-white transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </motion.div>
@@ -185,11 +194,11 @@ export default function CameraAngleSelector({
                     type="button"
                     onClick={() => handleSelect("")}
                     className={`relative rounded-lg border overflow-hidden flex flex-col items-center justify-center gap-2 p-3 h-28 transition-all ${
-                      !value ? "border-emerald-500 bg-emerald-500/10" : "border-[#222] bg-[#111] hover:border-[#333]"
+                      !value ? "border-emerald-500 bg-emerald-500/10" : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-hover)]"
                     }`}
                   >
-                    <span className="text-[#555] text-2xl">—</span>
-                    <span className="text-[10px] text-[#666] uppercase tracking-wider">None</span>
+                    <span className="text-[var(--text-muted)] text-2xl">—</span>
+                    <span className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider">None</span>
                     {!value && <Check className="absolute top-1.5 right-1.5 w-3 h-3 text-emerald-400" />}
                   </button>
 
@@ -201,16 +210,16 @@ export default function CameraAngleSelector({
                       className={`relative rounded-lg border overflow-hidden flex flex-col transition-all ${
                         value === angle.name
                           ? "border-emerald-500 ring-1 ring-emerald-500/40"
-                          : "border-[#222] hover:border-[#333]"
+                          : "border-[var(--border)] hover:border-[var(--border-hover)]"
                       }`}
                     >
-                      <div className="w-full h-20 bg-[#111] flex-shrink-0 overflow-hidden">
+                      <div className="w-full h-20 bg-[var(--surface)] flex-shrink-0 overflow-hidden">
                         <AnglePreview angle={angle} />
                       </div>
-                      <div className="px-2 py-1.5 bg-[#0d0d0d] border-t border-[#1a1a1a]">
-                        <span className="text-[10px] text-[#aaa] leading-tight block text-center">{angle.name}</span>
+                      <div className="px-2 py-1.5 bg-[var(--surface)] border-t border-[var(--border)]">
+                        <span className="text-[10px] text-[var(--text-secondary)] leading-tight block text-center">{angle.name}</span>
                         {angle.description && (
-                          <span className="text-[9px] text-[#555] leading-tight block text-center mt-0.5 truncate">
+                          <span className="text-[9px] text-[var(--text-muted)] leading-tight block text-center mt-0.5 truncate">
                             {angle.description}
                           </span>
                         )}
@@ -275,7 +284,7 @@ export default function CameraAngleSelector({
           transition={{ duration: 0.3, ease: EASE }}
           className="flex-shrink-0"
         >
-          <ChevronDown className={size === "sm" ? "w-3 h-3 text-[#555]" : "w-4 h-4 text-[#555]"} />
+          <ChevronDown className={size === "sm" ? "w-3 h-3 text-[var(--text-muted)]" : "w-4 h-4 text-[var(--text-muted)]"} />
         </motion.span>
       </button>
 

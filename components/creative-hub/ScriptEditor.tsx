@@ -30,21 +30,21 @@ const ELEMENT_CYCLE: ScreenplayElementType[] = [
 export function getLineClasses(type: string): string {
   switch (type) {
     case "scene_heading":
-      return "text-[#f0f0f0] font-bold uppercase tracking-wide text-left transition-all duration-500 rounded outline-none";
+      return "script-scene-heading font-bold uppercase tracking-wide text-left transition-all duration-500 rounded outline-none";
     case "character":
-      return "text-center text-[#e8e8e8] uppercase mt-3 outline-none";
+      return "text-center script-character uppercase mt-3 outline-none";
     case "parenthetical":
-      return "text-center mx-auto max-w-[240px] text-[#b0b0b0] italic outline-none";
+      return "text-center mx-auto max-w-[240px] script-parenthetical italic outline-none";
     case "dialogue":
-      return "text-center mx-auto max-w-[65%] text-[#d0d0d0] outline-none";
+      return "text-center mx-auto max-w-[65%] script-dialogue outline-none";
     case "transition":
-      return "text-right text-[#e0e0e0] uppercase mt-3 mb-1 outline-none";
+      return "text-right script-transition uppercase mt-3 mb-1 outline-none";
     case "shot":
-      return "text-left text-[#e0e0e0] uppercase outline-none";
+      return "text-left script-shot uppercase outline-none";
     case "blank":
       return "h-[24px] outline-none";
     default:
-      return "text-left text-[#c8c8c8] outline-none min-h-[24px]"; // action
+      return "text-left script-action outline-none min-h-[24px]"; // action
   }
 }
 
@@ -373,10 +373,10 @@ export const ScriptEditor = ({
       {collab && (
         <div className="absolute top-3 right-4 z-10 flex items-center gap-1.5">
           <div
-            className={`w-2 h-2 rounded-full ${collabConnected ? "bg-emerald-400" : "bg-gray-500"}`}
+            className={`w-2 h-2 rounded-full ${collabConnected ? "bg-emerald-400" : "bg-[var(--text-muted)]"}`}
             title={collabConnected ? "Live sync active" : "Connecting…"}
           />
-          <span className="text-[10px] text-gray-500">
+          <span className="text-[10px] text-[var(--text-muted)]">
             {collabConnected ? "Live" : "Syncing…"}
           </span>
         </div>
