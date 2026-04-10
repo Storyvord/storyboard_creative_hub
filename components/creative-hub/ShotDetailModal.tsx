@@ -358,7 +358,7 @@ export default function ShotDetailModal({
             </button>
 
             {/* Left Column: Image */}
-            <div className="flex-1 bg-black flex flex-col relative group">
+            <div className="flex-1 bg-[var(--surface-raised)] flex flex-col relative group">
                 <div className="flex-1 flex items-center justify-center p-4">
                     {shot.image_url ? (
                         <img src={shot.image_url} alt={`Shot ${shot.order}`} className="max-h-full max-w-full object-contain" />
@@ -397,7 +397,7 @@ export default function ShotDetailModal({
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2 text-xs font-medium tracking-wider uppercase">
                             <span className="text-emerald-400">Shot {shot.order}</span>
-                            <span className="w-1 h-1 bg-[#333] rounded-full"></span>
+                            <span className="w-1 h-1 bg-[var(--surface-raised)] rounded-full"></span>
                             <span className="text-[var(--text-secondary)]">{shot.type}</span>
                         </div>
                     </div>
@@ -491,7 +491,7 @@ export default function ShotDetailModal({
                                                     setDetailsForm((prev) => ({ ...prev, type: val }));
                                                     autoSaveField('type', val);
                                                 }}
-                                                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[#ccc] px-2 py-2 outline-none focus:border-emerald-500/40"
+                                                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-secondary)] px-2 py-2 outline-none focus:border-emerald-500/40"
                                                 disabled={disableDetails || savingDetails}
                                             >
                                                 {SHOT_TYPE_OPTIONS.map((opt) => (
@@ -508,7 +508,7 @@ export default function ShotDetailModal({
                                                     setDetailsForm((prev) => ({ ...prev, movement: val }));
                                                     autoSaveField('movement', val || null);
                                                 }}
-                                                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[#ccc] px-2 py-2 outline-none focus:border-emerald-500/40"
+                                                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-secondary)] px-2 py-2 outline-none focus:border-emerald-500/40"
                                                 disabled={disableDetails || savingDetails}
                                             >
                                                 <option value="">—</option>
@@ -539,7 +539,7 @@ export default function ShotDetailModal({
                                                     setDetailsForm((prev) => ({ ...prev, lighting: val }));
                                                     autoSaveField('lighting', val || null);
                                                 }}
-                                                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[#ccc] px-2 py-2 outline-none focus:border-emerald-500/40"
+                                                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-secondary)] px-2 py-2 outline-none focus:border-emerald-500/40"
                                                 disabled={disableDetails || savingDetails}
                                             >
                                                 <option value="">—</option>
@@ -573,7 +573,7 @@ export default function ShotDetailModal({
                                             disabled={isEditingPreviz || disableEditPrompt}
                                         />
                                         {!hasActivePrevizImage && (
-                                            <p className="text-[10px] text-[#777] mt-2">Generate or upload a previz first to use edit prompt.</p>
+                                            <p className="text-[10px] text-[var(--text-muted)] mt-2">Generate or upload a previz first to use edit prompt.</p>
                                         )}
                                     </div>
                                 </div>
@@ -607,11 +607,11 @@ export default function ShotDetailModal({
                                     <div className="grid grid-cols-2 gap-2">
                                         <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)]">
                                             <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Aspect Ratio</span>
-                                            <span className="text-[#ccc] text-xs font-medium">{shot.previz.aspect_ratio || "16:9"}</span>
+                                            <span className="text-[var(--text-secondary)] text-xs font-medium">{shot.previz.aspect_ratio || "16:9"}</span>
                                         </div>
                                         <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)]">
                                             <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Camera</span>
-                                            <span className="text-[#ccc] text-xs font-medium">{shot.previz.camera_angle || shot.camera_angle || "—"}</span>
+                                            <span className="text-[var(--text-secondary)] text-xs font-medium">{shot.previz.camera_angle || shot.camera_angle || "—"}</span>
                                         </div>
                                         {shot.previz.audio_url && (
                                              <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)] col-span-2">
@@ -671,7 +671,7 @@ export default function ShotDetailModal({
                                                         <button 
                                                             disabled={settingActive || shot.active_previz === previz.id}
                                                             onClick={() => handleSetActive(previz.id)}
-                                                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-3 py-1.5 rounded disabled:opacity-50 disabled:bg-[#333]"
+                                                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-3 py-1.5 rounded disabled:opacity-50 disabled:bg-[var(--surface-raised)]"
                                                         >
                                                             {shot.active_previz === previz.id ? 'Active' : 'Set Active'}
                                                         </button>
@@ -718,7 +718,7 @@ export default function ShotDetailModal({
                                                     <button 
                                                         disabled={settingActive || shot.active_previz === previz.id}
                                                         onClick={() => handleSetActive(previz.id)}
-                                                        className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-3 py-1.5 rounded disabled:opacity-50 disabled:bg-[#333]"
+                                                        className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-3 py-1.5 rounded disabled:opacity-50 disabled:bg-[var(--surface-raised)]"
                                                     >
                                                         {shot.active_previz === previz.id ? 'Active' : 'Link to Shot'}
                                                     </button>
