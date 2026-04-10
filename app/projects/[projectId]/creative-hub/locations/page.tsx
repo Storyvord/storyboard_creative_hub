@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getScripts } from "@/services/creative-hub";
 import { getLocations, createLocation, updateLocation, deleteLocation, generateLocationImage, getScriptTasks } from "@/services/creative-hub";
 import { Script } from "@/types/creative-hub";

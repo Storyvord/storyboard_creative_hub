@@ -61,7 +61,7 @@ export default function CreativeHubLayout({
           )}
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="text-[var(--text-muted)] hover:text-white transition-colors"
+            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
           >
             {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </button>
@@ -84,7 +84,7 @@ export default function CreativeHubLayout({
                   "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
                   isActive
                     ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:text-white border border-transparent",
+                    : "text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:text-[var(--text-primary)] border border-transparent",
                   isCollapsed && "justify-center px-2"
                 )}
                 title={isCollapsed ? item.name : undefined}
@@ -104,11 +104,11 @@ export default function CreativeHubLayout({
             setIsTourVisible(true);
           }} />
           {!isCollapsed ? (
-            <Link href="/dashboard" className="text-xs text-[var(--text-muted)] hover:text-white transition-colors flex items-center gap-1">
+            <Link href="/dashboard" className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex items-center gap-1">
               ← Dashboard
             </Link>
           ) : (
-            <Link href="/dashboard" className="text-xs text-[var(--text-muted)] hover:text-white transition-colors" title="Back to Dashboard">
+            <Link href="/dashboard" className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors" title="Back to Dashboard">
               ←
             </Link>
           )}
