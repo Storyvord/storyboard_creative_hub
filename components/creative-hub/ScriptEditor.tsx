@@ -373,10 +373,10 @@ export const ScriptEditor = ({
       {collab && (
         <div className="absolute top-3 right-4 z-10 flex items-center gap-1.5">
           <div
-            className={`w-2 h-2 rounded-full ${collabConnected ? "bg-emerald-400" : "bg-gray-500"}`}
+            className={`w-2 h-2 rounded-full ${collabConnected ? "bg-emerald-400" : "bg-[var(--text-muted)]"}`}
             title={collabConnected ? "Live sync active" : "Connecting…"}
           />
-          <span className="text-[10px] text-gray-500">
+          <span className="text-[10px] text-[var(--text-muted)]">
             {collabConnected ? "Live" : "Syncing…"}
           </span>
         </div>

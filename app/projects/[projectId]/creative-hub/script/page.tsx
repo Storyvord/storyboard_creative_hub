@@ -856,7 +856,7 @@ export default function ScriptPage() {
         {/* Upload zone (no script yet) */}
         {showUpload && (
           <div className="flex-1 flex items-center justify-center p-8">
-            <div data-tour="script-upload-zone" className="w-full max-w-md border border-dashed border-[var(--border)] rounded-lg p-12 flex flex-col items-center bg-[var(--surface)] hover:border-[#333] transition-colors">
+            <div data-tour="script-upload-zone" className="w-full max-w-md border border-dashed border-[var(--border)] rounded-lg p-12 flex flex-col items-center bg-[var(--surface)] hover:border-[var(--border-hover)] transition-colors">
               <Upload className="h-10 w-10 text-[var(--text-muted)] mb-4" />
               <h3 className="text-sm font-medium text-[var(--text-primary)] mb-1">
                 Upload your screenplay
@@ -918,7 +918,7 @@ export default function ScriptPage() {
           <>
             {/* Editor area */}
             <div className="flex-1 min-w-0 flex flex-col">
-              <div className="flex-1 min-h-0 overflow-auto bg-[#080808]">
+              <div className="flex-1 min-h-0 overflow-auto bg-[var(--background)]">
                 {/*
                   Screenplay page — US Letter proportions (8.5 × 11 in)
                   Industry standard margins (Final Draft / Celtx / Arc Studio):
@@ -1002,8 +1002,8 @@ export default function ScriptPage() {
       {/* ═══════════ Shortcuts Modal ═══════════════════════ */}
       {showShortcuts && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-xl rounded-lg border border-[#2a2a2a] bg-[#101010]">
-            <div className="p-4 border-b border-[#1f1f1f] flex items-center justify-between">
+          <div className="w-full max-w-xl rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+            <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                 Keyboard Shortcuts
               </h3>
@@ -1031,7 +1031,7 @@ export default function ScriptPage() {
                 <span>Cycle element</span>
                 <kbd className="text-[var(--text-secondary)]">Tab</kbd>
               </div>
-              <div className="col-span-2 border-t border-[#1f1f1f] my-2" />
+              <div className="col-span-2 border-t border-[var(--border)] my-2" />
               <div className="col-span-2 text-[10px] text-[var(--text-secondary)] uppercase tracking-wider mb-1">
                 Element shortcuts
               </div>
@@ -1049,8 +1049,8 @@ export default function ScriptPage() {
       {/* ═══════════ Analytics Modal ══════════════════════= */}
       {showAnalytics && script && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl rounded-lg border border-[#2a2a2a] bg-[#101010] max-h-[85vh] overflow-y-auto">
-            <div className="p-4 border-b border-[#1f1f1f] flex items-center justify-between">
+          <div className="w-full max-w-3xl rounded-lg border border-[var(--border)] bg-[var(--surface)] max-h-[85vh] overflow-y-auto">
+            <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
               <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
                 <BarChart2 className="h-4 w-4 text-emerald-400" /> Script
                 Analytics
@@ -1224,8 +1224,8 @@ export default function ScriptPage() {
       {/* ═══════════ Delete Modal ═════════════════════════ */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-lg border border-[#2a2a2a] bg-[#101010] shadow-2xl">
-            <div className="p-4 border-b border-[#1f1f1f] flex items-center justify-between">
+          <div className="w-full max-w-sm rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-2xl">
+            <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
               <h3 className="text-sm font-semibold text-red-400 flex items-center gap-2">
                 <Trash2 className="h-4 w-4" /> Delete Script
               </h3>

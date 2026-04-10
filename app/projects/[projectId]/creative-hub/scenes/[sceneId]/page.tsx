@@ -10,6 +10,7 @@ import {
   getSceneCharacters,
   getSceneDialogs,
   updateScene,
+  getSceneStoryboardData,
 } from "@/services/creative-hub";
 import { Scene, Shot } from "@/types/creative-hub";
 import {
@@ -53,15 +54,27 @@ export default function SceneDetailPage() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [sceneData, shotsData, charsData, dialogsData] = await Promise.all([
+      const [sceneData, shotsData, charsData, dialogsData, storyboardData] = await Promise.all([
         getScene(sceneId),
         getShots(sceneId).catch(() => []),
         getSceneCharacters(sceneId).catch(() => []),
         getSceneDialogs(sceneId).catch(() => []),
+        getSceneStoryboardData(sceneId).catch(() => null),
       ]);
       setScene(sceneData);
       setFormData(sceneData);
-      setShots(shotsData || []);
+
+      // Merge previz image_url from storyboard data into shots
+      const shotsWithImages = (shotsData || []).map((shot: Shot) => {
+        if (shot.image_url) return shot;
+        const sd = storyboardData?.shots?.find((s: any) => s.id === shot.id);
+        if (!sd?.previz?.length) return shot;
+        const activePreviz = sd.active_previz
+          ? sd.previz.find((p: any) => p.id === sd.active_previz) ?? sd.previz[sd.previz.length - 1]
+          : sd.previz[sd.previz.length - 1];
+        return { ...shot, image_url: activePreviz?.image_url ?? null };
+      });
+      setShots(shotsWithImages);
       setCharacters(charsData || []);
       setDialogs(dialogsData || []);
     } catch (error) {
@@ -122,7 +135,7 @@ export default function SceneDetailPage() {
   if (!scene) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[var(--background)] gap-4">
-        <p className="text-gray-400">Scene not found.</p>
+        <p className="text-[var(--text-secondary)]">Scene not found.</p>
         <Link
           href={`/projects/${projectId}/creative-hub/scenes`}
           className="text-emerald-400 hover:text-emerald-300 flex items-center gap-2 text-sm"
@@ -139,7 +152,7 @@ export default function SceneDetailPage() {
       <div className="sticky top-0 z-10 bg-[var(--surface)]/90 backdrop-blur border-b border-[var(--border)] px-6 py-3 flex items-center justify-between">
         <Link
           href={`/projects/${projectId}/creative-hub/scenes`}
-          className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm"
+          className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-sm"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Scenes
@@ -149,7 +162,7 @@ export default function SceneDetailPage() {
             <>
               <button
                 onClick={() => { setIsEditing(false); setFormData(scene); }}
-                className="px-3 py-1.5 bg-[var(--surface-hover)] hover:bg-[var(--border)] text-white rounded-md text-sm transition-colors"
+                className="px-3 py-1.5 bg-[var(--surface-hover)] hover:bg-[var(--border)] text-[var(--text-primary)] rounded-md text-sm transition-colors"
                 disabled={saving}
               >
                 Cancel
@@ -166,7 +179,7 @@ export default function SceneDetailPage() {
           ) : (
             <button
               onClick={() => setIsEditing(true)}
-              className="px-3 py-1.5 bg-[var(--surface-hover)] hover:bg-[var(--border)] text-white rounded-md text-sm flex items-center gap-2 transition-colors"
+              className="px-3 py-1.5 bg-[var(--surface-hover)] hover:bg-[var(--border)] text-[var(--text-primary)] rounded-md text-sm flex items-center gap-2 transition-colors"
             >
               <Edit className="h-4 w-4" /> Edit
             </button>
@@ -182,7 +195,7 @@ export default function SceneDetailPage() {
               Scene {scene.order}
             </span>
             {scene.set_number && (
-              <span className="text-xs text-gray-500 bg-[var(--surface-hover)] px-2 py-1 rounded border border-[var(--border)]">
+              <span className="text-xs text-[var(--text-muted)] bg-[var(--surface-hover)] px-2 py-1 rounded border border-[var(--border)]">
                 Set {scene.set_number}
               </span>
             )}
@@ -200,7 +213,7 @@ export default function SceneDetailPage() {
             <h1 className="text-3xl font-bold text-[var(--text-primary)] mb-4">{scene.scene_name}</h1>
           )}
 
-          <div className="flex flex-wrap gap-5 text-gray-400 text-sm">
+          <div className="flex flex-wrap gap-5 text-[var(--text-secondary)] text-sm">
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4 text-emerald-400 flex-shrink-0" />
               {isEditing ? (
@@ -244,7 +257,7 @@ export default function SceneDetailPage() {
               )}
             </div>
             {scene.scene_hash && (
-              <div className="flex items-center gap-2 text-gray-600">
+              <div className="flex items-center gap-2 text-[var(--text-muted)]">
                 <Hash className="h-4 w-4" />
                 <span className="font-mono text-xs">{scene.scene_hash.slice(0, 12)}…</span>
               </div>
@@ -267,7 +280,7 @@ export default function SceneDetailPage() {
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                 <p className="text-white font-semibold">{scene.location_detail.name}</p>
                 {scene.location_detail.description && (
-                  <p className="text-gray-300 text-sm mt-0.5">{scene.location_detail.description}</p>
+                  <p className="text-[var(--text-secondary)] text-sm mt-0.5">{scene.location_detail.description}</p>
                 )}
               </div>
             </div>
@@ -283,11 +296,11 @@ export default function SceneDetailPage() {
               value={formData.description || ""}
               onChange={handleInputChange}
               rows={6}
-              className="w-full bg-[var(--surface-hover)]/30 border border-[var(--border)] rounded-md p-4 text-gray-300 leading-relaxed focus:outline-none focus:border-emerald-500"
+              className="w-full bg-[var(--surface-hover)]/30 border border-[var(--border)] rounded-md p-4 text-[var(--text-secondary)] leading-relaxed focus:outline-none focus:border-emerald-500"
             />
           ) : (
-            <p className="text-gray-300 leading-relaxed bg-[var(--surface-hover)]/30 p-4 rounded-md border border-[var(--border)]">
-              {scene.description || <span className="italic text-gray-600">No description.</span>}
+            <p className="text-[var(--text-secondary)] leading-relaxed bg-[var(--surface-hover)]/30 p-4 rounded-md border border-[var(--border)]">
+              {scene.description || <span className="italic text-[var(--text-muted)]">No description.</span>}
             </p>
           )}
         </section>
@@ -305,28 +318,28 @@ export default function SceneDetailPage() {
                   key={idx}
                   className="flex items-center gap-3 bg-[var(--surface-hover)]/50 p-3 rounded-md border border-[var(--border)] min-w-[200px]"
                 >
-                  <div className="w-12 h-12 bg-[#222] rounded-md overflow-hidden flex-shrink-0">
+                  <div className="w-12 h-12 bg-[var(--surface-raised)] rounded-md overflow-hidden flex-shrink-0">
                     {char.image_url ? (
                       <img src={char.image_url} alt={char.character_name} className="w-full h-full object-contain" />
                     ) : char.character?.image_url ? (
                       <img src={char.character.image_url} alt={char.character_name} className="w-full h-full object-contain opacity-80" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-700 text-gray-400 text-lg font-bold">
+                      <div className="w-full h-full flex items-center justify-center bg-[var(--surface-raised)] text-[var(--text-secondary)] text-lg font-bold">
                         {(char.character_name || char.name || "?")[0].toUpperCase()}
                       </div>
                     )}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-200">
+                    <p className="text-sm font-medium text-[var(--text-primary)]">
                       {char.character_name || char.name || (char.character ? char.character.name : "Unknown")}
                     </p>
-                    {char.role && <p className="text-xs text-gray-500">{char.role}</p>}
+                    {char.role && <p className="text-xs text-[var(--text-muted)]">{char.role}</p>}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 italic">No characters linked to this scene.</p>
+            <p className="text-[var(--text-muted)] italic">No characters linked to this scene.</p>
           )}
         </section>
 
@@ -343,12 +356,12 @@ export default function SceneDetailPage() {
                   <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2">
                     {(typeof dialog.character === "object" ? dialog.character?.name : dialog.character) || dialog.character_name || "Unknown"}
                   </p>
-                  <p className="text-gray-300 leading-relaxed">{dialog.dialog || dialog.text || dialog.content}</p>
+                  <p className="text-[var(--text-secondary)] leading-relaxed">{dialog.dialog || dialog.text || dialog.content}</p>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 italic">No dialogs in this scene.</p>
+            <p className="text-[var(--text-muted)] italic">No dialogs in this scene.</p>
           )}
         </section>
 
@@ -393,20 +406,20 @@ export default function SceneDetailPage() {
                     />
                   ) : (
                     <div className="w-full h-40 bg-[var(--surface)] flex items-center justify-center">
-                      <Film className="h-8 w-8 text-gray-700" />
+                      <Film className="h-8 w-8 text-[var(--text-muted)]" />
                     </div>
                   )}
                   <div className="p-3">
                     <div className="flex justify-between items-start mb-2">
-                      <span className="text-xs font-mono text-gray-500">Shot {shot.order}</span>
-                      <span className="text-xs px-2 py-0.5 bg-[#222] rounded text-gray-300">{shot.type}</span>
+                      <span className="text-xs font-mono text-[var(--text-muted)]">Shot {shot.order}</span>
+                      <span className="text-xs px-2 py-0.5 bg-[var(--surface-raised)] rounded text-[var(--text-secondary)]">{shot.type}</span>
                     </div>
-                    <p className="text-sm text-gray-300 line-clamp-3">{shot.description}</p>
+                    <p className="text-sm text-[var(--text-secondary)] line-clamp-3">{shot.description}</p>
                     {shot.camera_angle && (
-                      <p className="text-xs text-gray-500 mt-1">Angle: {shot.camera_angle}</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">Angle: {shot.camera_angle}</p>
                     )}
                     {shot.movement && (
-                      <p className="text-xs text-gray-500">Movement: {shot.movement}</p>
+                      <p className="text-xs text-[var(--text-muted)]">Movement: {shot.movement}</p>
                     )}
                   </div>
                 </div>
@@ -414,9 +427,9 @@ export default function SceneDetailPage() {
             </div>
           ) : (
             <div className="text-center py-12 border border-dashed border-[var(--border)] rounded-md bg-[var(--surface-hover)]/20">
-              <Film className="h-8 w-8 text-gray-700 mx-auto mb-2" />
-              <p className="text-gray-500">No shots generated yet.</p>
-              <p className="text-gray-600 text-sm mt-1">Click "Generate Shots" to create AI-powered shot breakdown.</p>
+              <Film className="h-8 w-8 text-[var(--text-muted)] mx-auto mb-2" />
+              <p className="text-[var(--text-muted)]">No shots generated yet.</p>
+              <p className="text-[var(--text-muted)] text-sm mt-1">Click "Generate Shots" to create AI-powered shot breakdown.</p>
             </div>
           )}
         </section>
