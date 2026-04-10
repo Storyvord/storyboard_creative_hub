@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Check, ChevronDown } from "lucide-react";
 import { CameraAngle } from "@/services/creative-hub";
 import { CameraAngleDiagramThemed } from "@/components/creative-hub/CameraAngleDiagram";
+import { useTheme } from "@/context/ThemeContext";
 
 interface CameraAngleSelectorProps {
   angles: CameraAngle[];
@@ -16,23 +17,34 @@ interface CameraAngleSelectorProps {
 }
 
 function AnglePreview({ angle, className }: { angle: CameraAngle; className?: string }) {
-  const [imgFailed, setImgFailed] = useState(false);
+  const { theme } = useTheme();
+  const [darkImgFailed, setDarkImgFailed] = useState(false);
+  const [lightImgFailed, setLightImgFailed] = useState(false);
 
-  if (angle.reference_image && !imgFailed) {
+  const src = theme === "light"
+    ? (angle.reference_image_light && !lightImgFailed ? angle.reference_image_light : null)
+    : (angle.reference_image && !darkImgFailed ? angle.reference_image : null);
+
+  // Fall back to dark image in light mode if no light variant uploaded yet
+  const fallbackSrc = theme === "light" && !src && angle.reference_image && !darkImgFailed
+    ? angle.reference_image
+    : null;
+
+  const activeSrc = src ?? fallbackSrc;
+
+  if (activeSrc) {
     return (
       <img
-        src={angle.reference_image}
+        src={activeSrc}
         alt={angle.name}
         className={className ?? "w-full h-full object-cover"}
-        onError={() => setImgFailed(true)}
+        onError={() => theme === "light" ? setLightImgFailed(true) : setDarkImgFailed(true)}
       />
     );
   }
-  const diagram = <CameraAngleDiagramThemed name={angle.name} />;
-  if (diagram) return <div className={className ?? "w-full h-full"}>{diagram}</div>;
   return (
-    <div className="w-full h-full flex items-center justify-center">
-      <span className="text-[var(--text-muted)] text-xs">{angle.name[0]}</span>
+    <div className={className ?? "w-full h-full"}>
+      <CameraAngleDiagramThemed name={angle.name} />
     </div>
   );
 }
