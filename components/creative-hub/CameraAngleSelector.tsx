@@ -18,30 +18,27 @@ interface CameraAngleSelectorProps {
 
 function AnglePreview({ angle, className }: { angle: CameraAngle; className?: string }) {
   const { theme } = useTheme();
-  const [darkImgFailed, setDarkImgFailed] = useState(false);
-  const [lightImgFailed, setLightImgFailed] = useState(false);
+  const [imgFailed, setImgFailed] = useState(false);
+
+  // Reset failed flag whenever the theme changes so we re-attempt the new src
+  useEffect(() => { setImgFailed(false); }, [theme]);
 
   const src = theme === "light"
-    ? (angle.reference_image_light && !lightImgFailed ? angle.reference_image_light : null)
-    : (angle.reference_image && !darkImgFailed ? angle.reference_image : null);
+    ? (angle.reference_image_light ?? angle.reference_image)  // prefer light, fall back to dark
+    : angle.reference_image;
 
-  // Fall back to dark image in light mode if no light variant uploaded yet
-  const fallbackSrc = theme === "light" && !src && angle.reference_image && !darkImgFailed
-    ? angle.reference_image
-    : null;
-
-  const activeSrc = src ?? fallbackSrc;
-
-  if (activeSrc) {
+  if (src && !imgFailed) {
     return (
       <img
-        src={activeSrc}
+        src={src}
         alt={angle.name}
         className={className ?? "w-full h-full object-cover"}
-        onError={() => theme === "light" ? setLightImgFailed(true) : setDarkImgFailed(true)}
+        onError={() => setImgFailed(true)}
       />
     );
   }
+
+  // Inline SVG fallback if backend image is missing or failed to load
   return (
     <div className={className ?? "w-full h-full"}>
       <CameraAngleDiagramThemed name={angle.name} />
