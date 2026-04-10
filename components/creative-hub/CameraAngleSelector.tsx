@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Check, ChevronDown } from "lucide-react";
 import { CameraAngle } from "@/services/creative-hub";
-import { getCameraAngleDiagram } from "@/components/creative-hub/CameraAngleDiagram";
+import { CameraAngleDiagramThemed } from "@/components/creative-hub/CameraAngleDiagram";
 
 interface CameraAngleSelectorProps {
   angles: CameraAngle[];
@@ -17,7 +17,6 @@ interface CameraAngleSelectorProps {
 
 function AnglePreview({ angle, className }: { angle: CameraAngle; className?: string }) {
   const [imgFailed, setImgFailed] = useState(false);
-  const diagram = getCameraAngleDiagram(angle.name);
 
   if (angle.reference_image && !imgFailed) {
     return (
@@ -29,6 +28,7 @@ function AnglePreview({ angle, className }: { angle: CameraAngle; className?: st
       />
     );
   }
+  const diagram = <CameraAngleDiagramThemed name={angle.name} />;
   if (diagram) return <div className={className ?? "w-full h-full"}>{diagram}</div>;
   return (
     <div className="w-full h-full flex items-center justify-center">
