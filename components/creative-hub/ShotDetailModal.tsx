@@ -9,17 +9,6 @@ import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import MentionTextarea, { TaggedCharacter, SceneCharacterItem, GlobalCharacterItem } from "@/components/creative-hub/MentionTextarea";
 
-const SHOT_TYPE_OPTIONS = [
-    "Close-Up",
-    "Wide Shot",
-    "Tracking Shot",
-    "Over-The-Shoulder",
-    "Medium Shot",
-    "Medium Close-Up",
-    "Medium Two-Shot",
-    "Other",
-];
-
 
 const MOVEMENT_OPTIONS = [
     "Static",
@@ -86,7 +75,6 @@ export default function ShotDetailModal({
         type: "Wide Shot",
         movement: "",
         camera_angle: "",
-        shot_type: "",
         lighting: "",
     });
   const [editPrompt, setEditPrompt] = useState('');
@@ -107,7 +95,6 @@ export default function ShotDetailModal({
         detailsForm.type !== (shot.type || "Wide Shot") ||
         detailsForm.movement !== (shot.movement || "") ||
         detailsForm.camera_angle !== (shot.camera_angle || "") ||
-        detailsForm.shot_type !== (shot.shot_type || "") ||
         detailsForm.lighting !== (shot.lighting || "")
     );
 
@@ -122,7 +109,6 @@ export default function ShotDetailModal({
                         type: shot.type || "Wide Shot",
                         movement: shot.movement || "",
                         camera_angle: shot.camera_angle || "",
-                        shot_type: shot.shot_type || "",
                         lighting: shot.lighting || "",
                 });
                 setEditPrompt("");
@@ -290,7 +276,6 @@ export default function ShotDetailModal({
               type: detailsForm.type,
               movement: detailsForm.movement || null,
               camera_angle: detailsForm.camera_angle || null,
-              shot_type: detailsForm.shot_type || null,
               lighting: detailsForm.lighting || null,
           };
 
@@ -301,7 +286,6 @@ export default function ShotDetailModal({
               onUpdateShot(shot.id, 'type', detailsForm.type);
               onUpdateShot(shot.id, 'movement', detailsForm.movement);
               onUpdateShot(shot.id, 'camera_angle', detailsForm.camera_angle);
-              onUpdateShot(shot.id, 'shot_type', detailsForm.shot_type);
               onUpdateShot(shot.id, 'lighting', detailsForm.lighting);
           }
 
@@ -492,20 +476,16 @@ export default function ShotDetailModal({
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
                                             <span className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Shot Type</span>
-                                            <select
+                                            <ShotTypeSelector
+                                                shotTypes={shotTypes}
                                                 value={detailsForm.type}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
+                                                onChange={(val) => {
                                                     setDetailsForm((prev) => ({ ...prev, type: val }));
                                                     autoSaveField('type', val);
                                                 }}
-                                                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-secondary)] px-2 py-2 outline-none focus:border-emerald-500/40"
                                                 disabled={disableDetails || savingDetails}
-                                            >
-                                                {SHOT_TYPE_OPTIONS.map((opt) => (
-                                                    <option key={opt} value={opt}>{opt}</option>
-                                                ))}
-                                            </select>
+                                                size="sm"
+                                            />
                                         </div>
                                         <div>
                                             <span className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Movement</span>
@@ -533,19 +513,6 @@ export default function ShotDetailModal({
                                                 onChange={(val) => {
                                                     setDetailsForm((prev) => ({ ...prev, camera_angle: val }));
                                                     autoSaveField('camera_angle', val || null);
-                                                }}
-                                                disabled={disableDetails || savingDetails}
-                                                size="sm"
-                                            />
-                                        </div>
-                                        <div>
-                                            <span className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Shot Type (Previz)</span>
-                                            <ShotTypeSelector
-                                                shotTypes={shotTypes}
-                                                value={detailsForm.shot_type || ""}
-                                                onChange={(val) => {
-                                                    setDetailsForm((prev) => ({ ...prev, shot_type: val }));
-                                                    autoSaveField('shot_type', val || null);
                                                 }}
                                                 disabled={disableDetails || savingDetails}
                                                 size="sm"
