@@ -14,8 +14,11 @@ import {
   getScriptPrevisualizations,
   getCameraAngles,
   CameraAngle,
+  getShotTypes,
+  ShotType,
 } from "@/services/creative-hub";
 import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
+import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import { ASPECT_RATIOS } from "@/app/projects/[projectId]/creative-hub/storyboard/page";
@@ -417,6 +420,7 @@ export default function CreativeSpacePage() {
   const [cameraAngle, setCameraAngle] = useState("");
   const [cameraAngles, setCameraAngles] = useState<CameraAngle[]>([]);
   const [shotType,    setShotType]    = useState("");
+  const [shotTypes,   setShotTypes]   = useState<ShotType[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
 
   // View toggle state
@@ -481,6 +485,7 @@ export default function CreativeSpacePage() {
 
   useEffect(() => {
     getCameraAngles().then(setCameraAngles).catch(() => {});
+    getShotTypes().then(setShotTypes).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -945,10 +950,12 @@ export default function CreativeSpacePage() {
 
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">Shot Type</span>
-              <select className={PARAM_SELECT_CLS} value={shotType} onChange={(e) => setShotType(e.target.value)}>
-                <option value="">— Any —</option>
-                {SHOT_TYPES.map((st) => <option key={st} value={st}>{st}</option>)}
-              </select>
+              <ShotTypeSelector
+                shotTypes={shotTypes}
+                value={shotType}
+                onChange={setShotType}
+                size="sm"
+              />
             </div>
 
             <div className="flex items-center gap-2">
