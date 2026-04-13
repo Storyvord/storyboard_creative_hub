@@ -100,6 +100,7 @@ export interface Previsualization {
   audio_url?: string;
   aspect_ratio?: string;
   camera_angle?: string;
+  shot_type?: string;
   added_by?: {
       id: number;
       name: string;
@@ -119,6 +120,7 @@ export interface Shot {
     // Extended fields for details
     movement?: string;
     camera_angle?: string;
+    shot_type?: string;
     lighting?: string;
     rationale?: string;
     timeline?: any;

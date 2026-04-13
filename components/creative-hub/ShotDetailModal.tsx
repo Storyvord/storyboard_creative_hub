@@ -2,22 +2,12 @@ import { Shot, Scene, Character } from "@/types/creative-hub";
 import { X, Film, User, ChevronLeft, ChevronRight, Clock, AlertTriangle, Upload, Pencil, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
-import { uploadPreviz, getShotPreviz, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails, getCameraAngles, CameraAngle } from "@/services/creative-hub";
+import { uploadPreviz, getShotPreviz, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails, getCameraAngles, CameraAngle, getShotTypes, ShotType } from "@/services/creative-hub";
 import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
+import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import MentionTextarea, { TaggedCharacter, SceneCharacterItem, GlobalCharacterItem } from "@/components/creative-hub/MentionTextarea";
-
-const SHOT_TYPE_OPTIONS = [
-    "Close-Up",
-    "Wide Shot",
-    "Tracking Shot",
-    "Over-The-Shoulder",
-    "Medium Shot",
-    "Medium Close-Up",
-    "Medium Two-Shot",
-    "Other",
-];
 
 
 const MOVEMENT_OPTIONS = [
@@ -91,9 +81,11 @@ export default function ShotDetailModal({
   const [isEditingPreviz, setIsEditingPreviz] = useState(false);
   const [taggedCharacterIds, setTaggedCharacterIds] = useState<TaggedCharacter[]>([]);
   const [cameraAngles, setCameraAngles] = useState<CameraAngle[]>([]);
+  const [shotTypes, setShotTypes] = useState<ShotType[]>([]);
 
   useEffect(() => {
     getCameraAngles().then(setCameraAngles).catch(() => {});
+    getShotTypes().then(setShotTypes).catch(() => {});
   }, []);
 
   const hasActivePrevizImage = !!shot?.image_url;
@@ -484,20 +476,16 @@ export default function ShotDetailModal({
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
                                             <span className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Shot Type</span>
-                                            <select
+                                            <ShotTypeSelector
+                                                shotTypes={shotTypes}
                                                 value={detailsForm.type}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
+                                                onChange={(val) => {
                                                     setDetailsForm((prev) => ({ ...prev, type: val }));
                                                     autoSaveField('type', val);
                                                 }}
-                                                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-secondary)] px-2 py-2 outline-none focus:border-emerald-500/40"
                                                 disabled={disableDetails || savingDetails}
-                                            >
-                                                {SHOT_TYPE_OPTIONS.map((opt) => (
-                                                    <option key={opt} value={opt}>{opt}</option>
-                                                ))}
-                                            </select>
+                                                size="sm"
+                                            />
                                         </div>
                                         <div>
                                             <span className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Movement</span>
