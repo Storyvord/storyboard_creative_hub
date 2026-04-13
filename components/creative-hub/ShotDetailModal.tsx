@@ -2,8 +2,9 @@ import { Shot, Scene, Character } from "@/types/creative-hub";
 import { X, Film, User, ChevronLeft, ChevronRight, Clock, AlertTriangle, Upload, Pencil, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
-import { uploadPreviz, getShotPreviz, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails, getCameraAngles, CameraAngle } from "@/services/creative-hub";
+import { uploadPreviz, getShotPreviz, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails, getCameraAngles, CameraAngle, getShotTypes, ShotType } from "@/services/creative-hub";
 import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
+import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import MentionTextarea, { TaggedCharacter, SceneCharacterItem, GlobalCharacterItem } from "@/components/creative-hub/MentionTextarea";
@@ -85,15 +86,18 @@ export default function ShotDetailModal({
         type: "Wide Shot",
         movement: "",
         camera_angle: "",
+        shot_type: "",
         lighting: "",
     });
   const [editPrompt, setEditPrompt] = useState('');
   const [isEditingPreviz, setIsEditingPreviz] = useState(false);
   const [taggedCharacterIds, setTaggedCharacterIds] = useState<TaggedCharacter[]>([]);
   const [cameraAngles, setCameraAngles] = useState<CameraAngle[]>([]);
+  const [shotTypes, setShotTypes] = useState<ShotType[]>([]);
 
   useEffect(() => {
     getCameraAngles().then(setCameraAngles).catch(() => {});
+    getShotTypes().then(setShotTypes).catch(() => {});
   }, []);
 
   const hasActivePrevizImage = !!shot?.image_url;
@@ -103,6 +107,7 @@ export default function ShotDetailModal({
         detailsForm.type !== (shot.type || "Wide Shot") ||
         detailsForm.movement !== (shot.movement || "") ||
         detailsForm.camera_angle !== (shot.camera_angle || "") ||
+        detailsForm.shot_type !== (shot.shot_type || "") ||
         detailsForm.lighting !== (shot.lighting || "")
     );
 
@@ -117,6 +122,7 @@ export default function ShotDetailModal({
                         type: shot.type || "Wide Shot",
                         movement: shot.movement || "",
                         camera_angle: shot.camera_angle || "",
+                        shot_type: shot.shot_type || "",
                         lighting: shot.lighting || "",
                 });
                 setEditPrompt("");
@@ -284,6 +290,7 @@ export default function ShotDetailModal({
               type: detailsForm.type,
               movement: detailsForm.movement || null,
               camera_angle: detailsForm.camera_angle || null,
+              shot_type: detailsForm.shot_type || null,
               lighting: detailsForm.lighting || null,
           };
 
@@ -294,6 +301,7 @@ export default function ShotDetailModal({
               onUpdateShot(shot.id, 'type', detailsForm.type);
               onUpdateShot(shot.id, 'movement', detailsForm.movement);
               onUpdateShot(shot.id, 'camera_angle', detailsForm.camera_angle);
+              onUpdateShot(shot.id, 'shot_type', detailsForm.shot_type);
               onUpdateShot(shot.id, 'lighting', detailsForm.lighting);
           }
 
@@ -525,6 +533,19 @@ export default function ShotDetailModal({
                                                 onChange={(val) => {
                                                     setDetailsForm((prev) => ({ ...prev, camera_angle: val }));
                                                     autoSaveField('camera_angle', val || null);
+                                                }}
+                                                disabled={disableDetails || savingDetails}
+                                                size="sm"
+                                            />
+                                        </div>
+                                        <div>
+                                            <span className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Shot Type (Previz)</span>
+                                            <ShotTypeSelector
+                                                shotTypes={shotTypes}
+                                                value={detailsForm.shot_type || ""}
+                                                onChange={(val) => {
+                                                    setDetailsForm((prev) => ({ ...prev, shot_type: val }));
+                                                    autoSaveField('shot_type', val || null);
                                                 }}
                                                 disabled={disableDetails || savingDetails}
                                                 size="sm"
