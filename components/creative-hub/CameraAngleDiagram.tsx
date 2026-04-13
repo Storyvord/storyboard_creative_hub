@@ -195,108 +195,83 @@ function buildDiagrams(c: DiagramColors): Record<string, ReactElement> {
       </svg>
     ),
 
-    "Over-The-Shoulder": (
+    "Shoulder-Level": (
       <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
         <rect width="120" height="80" fill={c.bg} />
-        <line x1="0" y1="68" x2="120" y2="68" stroke={c.ground} strokeWidth="1" />
-        <path d="M 5 68 Q 5 45 25 38 L 35 38 Q 35 68 35 68 Z" fill={c.subject} stroke={c.ground} strokeWidth="1" />
-        <circle cx="20" cy="32" r="8" fill={c.subject} stroke={c.ground} strokeWidth="1" />
-        <rect x="68" y="34" width="14" height="34" rx="2" fill={c.subjectStroke} stroke={c.subjectStroke} strokeWidth="1" />
-        <circle cx="75" cy="28" r="7" fill={c.subjectStroke} stroke={c.subjectStroke} strokeWidth="1" />
-        <rect x="38" y="34" width="12" height="8" rx="2" fill="#1a6b3a" />
-        <line x1="50" y1="38" x2="67" y2="36" stroke="#22c55e" strokeWidth="1.5" markerEnd="url(#aots)" />
-        <defs>
-          <marker id="aots" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
-            <path d="M0,0 L6,3 L0,6 Z" fill="#22c55e" />
-          </marker>
-        </defs>
-        <text x="60" y="77" textAnchor="middle" fill={c.label} fontSize="6.5" fontFamily="sans-serif">Over-The-Shoulder</text>
-      </svg>
-    ),
-
-    "POV (Point of View)": (
-      <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-        <rect width="120" height="80" fill={c.bg} />
-        <ellipse cx="60" cy="40" rx="55" ry="35" fill="none" stroke={c.subject} strokeWidth="14" />
         <line x1="0" y1="62" x2="120" y2="62" stroke={c.ground} strokeWidth="1" />
-        <rect x="50" y="28" width="20" height="34" rx="2" fill={c.subjectStroke} stroke={c.subjectStroke} strokeWidth="1" />
-        <circle cx="60" cy="22" r="8" fill={c.subjectStroke} stroke={c.subjectStroke} strokeWidth="1" />
-        <circle cx="60" cy="40" r="22" fill="none" stroke="#22c55e" strokeWidth="0.5" opacity="0.3" />
-        <line x1="60" y1="10" x2="60" y2="70" stroke="#22c55e" strokeWidth="0.5" opacity="0.3" />
-        <line x1="20" y1="40" x2="100" y2="40" stroke="#22c55e" strokeWidth="0.5" opacity="0.3" />
-        <text x="60" y="77" textAnchor="middle" fill={c.label} fontSize="7" fontFamily="sans-serif">POV</text>
-      </svg>
-    ),
-
-    "Two Shot": (
-      <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-        <rect width="120" height="80" fill={c.bg} />
-        <line x1="0" y1="65" x2="120" y2="65" stroke={c.ground} strokeWidth="1" />
-        <rect x="34" y="30" width="14" height="35" rx="2" fill={c.subject} stroke={c.subjectStroke} strokeWidth="1" />
-        <circle cx="41" cy="24" r="7" fill={c.subject} stroke={c.subjectStroke} strokeWidth="1" />
-        <rect x="72" y="30" width="14" height="35" rx="2" fill={c.subject} stroke={c.ground} strokeWidth="1" />
-        <circle cx="79" cy="24" r="7" fill={c.subject} stroke={c.ground} strokeWidth="1" />
-        <rect x="8" y="36" width="14" height="10" rx="2" fill="#1a6b3a" />
-        <circle cx="26" cy="41" r="3" fill="#0d4726" />
-        <line x1="28" y1="41" x2="33" y2="41" stroke="#22c55e" strokeWidth="1.5" markerEnd="url(#ats)" />
+        <rect x="52" y="25" width="16" height="37" rx="2" fill={c.subject} stroke={c.subjectStroke} strokeWidth="1" />
+        <circle cx="60" cy="19" r="7" fill={c.subject} stroke={c.subjectStroke} strokeWidth="1" />
+        {/* Camera at shoulder height (~70% of subject) */}
+        <rect x="12" y="33" width="14" height="10" rx="2" fill="#1a6b3a" />
+        <circle cx="30" cy="38" r="3" fill="#0d4726" />
+        <line x1="32" y1="38" x2="50" y2="38" stroke="#22c55e" strokeWidth="1.5" markerEnd="url(#asl)" />
         <defs>
-          <marker id="ats" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
+          <marker id="asl" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
             <path d="M0,0 L6,3 L0,6 Z" fill="#22c55e" />
           </marker>
         </defs>
-        <rect x="28" y="15" width="64" height="55" rx="1" fill="none" stroke="#22c55e" strokeWidth="0.8" strokeDasharray="3,2" opacity="0.5" />
-        <text x="60" y="76" textAnchor="middle" fill={c.label} fontSize="7" fontFamily="sans-serif">Two Shot</text>
+        <text x="60" y="76" textAnchor="middle" fill={c.label} fontSize="7" fontFamily="sans-serif">Shoulder-Level</text>
       </svg>
     ),
 
-    "Cowboy Shot": (
+    "Hip-Level": (
       <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
         <rect width="120" height="80" fill={c.bg} />
-        <line x1="0" y1="65" x2="120" y2="65" stroke={c.ground} strokeWidth="1" />
-        <rect x="50" y="22" width="20" height="43" rx="2" fill={c.subject} stroke={c.subjectStroke} strokeWidth="1" />
+        <line x1="0" y1="62" x2="120" y2="62" stroke={c.ground} strokeWidth="1" />
+        <rect x="52" y="22" width="16" height="40" rx="2" fill={c.subject} stroke={c.subjectStroke} strokeWidth="1" />
         <circle cx="60" cy="16" r="7" fill={c.subject} stroke={c.subjectStroke} strokeWidth="1" />
-        <line x1="28" y1="55" x2="92" y2="55" stroke="#22c55e" strokeWidth="1" strokeDasharray="3,2" opacity="0.7" />
-        <rect x="8" y="44" width="14" height="10" rx="2" fill="#1a6b3a" />
-        <circle cx="26" cy="49" r="3" fill="#0d4726" />
-        <line x1="28" y1="49" x2="49" y2="49" stroke="#22c55e" strokeWidth="1.5" markerEnd="url(#acs)" />
+        {/* Camera at hip height (~50% of subject) */}
+        <rect x="10" y="50" width="14" height="10" rx="2" fill="#1a6b3a" />
+        <circle cx="28" cy="55" r="3" fill="#0d4726" />
+        <line x1="30" y1="53" x2="50" y2="42" stroke="#22c55e" strokeWidth="1.5" markerEnd="url(#ahl)" />
         <defs>
-          <marker id="acs" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
+          <marker id="ahl" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
             <path d="M0,0 L6,3 L0,6 Z" fill="#22c55e" />
           </marker>
         </defs>
-        <text x="60" y="74" textAnchor="middle" fill={c.label} fontSize="7" fontFamily="sans-serif">Cowboy Shot</text>
+        <text x="60" y="76" textAnchor="middle" fill={c.label} fontSize="7" fontFamily="sans-serif">Hip-Level</text>
       </svg>
     ),
 
-    "Extreme Close-Up": (
+    "Ground-Level": (
       <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
         <rect width="120" height="80" fill={c.bg} />
-        <circle cx="60" cy="35" r="32" fill={c.subject} stroke={c.ground} strokeWidth="1" />
-        <ellipse cx="46" cy="30" rx="7" ry="5" fill={c.bg} stroke={c.subjectStroke} strokeWidth="1" />
-        <ellipse cx="74" cy="30" rx="7" ry="5" fill={c.bg} stroke={c.subjectStroke} strokeWidth="1" />
-        <circle cx="46" cy="30" r="3" fill={c.ground} />
-        <circle cx="74" cy="30" r="3" fill={c.ground} />
-        <path d="M57 35 Q60 44 63 35" stroke={c.ground} strokeWidth="1" fill="none" />
-        <path d="M2,2 L2,14 M2,2 L14,2" stroke="#22c55e" strokeWidth="1.5" fill="none" />
-        <path d="M118,2 L118,14 M118,2 L106,2" stroke="#22c55e" strokeWidth="1.5" fill="none" />
-        <path d="M2,78 L2,66 M2,78 L14,78" stroke="#22c55e" strokeWidth="1.5" fill="none" />
-        <path d="M118,78 L118,66 M118,78 L106,78" stroke="#22c55e" strokeWidth="1.5" fill="none" />
-        <text x="60" y="76" textAnchor="middle" fill={c.label} fontSize="7" fontFamily="sans-serif">Extreme Close-Up</text>
+        <line x1="0" y1="64" x2="120" y2="64" stroke={c.ground} strokeWidth="1" />
+        <rect x="52" y="14" width="16" height="50" rx="2" fill={c.subject} stroke={c.subjectStroke} strokeWidth="1" />
+        <circle cx="60" cy="8" r="7" fill={c.subject} stroke={c.subjectStroke} strokeWidth="1" />
+        {/* Camera near ground */}
+        <rect x="10" y="58" width="14" height="8" rx="2" fill="#1a6b3a" />
+        <circle cx="28" cy="62" r="3" fill="#0d4726" />
+        <line x1="30" y1="61" x2="50" y2="59" stroke="#22c55e" strokeWidth="1.5" markerEnd="url(#agl)" />
+        <defs>
+          <marker id="agl" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#22c55e" />
+          </marker>
+        </defs>
+        <text x="60" y="76" textAnchor="middle" fill={c.label} fontSize="7" fontFamily="sans-serif">Ground-Level</text>
       </svg>
     ),
 
-    "Extreme Wide Shot": (
+    "Oblique Angle": (
       <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-        <rect width="120" height="80" fill={c.skyBg} />
-        <rect x="0" y="45" width="120" height="35" fill={c.groundFill} />
-        <path d="M0,45 Q20,28 35,42 Q50,30 65,42 Q80,25 95,40 Q108,32 120,42 L120,45 Z" fill={c.mountains} />
-        <rect x="58" y="41" width="4" height="8" rx="1" fill={c.subjectStroke} />
-        <circle cx="60" cy="39" r="2" fill={c.subjectStroke} />
-        <path d="M4,4 L4,14 M4,4 L14,4" stroke="#22c55e" strokeWidth="1" fill="none" />
-        <path d="M116,4 L116,14 M116,4 L106,4" stroke="#22c55e" strokeWidth="1" fill="none" />
-        <path d="M4,76 L4,66 M4,76 L14,76" stroke="#22c55e" strokeWidth="1" fill="none" />
-        <path d="M116,76 L116,66 M116,76 L106,76" stroke="#22c55e" strokeWidth="1" fill="none" />
-        <text x="60" y="78" textAnchor="middle" fill={c.label} fontSize="6.5" fontFamily="sans-serif">Extreme Wide Shot</text>
+        <rect width="120" height="80" fill={c.bg} />
+        <line x1="0" y1="65" x2="120" y2="65" stroke={c.ground} strokeWidth="1" />
+        <rect x="52" y="25" width="16" height="40" rx="2" fill={c.subject} stroke={c.subjectStroke} strokeWidth="1" />
+        <circle cx="60" cy="19" r="7" fill={c.subject} stroke={c.subjectStroke} strokeWidth="1" />
+        {/* Camera subtly tilted 15° — less than Dutch Angle */}
+        <g transform="rotate(-15 22 42)">
+          <rect x="10" y="37" width="14" height="10" rx="2" fill="#1a6b3a" />
+          <circle cx="28" cy="42" r="3" fill="#0d4726" />
+        </g>
+        <line x1="29" y1="38" x2="50" y2="41" stroke="#22c55e" strokeWidth="1.5" markerEnd="url(#aob)" />
+        <defs>
+          <marker id="aob" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#22c55e" />
+          </marker>
+        </defs>
+        <text x="18" y="22" fill="#22c55e" fontSize="8" fontFamily="sans-serif">↺</text>
+        <text x="26" y="16" fill="#22c55e" fontSize="6" fontFamily="sans-serif">15°</text>
+        <text x="60" y="76" textAnchor="middle" fill={c.label} fontSize="7" fontFamily="sans-serif">Oblique Angle</text>
       </svg>
     ),
   };
