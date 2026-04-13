@@ -658,3 +658,19 @@ export const getCameraAngles = async (): Promise<CameraAngle[]> => {
     if (response.data.results) return response.data.results;
     return [];
 }
+
+export interface ShotType {
+    id: number;
+    name: string;
+    description: string | null;
+    reference_image: string | null;
+    reference_image_light: string | null;
+    order: number;
+}
+
+export const getShotTypes = async (): Promise<ShotType[]> => {
+    const response = await api.get("/api/creative_hub/shot-types/");
+    if (Array.isArray(response.data)) return response.data;
+    if (response.data.results) return response.data.results;
+    return [];
+}
