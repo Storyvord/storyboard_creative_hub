@@ -83,6 +83,7 @@ export default function ShotDetailModal({
   const [taggedCharacterIds, setTaggedCharacterIds] = useState<TaggedCharacter[]>([]);
   const [cameraAngles, setCameraAngles] = useState<CameraAngle[]>([]);
   const [shotTypes, setShotTypes] = useState<ShotType[]>([]);
+  const [activeTextTab, setActiveTextTab] = useState<'description' | 'edit'>('description');
 
   useEffect(() => {
     getCameraAngles().then(setCameraAngles).catch(() => {});
@@ -363,13 +364,18 @@ export default function ShotDetailModal({
                     )}
                 </div>
                 
-                {/* Active previz reference strip */}
-                {shot.previz?.reference_images && shot.previz.reference_images.length > 0 && (
-                  <div className="px-4 pb-3 border-t border-[var(--border)]">
-                    <p className="text-[9px] text-[var(--text-muted)] uppercase tracking-widest mb-1.5 pt-2">References</p>
-                    <PrevizReferenceStrip images={shot.previz.reference_images} size="md" />
-                  </div>
-                )}
+                {/* Active previz reference strip — sourced from v1 history (has reference_images) */}
+                {(() => {
+                  const activePreviz = previzHistory.find((p) => p.id === shot.active_previz);
+                  const refs = activePreviz?.reference_images ?? [];
+                  if (refs.length === 0) return null;
+                  return (
+                    <div className="px-4 pb-3 border-t border-[var(--border)]">
+                      <p className="text-[9px] text-[var(--text-muted)] uppercase tracking-widest mb-1.5 pt-2">References</p>
+                      <PrevizReferenceStrip images={refs} size="md" />
+                    </div>
+                  );
+                })()}
 
                 {/* Navigation */}
                 <div className="absolute inset-0 flex items-center justify-between p-4 pointer-events-none">
@@ -453,32 +459,91 @@ export default function ShotDetailModal({
                             )}
 
                                 <section>
-                                <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Description</h3>
-                                <MentionTextarea
-                                    value={detailsForm.description}
-                                    onChange={(val) => setDetailsForm((prev) => ({ ...prev, description: val }))}
-                                    onTagsChange={(tags) => {
-                                        setTaggedCharacterIds(tags);
-                                        if (onTagsChange && shot) onTagsChange(shot.id, tags);
-                                    }}
-                                    sceneCharacters={(scene?.scene_characters || []).map((sc: any) => ({
-                                        id: sc.id,
-                                        character_id: sc.character?.id || sc.character_id,
-                                        character_name: sc.character?.name || sc.character_name || "",
-                                        image_url: sc.image_url,
-                                        character_image_url: sc.character?.image_url,
-                                    }))}
-                                    globalCharacters={globalCharacters}
-                                    className={`w-full leading-relaxed text-sm bg-[var(--surface)] p-3 rounded-md border border-[var(--border)] resize-none min-h-[84px] focus:outline-none focus:border-emerald-500/40 ${disableDetails ? 'text-[var(--text-muted)] opacity-60 cursor-not-allowed' : 'text-[var(--text-secondary)]'}`}
-                                    disabled={disableDetails || savingDetails}
-                                    placeholder="Shot description... (type @ to tag characters)"
-                                    rows={4}
-                                    onBlur={() => {
-                                        if (detailsForm.description !== (shot?.description || "")) {
-                                            autoSaveField('description', detailsForm.description);
-                                        }
-                                    }}
-                                />
+                                {/* Chrome-tab toggle: Description ↔ Edit Prompt */}
+                                <div className="flex mb-2 bg-[var(--surface-raised)] rounded-md p-0.5 relative w-fit">
+                                    <motion.div
+                                        className="absolute top-0.5 bottom-0.5 rounded-[5px] bg-purple-700/80"
+                                        style={{ width: '50%' }}
+                                        animate={{ left: activeTextTab === 'description' ? '2px' : '50%' }}
+                                        transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                                    />
+                                    <button
+                                        onClick={() => setActiveTextTab('description')}
+                                        className={`relative z-10 px-3 py-1 text-[10px] font-semibold rounded-[5px] transition-colors w-24 ${activeTextTab === 'description' ? 'text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                                    >
+                                        Description
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTextTab('edit')}
+                                        className={`relative z-10 px-3 py-1 text-[10px] font-semibold rounded-[5px] transition-colors w-24 flex items-center justify-center gap-1 ${activeTextTab === 'edit' ? 'text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                                    >
+                                        <Pencil className="w-2.5 h-2.5" />
+                                        Edit Prompt
+                                    </button>
+                                </div>
+
+                                <AnimatePresence mode="wait">
+                                {activeTextTab === 'description' ? (
+                                    <motion.div
+                                        key="description"
+                                        initial={{ opacity: 0, y: 4 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -4 }}
+                                        transition={{ duration: 0.15 }}
+                                    >
+                                    <MentionTextarea
+                                        value={detailsForm.description}
+                                        onChange={(val) => setDetailsForm((prev) => ({ ...prev, description: val }))}
+                                        onTagsChange={(tags) => {
+                                            setTaggedCharacterIds(tags);
+                                            if (onTagsChange && shot) onTagsChange(shot.id, tags);
+                                        }}
+                                        sceneCharacters={(scene?.scene_characters || []).map((sc: any) => ({
+                                            id: sc.id,
+                                            character_id: sc.character?.id || sc.character_id,
+                                            character_name: sc.character?.name || sc.character_name || "",
+                                            image_url: sc.image_url,
+                                            character_image_url: sc.character?.image_url,
+                                        }))}
+                                        globalCharacters={globalCharacters}
+                                        className={`w-full leading-relaxed text-sm bg-[var(--surface)] p-3 rounded-md border border-[var(--border)] resize-none min-h-[84px] focus:outline-none focus:border-emerald-500/40 ${disableDetails ? 'text-[var(--text-muted)] opacity-60 cursor-not-allowed' : 'text-[var(--text-secondary)]'}`}
+                                        disabled={disableDetails || savingDetails}
+                                        placeholder="Shot description... (type @ to tag characters)"
+                                        rows={4}
+                                        onBlur={() => {
+                                            if (detailsForm.description !== (shot?.description || "")) {
+                                                autoSaveField('description', detailsForm.description);
+                                            }
+                                        }}
+                                    />
+                                    </motion.div>
+                                ) : (
+                                    <motion.div
+                                        key="edit"
+                                        initial={{ opacity: 0, y: 4 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -4 }}
+                                        transition={{ duration: 0.15 }}
+                                    >
+                                        <div className={disableEditPrompt ? 'opacity-50' : ''}>
+                                            <p className="text-[10px] text-purple-300/70 mb-2">
+                                                Enter prompt to edit current active previz. Creates a new previz based on the current image.
+                                            </p>
+                                            <textarea
+                                                value={editPrompt}
+                                                onChange={(e) => setEditPrompt(e.target.value)}
+                                                placeholder={disableEditPrompt ? 'Clear unsaved shot detail changes to use edit prompt.' : 'e.g. Change lighting to golden hour, add fog in background...'}
+                                                className="w-full bg-[var(--surface)] border border-purple-900/50 text-[var(--text-primary)] text-sm rounded-md p-3 resize-none focus:outline-none focus:border-purple-500/70 placeholder:text-[var(--text-muted)] min-h-[84px]"
+                                                rows={4}
+                                                disabled={isEditingPreviz || disableEditPrompt}
+                                            />
+                                            {!hasActivePrevizImage && (
+                                                <p className="text-[10px] text-[var(--text-muted)] mt-1">Generate or upload a previz first to use edit prompt.</p>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                )}
+                                </AnimatePresence>
 
                                 <div className={`mt-3 space-y-2 ${disableDetails ? 'opacity-50 pointer-events-none' : ''}`}>
                                     <h4 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest">Shot Details</h4>
@@ -551,30 +616,6 @@ export default function ShotDetailModal({
                                     )}
                                 </div>
 
-                                {/* Edit Prompt Section */}
-                                <div className="mt-3 space-y-2">
-                                    <div className={`bg-purple-950/20 border border-purple-900/30 rounded-md p-3 ${disableEditPrompt ? 'opacity-50' : ''}`}>
-                                        <h4 className="text-[10px] font-bold text-purple-300 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                                            <Pencil className="w-3 h-3" />
-                                            Edit Prompt
-                                        </h4>
-                                        <p className="text-[10px] text-purple-300/70 mb-2">
-                                            Enter prompt to edit current active previz. This creates a new previz based on the current image.
-                                        </p>
-                                        <textarea
-                                            value={editPrompt}
-                                            onChange={(e) => setEditPrompt(e.target.value)}
-                                            placeholder={disableEditPrompt ? 'Clear unsaved shot detail changes to use edit prompt.' : 'e.g. Change lighting to golden hour, add fog in background...'}
-                                            className="w-full bg-[var(--background)] border border-purple-900/40 text-[var(--text-primary)] text-xs rounded-md p-2.5 resize-none focus:outline-none focus:border-purple-500/60 placeholder:text-[var(--text-muted)] min-h-[64px]"
-                                            rows={3}
-                                            disabled={isEditingPreviz || disableEditPrompt}
-                                        />
-                                        {!hasActivePrevizImage && (
-                                            <p className="text-[10px] text-[var(--text-muted)] mt-2">Generate or upload a previz first to use edit prompt.</p>
-                                        )}
-                                    </div>
-                                </div>
-                                
                                 {/* Generate / Upload Buttons */}
                                 {showGenerateButton && onGeneratePreviz && (
                                     <div className="flex gap-2 mt-3">
@@ -692,7 +733,6 @@ export default function ShotDetailModal({
                                                         </div>
                                                     )}
                                                 </div>
-                                                <PrevizReferenceStrip images={previz.reference_images ?? []} size="sm" className="px-2 pb-2" />
                                             </div>
                                         ))}
                                     </div>
@@ -713,7 +753,7 @@ export default function ShotDetailModal({
                                             <div className="aspect-video relative">
                                                 <img src={previz.image_url} className="w-full h-full object-cover" />
                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 gap-2">
-                                                    <button 
+                                                    <button
                                                         disabled={settingActive || shot.active_previz === previz.id}
                                                         onClick={() => handleSetActive(previz.id)}
                                                         className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-3 py-1.5 rounded disabled:opacity-50 disabled:bg-[var(--surface-raised)]"
@@ -740,7 +780,6 @@ export default function ShotDetailModal({
                                                     </div>
                                                 )}
                                             </div>
-                                            <PrevizReferenceStrip images={previz.reference_images ?? []} size="sm" className="px-2 pb-2" />
                                         </div>
                                     ))}
                                 </div>
