@@ -459,91 +459,103 @@ export default function ShotDetailModal({
                             )}
 
                                 <section>
-                                {/* Chrome-tab toggle: Description ↔ Edit Prompt */}
-                                <div className="flex mb-2 bg-[var(--surface-raised)] rounded-md p-0.5 relative w-fit">
-                                    <motion.div
-                                        className="absolute top-0.5 bottom-0.5 rounded-[5px] bg-purple-700/80"
-                                        style={{ width: '50%' }}
-                                        animate={{ left: activeTextTab === 'description' ? '2px' : '50%' }}
-                                        transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                                    />
-                                    <button
-                                        onClick={() => setActiveTextTab('description')}
-                                        className={`relative z-10 px-3 py-1 text-[10px] font-semibold rounded-[5px] transition-colors w-24 ${activeTextTab === 'description' ? 'text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
-                                    >
-                                        Description
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTextTab('edit')}
-                                        className={`relative z-10 px-3 py-1 text-[10px] font-semibold rounded-[5px] transition-colors w-24 flex items-center justify-center gap-1 ${activeTextTab === 'edit' ? 'text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
-                                    >
-                                        <Pencil className="w-2.5 h-2.5" />
-                                        Edit Prompt
-                                    </button>
-                                </div>
+                                {/* Chrome-tab design: tabs above, merges into content box */}
+                                <div>
+                                    {/* Tab row */}
+                                    <div className="flex items-end">
+                                        {/* Description tab */}
+                                        <button
+                                            onClick={() => setActiveTextTab('description')}
+                                            className={`relative px-4 py-1.5 text-[10px] font-semibold rounded-t-md border border-b-0 transition-colors z-10 ${
+                                                activeTextTab === 'description'
+                                                    ? 'bg-[var(--surface)] border-emerald-500/40 text-emerald-400'
+                                                    : 'bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] -mb-px'
+                                            }`}
+                                        >
+                                            Description
+                                        </button>
+                                        {/* Edit Prompt tab */}
+                                        <button
+                                            onClick={() => setActiveTextTab('edit')}
+                                            className={`relative px-4 py-1.5 text-[10px] font-semibold rounded-t-md border border-b-0 transition-colors z-10 flex items-center gap-1 ${
+                                                activeTextTab === 'edit'
+                                                    ? 'bg-[var(--surface)] border-purple-500/50 text-purple-400'
+                                                    : 'bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] -mb-px'
+                                            }`}
+                                        >
+                                            <Pencil className="w-2.5 h-2.5" />
+                                            Edit Prompt
+                                        </button>
+                                    </div>
 
-                                <AnimatePresence mode="wait">
-                                {activeTextTab === 'description' ? (
+                                    {/* Content box — border color matches active tab */}
                                     <motion.div
-                                        key="description"
-                                        initial={{ opacity: 0, y: 4 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -4 }}
-                                        transition={{ duration: 0.15 }}
-                                    >
-                                    <MentionTextarea
-                                        value={detailsForm.description}
-                                        onChange={(val) => setDetailsForm((prev) => ({ ...prev, description: val }))}
-                                        onTagsChange={(tags) => {
-                                            setTaggedCharacterIds(tags);
-                                            if (onTagsChange && shot) onTagsChange(shot.id, tags);
+                                        animate={{
+                                            borderColor: activeTextTab === 'description' ? 'rgba(52,211,153,0.25)' : 'rgba(168,85,247,0.35)',
                                         }}
-                                        sceneCharacters={(scene?.scene_characters || []).map((sc: any) => ({
-                                            id: sc.id,
-                                            character_id: sc.character?.id || sc.character_id,
-                                            character_name: sc.character?.name || sc.character_name || "",
-                                            image_url: sc.image_url,
-                                            character_image_url: sc.character?.image_url,
-                                        }))}
-                                        globalCharacters={globalCharacters}
-                                        className={`w-full leading-relaxed text-sm bg-[var(--surface)] p-3 rounded-md border border-[var(--border)] resize-none min-h-[84px] focus:outline-none focus:border-emerald-500/40 ${disableDetails ? 'text-[var(--text-muted)] opacity-60 cursor-not-allowed' : 'text-[var(--text-secondary)]'}`}
-                                        disabled={disableDetails || savingDetails}
-                                        placeholder="Shot description... (type @ to tag characters)"
-                                        rows={4}
-                                        onBlur={() => {
-                                            if (detailsForm.description !== (shot?.description || "")) {
-                                                autoSaveField('description', detailsForm.description);
-                                            }
-                                        }}
-                                    />
-                                    </motion.div>
-                                ) : (
-                                    <motion.div
-                                        key="edit"
-                                        initial={{ opacity: 0, y: 4 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -4 }}
-                                        transition={{ duration: 0.15 }}
+                                        transition={{ duration: 0.25 }}
+                                        className="rounded-b-md rounded-tr-md border bg-[var(--surface)]"
                                     >
-                                        <div className={disableEditPrompt ? 'opacity-50' : ''}>
-                                            <p className="text-[10px] text-purple-300/70 mb-2">
-                                                Enter prompt to edit current active previz. Creates a new previz based on the current image.
-                                            </p>
-                                            <textarea
-                                                value={editPrompt}
-                                                onChange={(e) => setEditPrompt(e.target.value)}
-                                                placeholder={disableEditPrompt ? 'Clear unsaved shot detail changes to use edit prompt.' : 'e.g. Change lighting to golden hour, add fog in background...'}
-                                                className="w-full bg-[var(--surface)] border border-purple-900/50 text-[var(--text-primary)] text-sm rounded-md p-3 resize-none focus:outline-none focus:border-purple-500/70 placeholder:text-[var(--text-muted)] min-h-[84px]"
-                                                rows={4}
-                                                disabled={isEditingPreviz || disableEditPrompt}
-                                            />
-                                            {!hasActivePrevizImage && (
-                                                <p className="text-[10px] text-[var(--text-muted)] mt-1">Generate or upload a previz first to use edit prompt.</p>
-                                            )}
-                                        </div>
+                                        <AnimatePresence mode="wait">
+                                        {activeTextTab === 'description' ? (
+                                            <motion.div
+                                                key="description"
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                exit={{ opacity: 0 }}
+                                                transition={{ duration: 0.12 }}
+                                            >
+                                                <MentionTextarea
+                                                    value={detailsForm.description}
+                                                    onChange={(val) => setDetailsForm((prev) => ({ ...prev, description: val }))}
+                                                    onTagsChange={(tags) => {
+                                                        setTaggedCharacterIds(tags);
+                                                        if (onTagsChange && shot) onTagsChange(shot.id, tags);
+                                                    }}
+                                                    sceneCharacters={(scene?.scene_characters || []).map((sc: any) => ({
+                                                        id: sc.id,
+                                                        character_id: sc.character?.id || sc.character_id,
+                                                        character_name: sc.character?.name || sc.character_name || "",
+                                                        image_url: sc.image_url,
+                                                        character_image_url: sc.character?.image_url,
+                                                    }))}
+                                                    globalCharacters={globalCharacters}
+                                                    className={`w-full leading-relaxed text-sm bg-transparent p-3 resize-none min-h-[84px] focus:outline-none ${disableDetails ? 'text-[var(--text-muted)] opacity-60 cursor-not-allowed' : 'text-[var(--text-secondary)]'}`}
+                                                    disabled={disableDetails || savingDetails}
+                                                    placeholder="Shot description... (type @ to tag characters)"
+                                                    rows={4}
+                                                    onBlur={() => {
+                                                        if (detailsForm.description !== (shot?.description || "")) {
+                                                            autoSaveField('description', detailsForm.description);
+                                                        }
+                                                    }}
+                                                />
+                                            </motion.div>
+                                        ) : (
+                                            <motion.div
+                                                key="edit"
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                exit={{ opacity: 0 }}
+                                                transition={{ duration: 0.12 }}
+                                                className={disableEditPrompt ? 'opacity-50' : ''}
+                                            >
+                                                <textarea
+                                                    value={editPrompt}
+                                                    onChange={(e) => setEditPrompt(e.target.value)}
+                                                    placeholder={disableEditPrompt ? 'Clear unsaved changes to use edit prompt.' : 'e.g. Change lighting to golden hour, add fog in background...'}
+                                                    className="w-full bg-transparent text-[var(--text-primary)] text-sm p-3 resize-none focus:outline-none placeholder:text-[var(--text-muted)] min-h-[84px]"
+                                                    rows={4}
+                                                    disabled={isEditingPreviz || disableEditPrompt}
+                                                />
+                                                {!hasActivePrevizImage && (
+                                                    <p className="text-[10px] text-[var(--text-muted)] px-3 pb-2">Generate or upload a previz first to use edit prompt.</p>
+                                                )}
+                                            </motion.div>
+                                        )}
+                                        </AnimatePresence>
                                     </motion.div>
-                                )}
-                                </AnimatePresence>
+                                </div>
 
                                 <div className={`mt-3 space-y-2 ${disableDetails ? 'opacity-50 pointer-events-none' : ''}`}>
                                     <h4 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest">Shot Details</h4>
