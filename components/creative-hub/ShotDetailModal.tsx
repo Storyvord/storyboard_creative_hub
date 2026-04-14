@@ -364,18 +364,6 @@ export default function ShotDetailModal({
                     )}
                 </div>
                 
-                {/* Active previz reference strip — sourced from v1 history (has reference_images) */}
-                {(() => {
-                  const activePreviz = previzHistory.find((p) => p.id === shot.active_previz);
-                  const refs = activePreviz?.reference_images ?? [];
-                  if (refs.length === 0) return null;
-                  return (
-                    <div className="px-4 pb-3 border-t border-[var(--border)]">
-                      <p className="text-[9px] text-[var(--text-muted)] uppercase tracking-widest mb-1.5 pt-2">References</p>
-                      <PrevizReferenceStrip images={refs} size="md" />
-                    </div>
-                  );
-                })()}
 
                 {/* Navigation */}
                 <div className="absolute inset-0 flex items-center justify-between p-4 pointer-events-none">
@@ -667,6 +655,19 @@ export default function ShotDetailModal({
                                             </div>
                                         )}
                                     </div>
+
+                                    {/* Reference images — active previz only, sourced from v1 history */}
+                                    {(() => {
+                                        const activePreviz = previzHistory.find((p) => p.id === shot.active_previz);
+                                        const refs = activePreviz?.reference_images ?? [];
+                                        if (refs.length === 0) return null;
+                                        return (
+                                            <div className="mt-3">
+                                                <h4 className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-1.5">Reference Images</h4>
+                                                <PrevizReferenceStrip images={refs} size="md" />
+                                            </div>
+                                        );
+                                    })()}
                                 </section>
                             )}
 
