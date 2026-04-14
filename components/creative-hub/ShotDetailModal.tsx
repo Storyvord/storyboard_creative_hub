@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { uploadPreviz, getShotPreviz, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails, getCameraAngles, CameraAngle, getShotTypes, ShotType } from "@/services/creative-hub";
 import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
+import PrevizReferenceStrip from "@/components/creative-hub/PrevizReferenceStrip";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import MentionTextarea, { TaggedCharacter, SceneCharacterItem, GlobalCharacterItem } from "@/components/creative-hub/MentionTextarea";
@@ -362,6 +363,14 @@ export default function ShotDetailModal({
                     )}
                 </div>
                 
+                {/* Active previz reference strip */}
+                {shot.previz?.reference_images && shot.previz.reference_images.length > 0 && (
+                  <div className="px-4 pb-3 border-t border-[var(--border)]">
+                    <p className="text-[9px] text-[var(--text-muted)] uppercase tracking-widest mb-1.5 pt-2">References</p>
+                    <PrevizReferenceStrip images={shot.previz.reference_images} size="md" />
+                  </div>
+                )}
+
                 {/* Navigation */}
                 <div className="absolute inset-0 flex items-center justify-between p-4 pointer-events-none">
                     {onPrev && (
@@ -683,6 +692,7 @@ export default function ShotDetailModal({
                                                         </div>
                                                     )}
                                                 </div>
+                                                <PrevizReferenceStrip images={previz.reference_images ?? []} size="sm" className="px-2 pb-2" />
                                             </div>
                                         ))}
                                     </div>
@@ -730,6 +740,7 @@ export default function ShotDetailModal({
                                                     </div>
                                                 )}
                                             </div>
+                                            <PrevizReferenceStrip images={previz.reference_images ?? []} size="sm" className="px-2 pb-2" />
                                         </div>
                                     ))}
                                 </div>
