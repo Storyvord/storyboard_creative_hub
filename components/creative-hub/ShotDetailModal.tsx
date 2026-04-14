@@ -633,45 +633,50 @@ export default function ShotDetailModal({
                                 )}
                             </section>
 
-                            {/* Previz Details */}
-                            {shot.previz && (
-                                <section>
-                                    <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Previz Specs</h3>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)]">
-                                            <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Aspect Ratio</span>
-                                            <span className="text-[var(--text-secondary)] text-xs font-medium">{shot.previz.aspect_ratio || "16:9"}</span>
-                                        </div>
-                                        <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)]">
-                                            <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Camera</span>
-                                            <span className="text-[var(--text-secondary)] text-xs font-medium">{shot.previz.camera_angle || shot.camera_angle || "—"}</span>
-                                        </div>
-                                        {shot.previz.audio_url && (
-                                             <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)] col-span-2">
-                                                <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Audio</span>
-                                                <a href={shot.previz.audio_url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 text-xs truncate block">
-                                                    Open Audio File
-                                                </a>
+                            {/* Previz Details — driven from v1 history so it stays fresh after generation */}
+                            {(() => {
+                                // Prefer the history entry matching active_previz; fall back to
+                                // shot.previz (stale v2 data) so the section shows before history loads.
+                                const activePreviz =
+                                    previzHistory.find((p) => p.id === shot.active_previz) ||
+                                    previzHistory[0] ||
+                                    shot.previz;
+                                if (!activePreviz) return null;
+                                const refs: any[] = activePreviz.reference_images ?? [];
+                                return (
+                                    <section>
+                                        <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Previz Specs</h3>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)]">
+                                                <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Aspect Ratio</span>
+                                                <span className="text-[var(--text-secondary)] text-xs font-medium">{activePreviz.aspect_ratio || "16:9"}</span>
                                             </div>
-                                        )}
-                                    </div>
+                                            <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)]">
+                                                <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Camera</span>
+                                                <span className="text-[var(--text-secondary)] text-xs font-medium">{activePreviz.camera_angle || shot.camera_angle || "—"}</span>
+                                            </div>
+                                            {activePreviz.audio_url && (
+                                                <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)] col-span-2">
+                                                    <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Audio</span>
+                                                    <a href={activePreviz.audio_url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 text-xs truncate block">
+                                                        Open Audio File
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
 
-                                    {/* Reference images — active previz only, sourced from v1 history */}
-                                    {loadingHistory ? (
-                                        <div className="mt-3 h-12 bg-[var(--surface)] animate-pulse rounded" />
-                                    ) : (() => {
-                                        const activePreviz = previzHistory.find((p) => p.id === shot.active_previz);
-                                        const refs = activePreviz?.reference_images ?? [];
-                                        if (refs.length === 0) return null;
-                                        return (
+                                        {/* Reference images */}
+                                        {loadingHistory ? (
+                                            <div className="mt-3 h-12 bg-[var(--surface)] animate-pulse rounded" />
+                                        ) : refs.length > 0 ? (
                                             <div className="mt-3">
                                                 <h4 className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-1.5">Reference Images</h4>
                                                 <PrevizReferenceStrip images={refs} size="md" />
                                             </div>
-                                        );
-                                    })()}
-                                </section>
-                            )}
+                                        ) : null}
+                                    </section>
+                                );
+                            })()}
 
                             {/* Linked Characters */}
                             <section>
