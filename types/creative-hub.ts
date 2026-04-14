@@ -92,6 +92,12 @@ export interface Cloth {
   image_url?: string;
 }
 
+export interface ReferenceImage {
+  type: 'character' | 'scene_character' | 'location';
+  id: number;
+  image_url: string;
+}
+
 export interface Previsualization {
   id: number;
   script?: number;
@@ -107,6 +113,7 @@ export interface Previsualization {
       email: string;
   } | null;
   assignment_date?: string | null;
+  reference_images?: ReferenceImage[];
   [key: string]: any;
 }
 
