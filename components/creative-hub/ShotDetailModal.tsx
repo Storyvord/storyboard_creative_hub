@@ -657,7 +657,9 @@ export default function ShotDetailModal({
                                     </div>
 
                                     {/* Reference images — active previz only, sourced from v1 history */}
-                                    {(() => {
+                                    {loadingHistory ? (
+                                        <div className="mt-3 h-12 bg-[var(--surface)] animate-pulse rounded" />
+                                    ) : (() => {
                                         const activePreviz = previzHistory.find((p) => p.id === shot.active_previz);
                                         const refs = activePreviz?.reference_images ?? [];
                                         if (refs.length === 0) return null;
