@@ -6,6 +6,7 @@ import { uploadPreviz, getShotPreviz, setActivePreviz, getStoryboardData, editPr
 import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
 import PrevizReferenceStrip from "@/components/creative-hub/PrevizReferenceStrip";
+import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import MentionTextarea, { TaggedCharacter, SceneCharacterItem, GlobalCharacterItem } from "@/components/creative-hub/MentionTextarea";
@@ -84,6 +85,7 @@ export default function ShotDetailModal({
   const [cameraAngles, setCameraAngles] = useState<CameraAngle[]>([]);
   const [shotTypes, setShotTypes] = useState<ShotType[]>([]);
   const [activeTextTab, setActiveTextTab] = useState<'description' | 'edit'>('description');
+  const [showEditModelSelector, setShowEditModelSelector] = useState(false);
 
   useEffect(() => {
     getCameraAngles().then(setCameraAngles).catch(() => {});
@@ -223,7 +225,7 @@ export default function ShotDetailModal({
       finally { setUploading(false); e.target.value = ''; }
   };
 
-  const handleEditPromptSubmit = async () => {
+  const handleEditPromptSubmit = async (model?: string, provider?: string) => {
       if (!shot || !editPrompt.trim() || !shot.image_url) return;
       setIsEditingPreviz(true);
       try {
@@ -232,7 +234,9 @@ export default function ShotDetailModal({
               shot.image_url,
               editPrompt.trim(),
               scene?.id,
-              (scene?.script_id || scene?.script) as number | undefined
+              (scene?.script_id || scene?.script) as number | undefined,
+              model,
+              provider,
           );
 
           // Immediately reflect new active previz in parent state
@@ -315,7 +319,7 @@ export default function ShotDetailModal({
 
   const handleMainGenerateClick = async () => {
       if (hasEditPrompt) {
-          await handleEditPromptSubmit();
+          setShowEditModelSelector(true);
           return;
       }
       if (onGeneratePreviz && shot) {
@@ -328,6 +332,18 @@ export default function ShotDetailModal({
   const linkedCharacters = scene?.scene_characters || [];
 
   return (
+    <>
+    <ModelSelector
+      isOpen={showEditModelSelector}
+      onClose={() => setShowEditModelSelector(false)}
+      onConfirm={(model, provider) => {
+        setShowEditModelSelector(false);
+        handleEditPromptSubmit(model, provider);
+      }}
+      itemCount={1}
+      title="Select Model for Edit"
+      confirmLabel="Apply Edit"
+    />
     <AnimatePresence>
       <motion.div
         key="shot-detail-overlay"
@@ -808,5 +824,6 @@ export default function ShotDetailModal({
         </motion.div>
       </motion.div>
     </AnimatePresence>
+    </>
   );
 }
