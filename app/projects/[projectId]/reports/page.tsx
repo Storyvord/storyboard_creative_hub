@@ -85,14 +85,14 @@ function labelKey(obj: Record<string, any>): string {
 function KPIStrip({ stats }: { stats: [string, any][] }) {
   if (stats.length === 0) return null;
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10, marginBottom: 20 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(22%, 1fr))", gap: 8 }}>
       {stats.map(([k, v], i) => (
-        <div key={k} style={{ padding: "14px 16px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", position: "relative", overflow: "hidden" }}>
+        <div key={k} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: PALETTE[i % PALETTE.length] }} />
-          <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {k.replace(/_/g, " ")}
           </p>
-          <p style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.2, wordBreak: "break-word" }}>{String(v)}</p>
+          <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.2, wordBreak: "break-word" }}>{String(v)}</p>
         </div>
       ))}
     </div>
@@ -102,14 +102,14 @@ function KPIStrip({ stats }: { stats: [string, any][] }) {
 // ── Section wrapper (no giant title, just a subtle label) ────────────────────
 function SectionWrap({ label, color, children, fullWidth }: { label: string; color: string; children: React.ReactNode; fullWidth?: boolean }) {
   return (
-    <div style={{ gridColumn: fullWidth ? "1 / -1" : undefined, borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface)", overflow: "hidden" }}>
-      <div style={{ padding: "10px 16px 6px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ gridColumn: fullWidth ? "1 / -1" : undefined, borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", overflow: "hidden", width: "100%" }}>
+      <div style={{ padding: "8px 12px 6px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0 }} />
         <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
           {label.replace(/_/g, " ")}
         </span>
       </div>
-      <div style={{ padding: "14px 16px" }}>{children}</div>
+      <div style={{ padding: "12px" }}>{children}</div>
     </div>
   );
 }
@@ -119,16 +119,18 @@ function BarSection({ data }: { data: any[] }) {
   const lk = labelKey(data[0]);
   const numKeys = Object.keys(data[0]).filter(k => typeof data[0][k] === "number");
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <BarChart data={data} margin={{ top: 4, right: 8, bottom: 28, left: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-        <XAxis dataKey={lk} tick={{ fontSize: 10, fill: "var(--text-muted)" }} interval={0} angle={-20} textAnchor="end" />
-        <YAxis tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} />
-        <Tooltip contentStyle={TT_STYLE} cursor={{ fill: "rgba(34,197,94,0.05)" }} />
-        {numKeys.length > 1 && <Legend iconSize={9} wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />}
-        {numKeys.map((k, i) => <Bar key={k} dataKey={k} fill={PALETTE[i % PALETTE.length]} radius={[3,3,0,0]} maxBarSize={40} />)}
-      </BarChart>
-    </ResponsiveContainer>
+    <div style={{ width: "100%", aspectRatio: "16/7", minHeight: 180 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 4, right: 8, bottom: 28, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+          <XAxis dataKey={lk} tick={{ fontSize: 10, fill: "var(--text-muted)" }} interval={0} angle={-20} textAnchor="end" />
+          <YAxis tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} />
+          <Tooltip contentStyle={TT_STYLE} cursor={{ fill: "rgba(34,197,94,0.05)" }} />
+          {numKeys.length > 1 && <Legend iconSize={9} wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />}
+          {numKeys.map((k, i) => <Bar key={k} dataKey={k} fill={PALETTE[i % PALETTE.length]} radius={[3,3,0,0]} maxBarSize={40} />)}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -137,16 +139,18 @@ function LineSection({ data }: { data: any[] }) {
   const lk = labelKey(data[0]);
   const numKeys = Object.keys(data[0]).filter(k => typeof data[0][k] === "number");
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <LineChart data={data} margin={{ top: 4, right: 8, bottom: 28, left: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-        <XAxis dataKey={lk} tick={{ fontSize: 10, fill: "var(--text-muted)" }} interval={0} angle={-20} textAnchor="end" />
-        <YAxis tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} />
-        <Tooltip contentStyle={TT_STYLE} />
-        {numKeys.length > 1 && <Legend iconSize={9} wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />}
-        {numKeys.map((k, i) => <Line key={k} type="monotone" dataKey={k} stroke={PALETTE[i % PALETTE.length]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />)}
-      </LineChart>
-    </ResponsiveContainer>
+    <div style={{ width: "100%", aspectRatio: "16/7", minHeight: 180 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 4, right: 8, bottom: 28, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+          <XAxis dataKey={lk} tick={{ fontSize: 10, fill: "var(--text-muted)" }} interval={0} angle={-20} textAnchor="end" />
+          <YAxis tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} />
+          <Tooltip contentStyle={TT_STYLE} />
+          {numKeys.length > 1 && <Legend iconSize={9} wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />}
+          {numKeys.map((k, i) => <Line key={k} type="monotone" dataKey={k} stroke={PALETTE[i % PALETTE.length]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />)}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -156,20 +160,22 @@ function PieSection({ data }: { data: any[] }) {
   const vk = Object.keys(data[0]).find(k => typeof data[0][k] === "number") ?? Object.keys(data[0])[1];
   const rows = data.map(d => ({ name: String(d[lk] ?? ""), value: Number(d[vk] ?? 0) }));
   return (
-    <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-      <ResponsiveContainer width={180} height={180}>
-        <PieChart>
-          <Pie data={rows} cx="50%" cy="50%" outerRadius={80} dataKey="value" labelLine={false}>
-            {rows.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
-          </Pie>
-          <Tooltip contentStyle={TT_STYLE} />
-        </PieChart>
-      </ResponsiveContainer>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+    <div style={{ display: "flex", gap: 16, alignItems: "center", width: "100%" }}>
+      <div style={{ width: "45%", aspectRatio: "1/1", minHeight: 140 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={rows} cx="50%" cy="50%" outerRadius="70%" dataKey="value" labelLine={false}>
+              {rows.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+            </Pie>
+            <Tooltip contentStyle={TT_STYLE} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
         {rows.map((r, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ width: 8, height: 8, borderRadius: 2, background: PALETTE[i % PALETTE.length], flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: "var(--text-secondary)", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</span>
+            <span style={{ fontSize: 12, color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
             <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{r.value.toLocaleString()}</span>
           </div>
         ))}
@@ -227,41 +233,70 @@ function BudgetSection({ data }: { data: any }) {
   const isArr = Array.isArray(data);
   const isObj = !isArr && typeof data === "object" && data !== null;
 
-  // Object of scalars → KPI cards
-  if (isObj && Object.values(data).every(v => typeof v === "number" || typeof v === "string")) {
-    return (
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
-        {Object.entries(data as Record<string,any>).map(([k,v], i) => {
-          const isNum = typeof v === "number";
-          const formatted = isNum ? (v as number).toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(v);
-          return (
-            <div key={k} style={{ padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface-raised)", position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: PALETTE[i % PALETTE.length] }} />
-              <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>{k.replace(/_/g, " ")}</p>
-              <p style={{ fontSize: 16, fontWeight: 700, color: isNum ? PALETTE[i % PALETTE.length] : "var(--text-primary)", lineHeight: 1.1 }}>{formatted}</p>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  // Array → bar chart + table
-  if (isArr && data.length > 0 && typeof data[0] === "object") {
+  // Array of objects → bar chart + table
+  if (isArr && data.length > 0 && typeof data[0] === "object" && data[0] !== null) {
     const numKeys = Object.keys(data[0]).filter(k => typeof data[0][k] === "number");
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {numKeys.length > 0 && (
-          <div>
-            <BarSection data={data} />
-          </div>
-        )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {numKeys.length > 0 && <BarSection data={data} />}
         <TableSection data={data} />
       </div>
     );
   }
 
-  return <ProseSection text={JSON.stringify(data)} />;
+  // Array of primitives → tag list
+  if (isArr) return <TableSection data={data} />;
+
+  if (isObj) {
+    const entries = Object.entries(data as Record<string, any>).filter(([k]) => !SKIP_KEYS.has(k.toLowerCase()));
+    const scalars = entries.filter(([, v]) => typeof v !== "object" || v === null);
+    const nested = entries.filter(([, v]) => typeof v === "object" && v !== null);
+
+    // Collect any array-of-objects sub-sections for charting
+    const arraySubSections = nested.filter(([, v]) => Array.isArray(v) && v.length > 0 && typeof v[0] === "object");
+    const otherNested = nested.filter(([, v]) => !Array.isArray(v));
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* KPI cards for scalar values */}
+        {scalars.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(28%, 1fr))", gap: 8 }}>
+            {scalars.map(([k, v], i) => {
+              const isNum = typeof v === "number";
+              const formatted = isNum ? (v as number).toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(v);
+              return (
+                <div key={k} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-raised)", position: "relative", overflow: "hidden" }}>
+                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: PALETTE[i % PALETTE.length] }} />
+                  <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{k.replace(/_/g, " ")}</p>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: isNum ? PALETTE[i % PALETTE.length] : "var(--text-primary)", lineHeight: 1.1 }}>{formatted}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {/* Sub-array sections: chart + table */}
+        {arraySubSections.map(([k, v], i) => {
+          const numKeys = Object.keys(v[0]).filter((kk: string) => typeof v[0][kk] === "number");
+          return (
+            <div key={k} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{k.replace(/_/g, " ")}</p>
+              {numKeys.length > 0 && <BarSection data={v} />}
+              <TableSection data={v} />
+            </div>
+          );
+        })}
+        {/* Other nested objects */}
+        {otherNested.map(([k, v]) => (
+          <div key={k}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{k.replace(/_/g, " ")}</p>
+            <NestedKPIs data={v} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return <ProseSection text={String(data)} />;
 }
 
 // ── Timeline section ──────────────────────────────────────────────────────────
@@ -305,7 +340,7 @@ function CrewSection({ data }: { data: any }) {
   if (items.length === 0) return <p style={{ fontSize: 12, color: "var(--text-muted)" }}>No crew data.</p>;
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(30%, 1fr))", gap: 8 }}>
       {items.map((person, i) => {
         const nameKey = Object.keys(person).find(k => ["name","full_name","person","member"].some(t => k.toLowerCase().includes(t))) ?? Object.keys(person).find(k => typeof person[k] === "string") ?? "name";
         const roleKey = Object.keys(person).find(k => ["role","position","title","job","department"].some(t => k.toLowerCase().includes(t)) && k !== nameKey);
@@ -421,11 +456,11 @@ function ReportDocument({ report }: { report: ProjectReport }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
       {rows.map((row, ri) => {
         if (row.type === "kpi") return <KPIStrip key="kpi" stats={scalars} />;
         if (row.type === "pair") return (
-          <div key={ri} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div key={ri} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, width: "100%" }}>
             <SectionBlock item={row.a} colorIdx={ri * 2} />
             <SectionBlock item={row.b} colorIdx={ri * 2 + 1} />
           </div>
@@ -713,10 +748,10 @@ export default function ResearchDeckPage() {
       </div>
 
       {/* Content area */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
         {/* Overview tab */}
         {activeTab === "overview" && (
-          <div style={{ maxWidth: 1100 }}>
+          <div style={{ width: "100%" }}>
             {/* Summary cards */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 28 }}>
               {[
@@ -796,7 +831,7 @@ export default function ResearchDeckPage() {
 
         {/* Individual report */}
         {activeReport && (
-          <div style={{ maxWidth: 1100 }}>
+          <div style={{ width: "100%" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
               {activeReport.report_type === "custom"
                 ? <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, border: "1px solid rgba(59,130,246,0.3)", color: "#3b82f6", background: "rgba(59,130,246,0.1)" }}>custom</span>
