@@ -41,6 +41,15 @@ export default function DashboardPage() {
             <h1 className="text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Your Projects</h1>
           </div>
           <div className="flex items-center gap-2">
+            <Link href="/inbox" className="flex items-center gap-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors" style={{ background: "var(--surface-raised)", borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+              Inbox
+            </Link>
+            <Link href="/network" className="flex items-center gap-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors" style={{ background: "var(--surface-raised)", borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+              Network
+            </Link>
+            <Link href="/crew-search" className="flex items-center gap-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors" style={{ background: "var(--surface-raised)", borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+              Crew
+            </Link>
             <UserWidget variant="topbar" />
             <button
               onClick={toggleTheme}

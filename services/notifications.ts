@@ -31,9 +31,8 @@ export interface NotificationPreference {
 }
 
 export const getNotifications = async (): Promise<Notification[]> => {
-  const res = await api.get('/api/notification/notifications/');
-  const data = res.data?.data ?? res.data;
-  return Array.isArray(data) ? data : (data?.results ?? []);
+  const res = await api.get('/api/notification/v2/notifications/');
+  return res.data?.results ?? [];
 };
 
 export const getUnreadCount = async (): Promise<number> => {
@@ -43,7 +42,7 @@ export const getUnreadCount = async (): Promise<number> => {
 };
 
 export const markRead = async (uuid: string): Promise<void> => {
-  await api.patch(`/api/notification/v2/notifications/${uuid}/`, { is_read: true });
+  await api.post(`/api/notification/v2/notifications/${uuid}/mark_read/`);
 };
 
 export const markAllRead = async (): Promise<void> => {
