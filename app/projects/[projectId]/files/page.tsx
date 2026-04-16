@@ -384,11 +384,10 @@ export default function FilesPage() {
                   }}
                   className={!active ? "hover:bg-[var(--surface-hover)]" : ""}
                 >
-                  <span style={{ display: "flex", flexShrink: 0, opacity: active ? 1 : 0.7 }}
-                    dangerouslySetInnerHTML={folder.icon?.trim().startsWith("<") ? { __html: folder.icon } : undefined}
-                  >
-                    {!folder.icon?.trim().startsWith("<") && (folder.icon || "📁")}
-                  </span>
+                  {folder.icon?.trim().startsWith("<")
+                    ? <span style={{ display: "flex", flexShrink: 0, opacity: active ? 1 : 0.7 }} dangerouslySetInnerHTML={{ __html: folder.icon }} />
+                    : <span style={{ display: "flex", flexShrink: 0, opacity: active ? 1 : 0.7 }}>{folder.icon || "📁"}</span>
+                  }
                   <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{folder.name}</span>
                   {folder.default && (
                     <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: "rgba(34,197,94,0.12)", color: "#22c55e", flexShrink: 0 }}>DEFAULT</span>
@@ -411,11 +410,10 @@ export default function FilesPage() {
               {/* Folder header bar */}
               <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--border)", background: "var(--surface)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ display: "flex", color: "var(--text-secondary)" }}
-                    dangerouslySetInnerHTML={selectedFolder.icon?.trim().startsWith("<") ? { __html: selectedFolder.icon } : undefined}
-                  >
-                    {!selectedFolder.icon?.trim().startsWith("<") && (selectedFolder.icon || "📁")}
-                  </span>
+                  {selectedFolder.icon?.trim().startsWith("<")
+                    ? <span style={{ display: "flex", color: "var(--text-secondary)" }} dangerouslySetInnerHTML={{ __html: selectedFolder.icon }} />
+                    : <span style={{ display: "flex", color: "var(--text-secondary)" }}>{selectedFolder.icon || "📁"}</span>
+                  }
                   <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>{selectedFolder.name}</span>
                   {selectedFolder.description && (
                     <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{selectedFolder.description}</span>
