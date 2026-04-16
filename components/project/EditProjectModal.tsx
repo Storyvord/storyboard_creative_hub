@@ -7,13 +7,26 @@ import { updateProject } from "@/services/project";
 import { Project } from "@/types/project";
 
 const CONTENT_TYPES = [
-  "Film", "TV Series", "Commercial", "Music Video", "Documentary",
-  "Short Film", "Web Series", "Other",
+  "Film",
+  "TV Series",
+  "Commercial",
+  "Music Video",
+  "Documentary",
+  "Short Film",
+  "Web Series",
+  "Other",
 ];
 
-const STATUSES = [
-  "PLANNING", "DEVELOPMENT", "PRE_PRODUCTION", "IN_PROGRESS",
-  "POST_PRODUCTION", "COMPLETED", "PAUSED", "CANCELLED", "RELEASED",
+const STATUSES: { value: string; label: string }[] = [
+  { value: "PLANNING", label: "Planning" },
+  { value: "DEVELOPMENT", label: "Development" },
+  { value: "PRE_PRODUCTION", label: "Pre-Production" },
+  { value: "IN_PROGRESS", label: "In Progress" },
+  { value: "POST_PRODUCTION", label: "Post-Production" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "PAUSED", label: "Paused" },
+  { value: "CANCELLED", label: "Cancelled" },
+  { value: "RELEASED", label: "Released" },
 ];
 
 interface Props {
@@ -30,10 +43,22 @@ export default function EditProjectModal({ project, onClose, onUpdated }: Props)
   const [additionalDetails, setAdditionalDetails] = useState(project.additional_details ?? "");
   const [status, setStatus] = useState(project.status ?? "PLANNING");
 
+  const inputCls =
+    "w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500";
+  const inputStyle = {
+    borderColor: "var(--border)",
+    background: "var(--surface-raised)",
+    color: "var(--text-primary)",
+  };
+  const labelCls = "block text-sm font-medium mb-1.5";
+  const labelStyle = { color: "var(--text-secondary)" };
+
   const handleSave = async () => {
     if (!name.trim()) { toast.error("Project name is required."); return; }
-    if (!brief.trim()) { toast.error("Brief is required."); return; }
     if (!contentType) { toast.error("Content type is required."); return; }
+    if (!brief.trim()) { toast.error("Brief is required."); return; }
+    if (!additionalDetails.trim()) { toast.error("Additional details are required."); return; }
+
     setLoading(true);
     try {
       const updated = await updateProject(project.project_id, {
@@ -47,7 +72,11 @@ export default function EditProjectModal({ project, onClose, onUpdated }: Props)
       onUpdated(updated);
       onClose();
     } catch (e: any) {
-      const msg = Object.values(e?.response?.data || {}).flat().join(' ') || "Failed to update project.";
+      const data = e?.response?.data;
+      const msg =
+        data?.detail ??
+        (typeof data === "object" ? Object.values(data).flat().join(" ") : null) ??
+        "Failed to update project.";
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -55,44 +84,118 @@ export default function EditProjectModal({ project, onClose, onUpdated }: Props)
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative w-full max-w-lg rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-lg rounded-xl border shadow-2xl p-6 max-h-[90vh] overflow-y-auto"
+        style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Edit Project</h2>
-          <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"><X size={18} /></button>
+          <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+            Edit Project
+          </h2>
+          <button onClick={onClose} style={{ color: "var(--text-muted)" }}>
+            <X size={18} />
+          </button>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Project Name <span className="text-red-400">*</span></label>
-            <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500" />
+            <label className={labelCls} style={labelStyle}>
+              Project Name <span className="text-red-400">*</span>
+            </label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={inputCls}
+              style={inputStyle}
+            />
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Content Type <span className="text-red-400">*</span></label>
-            <select value={contentType} onChange={(e) => setContentType(e.target.value)} className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500">
+            <label className={labelCls} style={labelStyle}>
+              Content Type <span className="text-red-400">*</span>
+            </label>
+            <select
+              value={contentType}
+              onChange={(e) => setContentType(e.target.value)}
+              className={inputCls}
+              style={inputStyle}
+            >
               <option value="">Select type…</option>
-              {CONTENT_TYPES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {CONTENT_TYPES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
             </select>
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Brief <span className="text-red-400">*</span></label>
-            <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={3} className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 resize-none" />
+            <label className={labelCls} style={labelStyle}>
+              Brief <span className="text-red-400">*</span>
+            </label>
+            <textarea
+              value={brief}
+              onChange={(e) => setBrief(e.target.value)}
+              rows={3}
+              className={`${inputCls} resize-none`}
+              style={inputStyle}
+            />
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Additional Details</label>
-            <textarea value={additionalDetails} onChange={(e) => setAdditionalDetails(e.target.value)} rows={3} className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 resize-none" />
+            <label className={labelCls} style={labelStyle}>
+              Additional Details <span className="text-red-400">*</span>
+            </label>
+            <textarea
+              value={additionalDetails}
+              onChange={(e) => setAdditionalDetails(e.target.value)}
+              rows={4}
+              placeholder="Extra context, requirements, tone, schedule…"
+              className={`${inputCls} resize-none`}
+              style={inputStyle}
+            />
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500">
-              {STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+            <label className={labelCls} style={labelStyle}>
+              Status
+            </label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className={inputCls}
+              style={inputStyle}
+            >
+              {STATUSES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
 
-        <div className="flex justify-end mt-6 pt-4 border-t border-[var(--border)] gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">Cancel</button>
-          <button onClick={handleSave} disabled={loading} className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors">
+        <div
+          className="flex justify-end mt-6 pt-4 border-t gap-3"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm transition-colors"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
+          >
             {loading && <Loader2 size={14} className="animate-spin" />}
             Save Changes
           </button>
