@@ -191,7 +191,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-auto" style={{ background: "var(--background)" }}>
+      <main className="flex-1 overflow-auto" style={{ background: "var(--background)", position: "relative" }}>
         {children}
       </main>
 

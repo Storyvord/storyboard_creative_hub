@@ -42,10 +42,12 @@ export const getMyProfile = async (): Promise<UserProfile> => {
   const data = response.data?.data ?? response.data;
   const personal = data?.personal_info ?? {};
   const user = data?.user ?? {};
+  // Derive a display name: full_name → email prefix (part before @)
+  const emailPrefix = (user.email ?? '').split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) || null;
   return {
     id: user.id ?? 0,
     email: user.email ?? '',
-    full_name: personal.full_name ?? null,
+    full_name: personal.full_name || emailPrefix || null,
     image: personal.image ?? null,
     job_title: personal.job_title ?? null,
     user_type: user.user_type ?? null,

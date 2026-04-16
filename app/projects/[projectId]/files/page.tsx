@@ -105,9 +105,9 @@ export default function FilesPage() {
   }
 
   return (
-    <div className="flex h-full" style={{ minHeight: "calc(100vh - 0px)" }}>
+    <div style={{ display: "flex", position: "absolute", inset: 0 }}>
       {/* Left pane — folders */}
-      <div className="w-64 flex-shrink-0 border-r flex flex-col" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+      <div style={{ width: 220, flexShrink: 0, borderRight: "1px solid var(--border)", background: "var(--surface)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
         <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
           <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Folders</h2>
           <button
@@ -140,9 +140,9 @@ export default function FilesPage() {
       </div>
 
       {/* Right pane — files */}
-      <div className="flex-1 p-6 overflow-y-auto" style={{ background: "var(--background)" }}>
+      <div style={{ flex: 1, padding: "20px 24px", overflowY: "auto", background: "var(--background)" }}>
         {!selectedFolder ? (
-          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-2" style={{ color: "var(--text-muted)" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 8, color: "var(--text-muted)" }}>
             <FolderOpen size={40} className="opacity-40" />
             <p className="text-sm">Select a folder to view files</p>
           </div>
