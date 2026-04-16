@@ -16,9 +16,6 @@ const STATUSES = [
   "POST_PRODUCTION", "COMPLETED", "PAUSED", "CANCELLED", "RELEASED",
 ];
 
-const CURRENCIES = ["USD ($)", "EUR (€)", "GBP (£)", "INR (₹)", "JPY (¥)"];
-const CURRENCY_CODES = ["USD", "EUR", "GBP", "INR", "JPY"];
-
 interface Props {
   project: Project;
   onClose: () => void;
@@ -28,29 +25,30 @@ interface Props {
 export default function EditProjectModal({ project, onClose, onUpdated }: Props) {
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(project.name);
-  const [brief, setBrief] = useState(project.brief ?? "");
   const [contentType, setContentType] = useState(project.content_type ?? "");
-  const [budgetCurrency, setBudgetCurrency] = useState(project.budget_currency ?? "USD");
-  const [budgetAmount, setBudgetAmount] = useState(project.budget_amount?.toString() ?? "");
+  const [brief, setBrief] = useState(project.brief ?? "");
+  const [additionalDetails, setAdditionalDetails] = useState(project.additional_details ?? "");
   const [status, setStatus] = useState(project.status ?? "PLANNING");
 
   const handleSave = async () => {
     if (!name.trim()) { toast.error("Project name is required."); return; }
+    if (!brief.trim()) { toast.error("Brief is required."); return; }
+    if (!contentType) { toast.error("Content type is required."); return; }
     setLoading(true);
     try {
       const updated = await updateProject(project.project_id, {
         name: name.trim(),
+        content_type: contentType,
         brief: brief.trim(),
-        content_type: contentType || undefined,
-        budget_currency: budgetCurrency,
-        budget_amount: budgetAmount ? parseFloat(budgetAmount) : null,
+        additional_details: additionalDetails.trim(),
         status,
       });
       toast.success("Project updated!");
       onUpdated(updated);
       onClose();
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail ?? "Failed to update project.");
+      const msg = Object.values(e?.response?.data || {}).flat().join(' ') || "Failed to update project.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -70,27 +68,19 @@ export default function EditProjectModal({ project, onClose, onUpdated }: Props)
             <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Brief</label>
-            <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={3} className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 resize-none" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Content Type</label>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Content Type <span className="text-red-400">*</span></label>
             <select value={contentType} onChange={(e) => setContentType(e.target.value)} className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500">
               <option value="">Select type…</option>
               {CONTENT_TYPES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Currency</label>
-              <select value={budgetCurrency} onChange={(e) => setBudgetCurrency(e.target.value)} className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500">
-                {CURRENCIES.map((c, i) => <option key={c} value={CURRENCY_CODES[i]}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Budget Amount</label>
-              <input type="number" min="0" value={budgetAmount} onChange={(e) => setBudgetAmount(e.target.value)} className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500" />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Brief <span className="text-red-400">*</span></label>
+            <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={3} className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 resize-none" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Additional Details</label>
+            <textarea value={additionalDetails} onChange={(e) => setAdditionalDetails(e.target.value)} rows={3} className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 resize-none" />
           </div>
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Status</label>

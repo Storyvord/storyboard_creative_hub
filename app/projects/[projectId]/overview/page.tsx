@@ -115,16 +115,16 @@ export default function OverviewPage() {
           </div>
         )}
 
+        {/* Additional details */}
+        {project.additional_details && (
+          <div className="p-4 rounded-lg border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+            <h2 className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>Additional Details</h2>
+            <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>{project.additional_details}</p>
+          </div>
+        )}
+
         {/* Details row */}
         <div className="grid grid-cols-2 gap-4">
-          {project.budget_amount != null && (
-            <div className="p-4 rounded-lg border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-              <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>Budget</h2>
-              <p className="text-base font-medium" style={{ color: "var(--text-primary)" }}>
-                {project.budget_currency} {Number(project.budget_amount).toLocaleString()}
-              </p>
-            </div>
-          )}
           {formattedDate && (
             <div className="p-4 rounded-lg border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
               <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>Created</h2>

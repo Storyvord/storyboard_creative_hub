@@ -16,9 +16,6 @@ const STATUSES = [
   "POST_PRODUCTION", "COMPLETED", "PAUSED", "CANCELLED", "RELEASED",
 ];
 
-const CURRENCIES = ["USD ($)", "EUR (€)", "GBP (£)", "INR (₹)", "JPY (¥)"];
-const CURRENCY_CODES = ["USD", "EUR", "GBP", "INR", "JPY"];
-
 interface Props {
   onClose: () => void;
   onCreated?: () => void;
@@ -30,27 +27,27 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
   const [loading, setLoading] = useState(false);
 
   const [name, setName] = useState("");
-  const [brief, setBrief] = useState("");
   const [contentType, setContentType] = useState("");
-  const [budgetCurrency, setBudgetCurrency] = useState("USD");
-  const [budgetAmount, setBudgetAmount] = useState("");
+  const [brief, setBrief] = useState("");
+  const [additionalDetails, setAdditionalDetails] = useState("");
   const [status, setStatus] = useState("PLANNING");
 
   const handleNext = () => {
     if (!name.trim()) { toast.error("Project name is required."); return; }
     if (!brief.trim()) { toast.error("Brief is required."); return; }
+    if (!contentType) { toast.error("Content type is required."); return; }
     setStep(2);
   };
 
   const handleCreate = async () => {
+    if (!additionalDetails.trim()) { toast.error("Additional details are required."); return; }
     setLoading(true);
     try {
       const project = await createProject({
         name: name.trim(),
+        content_type: contentType,
         brief: brief.trim(),
-        content_type: contentType || undefined,
-        budget_currency: budgetCurrency,
-        budget_amount: budgetAmount ? parseFloat(budgetAmount) : null,
+        additional_details: additionalDetails.trim(),
         status,
       });
       toast.success("Project created!");
@@ -58,7 +55,8 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
       onClose();
       router.push(`/projects/${project.project_id}/overview`);
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail ?? "Failed to create project.");
+      const msg = Object.values(e?.response?.data || {}).flat().join(' ') || "Failed to create project.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -70,7 +68,6 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
         className="relative w-full max-w-lg rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-[var(--text-primary)]">New Project</h2>
           <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
@@ -78,8 +75,7 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
           </button>
         </div>
 
-        {/* Progress */}
-        <div className="flex items-center gap-2 mb-6">
+        <div className="flex items-center gap-2 mb-2">
           {[1, 2].map((s) => (
             <div key={s} className={`flex-1 h-1 rounded-full transition-colors ${step >= s ? "bg-emerald-500" : "bg-[var(--border)]"}`} />
           ))}
@@ -98,17 +94,7 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Brief <span className="text-red-400">*</span></label>
-              <textarea
-                value={brief}
-                onChange={(e) => setBrief(e.target.value)}
-                rows={4}
-                placeholder="A short description of the project..."
-                className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-emerald-500 resize-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Content Type</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Content Type <span className="text-red-400">*</span></label>
               <select
                 value={contentType}
                 onChange={(e) => setContentType(e.target.value)}
@@ -118,33 +104,30 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
                 {CONTENT_TYPES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Brief <span className="text-red-400">*</span></label>
+              <textarea
+                value={brief}
+                onChange={(e) => setBrief(e.target.value)}
+                rows={4}
+                placeholder="A short description of the project..."
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-emerald-500 resize-none"
+              />
+            </div>
           </div>
         )}
 
         {step === 2 && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Currency</label>
-                <select
-                  value={budgetCurrency}
-                  onChange={(e) => setBudgetCurrency(e.target.value)}
-                  className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500"
-                >
-                  {CURRENCIES.map((c, i) => <option key={c} value={CURRENCY_CODES[i]}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Budget Amount</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={budgetAmount}
-                  onChange={(e) => setBudgetAmount(e.target.value)}
-                  placeholder="0"
-                  className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Additional Details <span className="text-red-400">*</span></label>
+              <textarea
+                value={additionalDetails}
+                onChange={(e) => setAdditionalDetails(e.target.value)}
+                rows={5}
+                placeholder="Any extra context, requirements, or notes for this project..."
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-emerald-500 resize-none"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Status</label>
@@ -159,7 +142,6 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
           </div>
         )}
 
-        {/* Footer */}
         <div className="flex justify-between mt-6 pt-4 border-t border-[var(--border)]">
           {step === 2 ? (
             <button

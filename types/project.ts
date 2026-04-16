@@ -1,17 +1,21 @@
 export interface Project {
   project_id: string;
   name: string;
+  content_type?: string;
   brief?: string;
   additional_details?: string;
-  budget_currency?: string;
-  budget_amount?: number | null;
-  content_type?: string;
   status?: string;
   created_at?: string;
   updated_at?: string;
-  user?: string; // owner user id
-  // legacy field kept for backward compat
-  description?: string;
+  owner_details?: {
+    id: string;
+    email: string;
+    full_name?: string | null;
+    job_title?: string | null;
+    image?: string | null;
+  };
+  members?: ProjectMember[];
+  is_favorite?: boolean;
   [key: string]: any;
 }
 
@@ -29,6 +33,7 @@ export interface Role {
   is_global: boolean;
   permissions: Record<string, string[]>;
   member_count?: number;
+  order?: number;
 }
 
 export interface Permission {
@@ -45,4 +50,68 @@ export interface ProjectInvite {
   role?: string;
   status: string;
   created_at: string;
+}
+
+export interface CallSheet {
+  id: number;
+  project: string;
+  title: string;
+  date?: string | null;
+  calltime?: string | null;
+  location?: string;
+  nearest_hospital_address?: string;
+  nearest_police_station?: string;
+  nearest_fire_station?: string;
+  additional_notes?: string | null;
+  production_notes?: string | null;
+  ai_generated?: boolean;
+}
+
+export interface Folder {
+  id: number;
+  name: string;
+  description?: string | null;
+  icon?: string;
+  project: string;
+  default?: boolean;
+  files?: ProjectFile[];
+}
+
+export interface ProjectFile {
+  id: number;
+  name: string;
+  file?: string | null;
+  folder?: number | null;
+}
+
+export interface ChatSession {
+  session_id: string;
+  title?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ChatMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp?: string;
+}
+
+export interface ProjectReport {
+  id: number;
+  project: string;
+  report_type: string;
+  report_id: number;
+  data: any;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  name?: string;
+  display_name?: string;
+}
+
+export interface AvailableReport {
+  id: number;
+  name: string;
 }
