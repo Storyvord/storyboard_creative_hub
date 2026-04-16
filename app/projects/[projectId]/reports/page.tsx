@@ -193,7 +193,7 @@ function StatCards({ data }: { data: Record<string, any> }) {
           <p style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
             {k.replace(/_/g, " ")}
           </p>
-          <p style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.2 }}>
+          <p style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.2 }}>
             {String(v)}
           </p>
         </div>
@@ -731,7 +731,7 @@ function ReportDocument({ report }: { report: ProjectReport }) {
               <p style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
                 {k.replace(/_/g, " ")}
               </p>
-              <p style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.1 }}>
+              <p style={{ fontSize: 17, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.1 }}>
                 {String(v)}
               </p>
             </div>
@@ -866,7 +866,7 @@ export default function ResearchDeckPage() {
             <BookOpen size={18} color="#22c55e" />
           </div>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.2 }}>Research Deck</h1>
+            <h1 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.2 }}>Research Deck</h1>
             <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
               {generatedReports.length} report{generatedReports.length !== 1 ? "s" : ""} generated
             </p>
@@ -986,7 +986,7 @@ export default function ResearchDeckPage() {
                     {card.icon}
                   </div>
                   <div>
-                    <p style={{ fontSize: 28, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>{card.value}</p>
+                    <p style={{ fontSize: 20, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1 }}>{card.value}</p>
                     <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>{card.label}</p>
                   </div>
                 </div>
@@ -1054,19 +1054,12 @@ export default function ResearchDeckPage() {
         {/* Individual report */}
         {activeReport && (
           <div style={{ maxWidth: 1100 }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, gap: 16 }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  {activeReport.report_type === "custom"
-                    ? <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, border: "1px solid rgba(59,130,246,0.3)", color: "#3b82f6", background: "rgba(59,130,246,0.1)" }}>custom</span>
-                    : <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, border: "1px solid rgba(34,197,94,0.3)", color: "#22c55e", background: "rgba(34,197,94,0.1)" }}>system</span>
-                  }
-                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{new Date(activeReport.created_at).toLocaleDateString()}</span>
-                </div>
-                <h2 style={{ fontSize: 26, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.2 }}>
-                  {activeReport.display_name || activeReport.name || `Report #${activeReport.id}`}
-                </h2>
-              </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
+              {activeReport.report_type === "custom"
+                ? <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, border: "1px solid rgba(59,130,246,0.3)", color: "#3b82f6", background: "rgba(59,130,246,0.1)" }}>custom</span>
+                : <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, border: "1px solid rgba(34,197,94,0.3)", color: "#22c55e", background: "rgba(34,197,94,0.1)" }}>system</span>
+              }
+              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{new Date(activeReport.created_at).toLocaleDateString()}</span>
             </div>
             <ReportDocument report={activeReport} />
           </div>
