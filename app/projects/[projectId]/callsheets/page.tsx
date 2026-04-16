@@ -186,11 +186,13 @@ export default function CallsheetsPage() {
   const handleAiGenerate = async () => {
     setAiGenerating(true);
     try {
-      await api.post(`/api/callsheets/${projectId}/generate/`);
-      toast.success("AI generation queued. Refreshing...");
+      const res = await api.post(`/api/callsheets/${projectId}/generate/`);
+      toast.success(res?.data?.message ?? "Callsheet generated successfully!");
       await load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail ?? "AI generation failed.");
+      const errData = e?.response?.data;
+      const msg = errData?.error ?? errData?.detail ?? errData?.message ?? "AI generation failed.";
+      toast.error(msg);
     } finally {
       setAiGenerating(false);
     }

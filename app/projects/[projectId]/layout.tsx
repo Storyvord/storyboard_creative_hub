@@ -5,19 +5,21 @@ import { usePathname, useParams } from "next/navigation";
 import {
   Video, LayoutDashboard, Users, Settings, FileText, Clapperboard,
   UserRound, MapPin, Shirt, Film, ChevronLeft, ChevronRight, Moon, Sun,
-  Calendar, FolderOpen, BarChart2, Sparkles,
+  Calendar, FolderOpen, BarChart2,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useState, useEffect } from "react";
 import { useTheme } from "@/context/ThemeContext";
 import { getProject } from "@/services/project";
+import UserWidget from "@/components/UserWidget";
+import AIAssistantWidget from "@/components/AIAssistantWidget";
 
 const PROJECT_NAV = [
   { name: "Overview", href: (id: string) => `/projects/${id}/overview`, icon: LayoutDashboard },
   { name: "Team", href: (id: string) => `/projects/${id}/team`, icon: Users },
   { name: "Callsheets", href: (id: string) => `/projects/${id}/callsheets`, icon: Calendar },
   { name: "Files", href: (id: string) => `/projects/${id}/files`, icon: FolderOpen },
-  { name: "Reports", href: (id: string) => `/projects/${id}/reports`, icon: BarChart2 },
+  { name: "Research Deck", href: (id: string) => `/projects/${id}/reports`, icon: BarChart2 },
 ];
 
 const CREATIVE_HUB_NAV = [
@@ -137,28 +139,6 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
         {/* Divider + bottom pinned */}
         <div className="flex-shrink-0 border-t" style={{ borderColor: "var(--border)" }}>
           <div className="p-2 space-y-0.5">
-            {/* AI Assistant */}
-            {(() => {
-              const href = `/projects/${projectId}/ai-assistant`;
-              const active = isActive(href);
-              return (
-                <Link
-                  href={href}
-                  title={collapsed ? "AI Assistant" : undefined}
-                  className={clsx(
-                    "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors border",
-                    active
-                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                      : "border-transparent hover:bg-[var(--surface-hover)]",
-                    collapsed && "justify-center px-2"
-                  )}
-                  style={active ? undefined : { color: "var(--text-secondary)" }}
-                >
-                  <Sparkles className="h-4 w-4 flex-shrink-0" />
-                  {!collapsed && <span>AI Assistant</span>}
-                </Link>
-              );
-            })()}
             {/* Settings */}
             {(() => {
               const href = `/projects/${projectId}/settings`;
@@ -183,6 +163,11 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
             })()}
           </div>
 
+          <div className="px-2 pb-1">
+            <UserWidget variant="sidebar" collapsed={collapsed} />
+          </div>
+          <div className="border-t my-1" style={{ borderColor: 'var(--border)' }} />
+
           <div className="px-3 pb-3 flex items-center justify-between gap-2">
             <button
               onClick={toggleTheme}
@@ -206,9 +191,12 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-auto" style={{ background: "var(--background)" }}>
+      <main className="flex-1 overflow-auto" style={{ background: "var(--background)", position: "relative" }}>
         {children}
       </main>
+
+      {/* Floating AI Assistant */}
+      <AIAssistantWidget />
     </div>
   );
 }
