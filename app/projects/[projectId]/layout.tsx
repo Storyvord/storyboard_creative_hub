@@ -5,7 +5,7 @@ import { usePathname, useParams } from "next/navigation";
 import {
   Video, LayoutDashboard, Users, Settings, FileText, Clapperboard,
   UserRound, MapPin, Shirt, Film, ChevronLeft, ChevronRight, Moon, Sun,
-  Calendar, FolderOpen, BarChart2, ListTodo,
+  Calendar, FolderOpen, BarChart2, ListTodo, Bell,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useState, useEffect } from "react";
@@ -165,6 +165,13 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
           </div>
 
           <div className="px-2 pb-1">
+            <Link href="/notifications"
+              className={clsx("flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors mb-1", "hover:bg-[var(--surface-hover)]")}
+              style={{ color: "var(--text-secondary)" }}
+              title="Notifications">
+              <Bell className="h-4 w-4 flex-shrink-0" />
+              {!collapsed && <span>Notifications</span>}
+            </Link>
             <UserWidget variant="sidebar" collapsed={collapsed} />
           </div>
           <div className="border-t my-1" style={{ borderColor: 'var(--border)' }} />
