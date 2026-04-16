@@ -5,6 +5,8 @@ import { useState, useEffect, useRef } from "react";
 import { uploadPreviz, getShotPreviz, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails, getCameraAngles, CameraAngle, getShotTypes, ShotType } from "@/services/creative-hub";
 import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
+import PrevizReferenceStrip from "@/components/creative-hub/PrevizReferenceStrip";
+import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import MentionTextarea, { TaggedCharacter, SceneCharacterItem, GlobalCharacterItem } from "@/components/creative-hub/MentionTextarea";
@@ -82,6 +84,8 @@ export default function ShotDetailModal({
   const [taggedCharacterIds, setTaggedCharacterIds] = useState<TaggedCharacter[]>([]);
   const [cameraAngles, setCameraAngles] = useState<CameraAngle[]>([]);
   const [shotTypes, setShotTypes] = useState<ShotType[]>([]);
+  const [activeTextTab, setActiveTextTab] = useState<'description' | 'edit'>('description');
+  const [showEditModelSelector, setShowEditModelSelector] = useState(false);
 
   useEffect(() => {
     getCameraAngles().then(setCameraAngles).catch(() => {});
@@ -221,7 +225,7 @@ export default function ShotDetailModal({
       finally { setUploading(false); e.target.value = ''; }
   };
 
-  const handleEditPromptSubmit = async () => {
+  const handleEditPromptSubmit = async (model?: string, provider?: string) => {
       if (!shot || !editPrompt.trim() || !shot.image_url) return;
       setIsEditingPreviz(true);
       try {
@@ -230,7 +234,9 @@ export default function ShotDetailModal({
               shot.image_url,
               editPrompt.trim(),
               scene?.id,
-              (scene?.script_id || scene?.script) as number | undefined
+              (scene?.script_id || scene?.script) as number | undefined,
+              model,
+              provider,
           );
 
           // Immediately reflect new active previz in parent state
@@ -313,7 +319,7 @@ export default function ShotDetailModal({
 
   const handleMainGenerateClick = async () => {
       if (hasEditPrompt) {
-          await handleEditPromptSubmit();
+          setShowEditModelSelector(true);
           return;
       }
       if (onGeneratePreviz && shot) {
@@ -326,6 +332,18 @@ export default function ShotDetailModal({
   const linkedCharacters = scene?.scene_characters || [];
 
   return (
+    <>
+    <ModelSelector
+      isOpen={showEditModelSelector}
+      onClose={() => setShowEditModelSelector(false)}
+      onConfirm={(model, provider) => {
+        setShowEditModelSelector(false);
+        handleEditPromptSubmit(model, provider);
+      }}
+      itemCount={1}
+      title="Select Model for Edit"
+      confirmLabel="Apply Edit"
+    />
     <AnimatePresence>
       <motion.div
         key="shot-detail-overlay"
@@ -362,6 +380,7 @@ export default function ShotDetailModal({
                     )}
                 </div>
                 
+
                 {/* Navigation */}
                 <div className="absolute inset-0 flex items-center justify-between p-4 pointer-events-none">
                     {onPrev && (
@@ -444,32 +463,98 @@ export default function ShotDetailModal({
                             )}
 
                                 <section>
-                                <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Description</h3>
-                                <MentionTextarea
-                                    value={detailsForm.description}
-                                    onChange={(val) => setDetailsForm((prev) => ({ ...prev, description: val }))}
-                                    onTagsChange={(tags) => {
-                                        setTaggedCharacterIds(tags);
-                                        if (onTagsChange && shot) onTagsChange(shot.id, tags);
-                                    }}
-                                    sceneCharacters={(scene?.scene_characters || []).map((sc: any) => ({
-                                        id: sc.id,
-                                        character_id: sc.character?.id || sc.character_id,
-                                        character_name: sc.character?.name || sc.character_name || "",
-                                        image_url: sc.image_url,
-                                        character_image_url: sc.character?.image_url,
-                                    }))}
-                                    globalCharacters={globalCharacters}
-                                    className={`w-full leading-relaxed text-sm bg-[var(--surface)] p-3 rounded-md border border-[var(--border)] resize-none min-h-[84px] focus:outline-none focus:border-emerald-500/40 ${disableDetails ? 'text-[var(--text-muted)] opacity-60 cursor-not-allowed' : 'text-[var(--text-secondary)]'}`}
-                                    disabled={disableDetails || savingDetails}
-                                    placeholder="Shot description... (type @ to tag characters)"
-                                    rows={4}
-                                    onBlur={() => {
-                                        if (detailsForm.description !== (shot?.description || "")) {
-                                            autoSaveField('description', detailsForm.description);
-                                        }
-                                    }}
-                                />
+                                {/* Chrome-tab design: tabs above, merges into content box */}
+                                <div>
+                                    {/* Tab row — both tabs identical height; active overlaps box border via -mb-px */}
+                                    {(() => {
+                                        const boxBorderColor = activeTextTab === 'description' ? 'rgba(52,211,153,0.25)' : 'rgba(168,85,247,0.35)';
+                                        return (
+                                        <div className="flex">
+                                            {/* Description tab */}
+                                            <button
+                                                onClick={() => setActiveTextTab('description')}
+                                                style={activeTextTab === 'description'
+                                                    ? { borderColor: 'rgba(52,211,153,0.4)', borderBottomColor: 'var(--surface)' }
+                                                    : { borderColor: boxBorderColor, borderBottomColor: boxBorderColor }}
+                                                className={`relative px-4 py-1.5 text-[10px] font-semibold rounded-t-md border transition-colors z-10 -mb-px ${
+                                                    activeTextTab === 'description'
+                                                        ? 'bg-[var(--surface)] text-emerald-400'
+                                                        : 'bg-[var(--surface-raised)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                                                }`}
+                                            >
+                                                Description
+                                            </button>
+                                            {/* Edit Prompt tab */}
+                                            <button
+                                                onClick={() => setActiveTextTab('edit')}
+                                                style={activeTextTab === 'edit'
+                                                    ? { borderColor: 'rgba(168,85,247,0.5)', borderBottomColor: 'var(--surface)' }
+                                                    : { borderColor: boxBorderColor, borderBottomColor: boxBorderColor }}
+                                                className={`relative px-4 py-1.5 text-[10px] font-semibold rounded-t-md border transition-colors z-10 -mb-px flex items-center gap-1 ${
+                                                    activeTextTab === 'edit'
+                                                        ? 'bg-[var(--surface)] text-purple-400'
+                                                        : 'bg-[var(--surface-raised)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                                                }`}
+                                            >
+                                                <Pencil className="w-2.5 h-2.5" />
+                                                Edit Prompt
+                                            </button>
+                                        </div>
+                                        );
+                                    })()}
+
+                                    {/* Content box — fixed height, border color animates with active tab */}
+                                    <motion.div
+                                        animate={{
+                                            borderColor: activeTextTab === 'description' ? 'rgba(52,211,153,0.25)' : 'rgba(168,85,247,0.35)',
+                                        }}
+                                        transition={{ duration: 0.2 }}
+                                        className="rounded-b-md rounded-tr-md border bg-[var(--surface)] relative"
+                                        style={{ minHeight: 104 }}
+                                    >
+                                        {/* Both panels always mounted, opacity toggled — no height shift */}
+                                        <div style={{ opacity: activeTextTab === 'description' ? 1 : 0, pointerEvents: activeTextTab === 'description' ? 'auto' : 'none', position: activeTextTab === 'description' ? 'relative' : 'absolute', inset: 0, transition: 'opacity 0.15s' }}>
+                                            <MentionTextarea
+                                                value={detailsForm.description}
+                                                onChange={(val) => setDetailsForm((prev) => ({ ...prev, description: val }))}
+                                                onTagsChange={(tags) => {
+                                                    setTaggedCharacterIds(tags);
+                                                    if (onTagsChange && shot) onTagsChange(shot.id, tags);
+                                                }}
+                                                sceneCharacters={(scene?.scene_characters || []).map((sc: any) => ({
+                                                    id: sc.id,
+                                                    character_id: sc.character?.id || sc.character_id,
+                                                    character_name: sc.character?.name || sc.character_name || "",
+                                                    image_url: sc.image_url,
+                                                    character_image_url: sc.character?.image_url,
+                                                }))}
+                                                globalCharacters={globalCharacters}
+                                                className={`w-full leading-relaxed text-sm bg-transparent p-3 resize-none focus:outline-none ${disableDetails ? 'text-[var(--text-muted)] opacity-60 cursor-not-allowed' : 'text-[var(--text-secondary)]'}`}
+                                                disabled={disableDetails || savingDetails}
+                                                placeholder="Shot description... (type @ to tag characters)"
+                                                rows={4}
+                                                onBlur={() => {
+                                                    if (detailsForm.description !== (shot?.description || "")) {
+                                                        autoSaveField('description', detailsForm.description);
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        <div style={{ opacity: activeTextTab === 'edit' ? 1 : 0, pointerEvents: activeTextTab === 'edit' ? 'auto' : 'none', position: activeTextTab === 'edit' ? 'relative' : 'absolute', inset: 0, transition: 'opacity 0.15s' }} className={disableEditPrompt ? 'opacity-50' : ''}>
+                                            <textarea
+                                                value={editPrompt}
+                                                onChange={(e) => setEditPrompt(e.target.value)}
+                                                placeholder={disableEditPrompt ? 'Clear unsaved changes to use edit prompt.' : 'e.g. Change lighting to golden hour, add fog in background...'}
+                                                className="w-full bg-transparent text-[var(--text-primary)] text-sm p-3 resize-none focus:outline-none placeholder:text-[var(--text-muted)]"
+                                                rows={4}
+                                                disabled={isEditingPreviz || disableEditPrompt}
+                                            />
+                                            {!hasActivePrevizImage && (
+                                                <p className="text-[10px] text-[var(--text-muted)] px-3 pb-2">Generate or upload a previz first.</p>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                </div>
 
                                 <div className={`mt-3 space-y-2 ${disableDetails ? 'opacity-50 pointer-events-none' : ''}`}>
                                     <h4 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest">Shot Details</h4>
@@ -542,30 +627,6 @@ export default function ShotDetailModal({
                                     )}
                                 </div>
 
-                                {/* Edit Prompt Section */}
-                                <div className="mt-3 space-y-2">
-                                    <div className={`bg-purple-950/20 border border-purple-900/30 rounded-md p-3 ${disableEditPrompt ? 'opacity-50' : ''}`}>
-                                        <h4 className="text-[10px] font-bold text-purple-300 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                                            <Pencil className="w-3 h-3" />
-                                            Edit Prompt
-                                        </h4>
-                                        <p className="text-[10px] text-purple-300/70 mb-2">
-                                            Enter prompt to edit current active previz. This creates a new previz based on the current image.
-                                        </p>
-                                        <textarea
-                                            value={editPrompt}
-                                            onChange={(e) => setEditPrompt(e.target.value)}
-                                            placeholder={disableEditPrompt ? 'Clear unsaved shot detail changes to use edit prompt.' : 'e.g. Change lighting to golden hour, add fog in background...'}
-                                            className="w-full bg-[var(--background)] border border-purple-900/40 text-[var(--text-primary)] text-xs rounded-md p-2.5 resize-none focus:outline-none focus:border-purple-500/60 placeholder:text-[var(--text-muted)] min-h-[64px]"
-                                            rows={3}
-                                            disabled={isEditingPreviz || disableEditPrompt}
-                                        />
-                                        {!hasActivePrevizImage && (
-                                            <p className="text-[10px] text-[var(--text-muted)] mt-2">Generate or upload a previz first to use edit prompt.</p>
-                                        )}
-                                    </div>
-                                </div>
-                                
                                 {/* Generate / Upload Buttons */}
                                 {showGenerateButton && onGeneratePreviz && (
                                     <div className="flex gap-2 mt-3">
@@ -588,30 +649,50 @@ export default function ShotDetailModal({
                                 )}
                             </section>
 
-                            {/* Previz Details */}
-                            {shot.previz && (
-                                <section>
-                                    <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Previz Specs</h3>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)]">
-                                            <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Aspect Ratio</span>
-                                            <span className="text-[var(--text-secondary)] text-xs font-medium">{shot.previz.aspect_ratio || "16:9"}</span>
-                                        </div>
-                                        <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)]">
-                                            <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Camera</span>
-                                            <span className="text-[var(--text-secondary)] text-xs font-medium">{shot.previz.camera_angle || shot.camera_angle || "—"}</span>
-                                        </div>
-                                        {shot.previz.audio_url && (
-                                             <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)] col-span-2">
-                                                <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Audio</span>
-                                                <a href={shot.previz.audio_url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 text-xs truncate block">
-                                                    Open Audio File
-                                                </a>
+                            {/* Previz Details — driven from v1 history so it stays fresh after generation */}
+                            {(() => {
+                                // Prefer the history entry matching active_previz; fall back to
+                                // shot.previz (stale v2 data) so the section shows before history loads.
+                                const activePreviz =
+                                    previzHistory.find((p) => p.id === shot.active_previz) ||
+                                    previzHistory[0] ||
+                                    shot.previz;
+                                if (!activePreviz) return null;
+                                const refs: any[] = activePreviz.reference_images ?? [];
+                                return (
+                                    <section>
+                                        <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Previz Specs</h3>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)]">
+                                                <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Aspect Ratio</span>
+                                                <span className="text-[var(--text-secondary)] text-xs font-medium">{activePreviz.aspect_ratio || "16:9"}</span>
                                             </div>
-                                        )}
-                                    </div>
-                                </section>
-                            )}
+                                            <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)]">
+                                                <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Camera</span>
+                                                <span className="text-[var(--text-secondary)] text-xs font-medium">{activePreviz.camera_angle || shot.camera_angle || "—"}</span>
+                                            </div>
+                                            {activePreviz.audio_url && (
+                                                <div className="bg-[var(--surface)] p-2.5 rounded-md border border-[var(--border)] col-span-2">
+                                                    <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-0.5">Audio</span>
+                                                    <a href={activePreviz.audio_url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 text-xs truncate block">
+                                                        Open Audio File
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Reference images */}
+                                        {loadingHistory ? (
+                                            <div className="mt-3 h-12 bg-[var(--surface)] animate-pulse rounded" />
+                                        ) : refs.length > 0 ? (
+                                            <div className="mt-3">
+                                                <h4 className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-1.5">Reference Images</h4>
+                                                <PrevizReferenceStrip images={refs} size="md" />
+                                            </div>
+                                        ) : null}
+                                    </section>
+                                );
+                            })()}
 
                             {/* Linked Characters */}
                             <section>
@@ -703,7 +784,7 @@ export default function ShotDetailModal({
                                             <div className="aspect-video relative">
                                                 <img src={previz.image_url} className="w-full h-full object-cover" />
                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 gap-2">
-                                                    <button 
+                                                    <button
                                                         disabled={settingActive || shot.active_previz === previz.id}
                                                         onClick={() => handleSetActive(previz.id)}
                                                         className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-3 py-1.5 rounded disabled:opacity-50 disabled:bg-[var(--surface-raised)]"
@@ -743,5 +824,6 @@ export default function ShotDetailModal({
         </motion.div>
       </motion.div>
     </AnimatePresence>
+    </>
   );
 }
