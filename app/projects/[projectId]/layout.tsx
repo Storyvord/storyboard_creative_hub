@@ -5,13 +5,14 @@ import { usePathname, useParams } from "next/navigation";
 import {
   Video, LayoutDashboard, Users, Settings, FileText, Clapperboard,
   UserRound, MapPin, Shirt, Film, ChevronLeft, ChevronRight, Moon, Sun,
-  Calendar, FolderOpen, BarChart2, Sparkles,
+  Calendar, FolderOpen, BarChart2,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useState, useEffect } from "react";
 import { useTheme } from "@/context/ThemeContext";
 import { getProject } from "@/services/project";
 import UserWidget from "@/components/UserWidget";
+import AIAssistantWidget from "@/components/AIAssistantWidget";
 
 const PROJECT_NAV = [
   { name: "Overview", href: (id: string) => `/projects/${id}/overview`, icon: LayoutDashboard },
@@ -138,28 +139,6 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
         {/* Divider + bottom pinned */}
         <div className="flex-shrink-0 border-t" style={{ borderColor: "var(--border)" }}>
           <div className="p-2 space-y-0.5">
-            {/* AI Assistant */}
-            {(() => {
-              const href = `/projects/${projectId}/ai-assistant`;
-              const active = isActive(href);
-              return (
-                <Link
-                  href={href}
-                  title={collapsed ? "AI Assistant" : undefined}
-                  className={clsx(
-                    "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors border",
-                    active
-                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                      : "border-transparent hover:bg-[var(--surface-hover)]",
-                    collapsed && "justify-center px-2"
-                  )}
-                  style={active ? undefined : { color: "var(--text-secondary)" }}
-                >
-                  <Sparkles className="h-4 w-4 flex-shrink-0" />
-                  {!collapsed && <span>AI Assistant</span>}
-                </Link>
-              );
-            })()}
             {/* Settings */}
             {(() => {
               const href = `/projects/${projectId}/settings`;
@@ -215,6 +194,9 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
       <main className="flex-1 overflow-auto" style={{ background: "var(--background)" }}>
         {children}
       </main>
+
+      {/* Floating AI Assistant */}
+      <AIAssistantWidget />
     </div>
   );
 }

@@ -169,11 +169,8 @@ function CreditsPopover({
       {/* Header */}
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
         <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>
-          {profile.full_name || profile.email}
+          {profile.full_name || 'User'}
         </p>
-        {profile.full_name && (
-          <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 1 }}>{profile.email}</p>
-        )}
         {profile.job_title && (
           <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{profile.job_title}</p>
         )}
@@ -276,7 +273,7 @@ export default function UserWidget({ variant, collapsed }: UserWidgetProps) {
   const llmPct = llmAllocated > 0 ? (llmBalance / llmAllocated) * 100 : 0;
   const imgPct = imgAllocated > 0 ? (imgBalance / imgAllocated) * 100 : 0;
 
-  const displayName = profile?.full_name || profile?.email || '';
+  const displayName = profile?.full_name || 'User';
   const initials = profile ? getInitials(profile.full_name, profile.email) : '?';
   const initialsColor = profile ? getInitialsColor(profile.email) : '#555';
 
