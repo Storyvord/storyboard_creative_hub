@@ -430,7 +430,7 @@ function ReportDocument({ report }: { report: ProjectReport }) {
             <SectionBlock item={row.b} colorIdx={ri * 2 + 1} />
           </div>
         );
-        return <SectionBlock key={ri} item={row.single} colorIdx={ri} />;
+        return <SectionBlock key={ri} item={row.item} colorIdx={ri} />;
       })}
     </div>
   );
