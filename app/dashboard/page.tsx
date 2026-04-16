@@ -10,6 +10,7 @@ import { toast } from "react-toastify";
 import { useTheme } from "@/context/ThemeContext";
 import CreateProjectModal from "@/components/project/CreateProjectModal";
 import StatusBadge from "@/components/project/StatusBadge";
+import UserWidget from "@/components/UserWidget";
 
 export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -40,6 +41,7 @@ export default function DashboardPage() {
             <h1 className="text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Your Projects</h1>
           </div>
           <div className="flex items-center gap-2">
+            <UserWidget variant="topbar" />
             <button
               onClick={toggleTheme}
               aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}

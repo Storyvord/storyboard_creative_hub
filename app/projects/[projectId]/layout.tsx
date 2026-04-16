@@ -11,6 +11,7 @@ import { clsx } from "clsx";
 import { useState, useEffect } from "react";
 import { useTheme } from "@/context/ThemeContext";
 import { getProject } from "@/services/project";
+import UserWidget from "@/components/UserWidget";
 
 const PROJECT_NAV = [
   { name: "Overview", href: (id: string) => `/projects/${id}/overview`, icon: LayoutDashboard },
@@ -182,6 +183,11 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
               );
             })()}
           </div>
+
+          <div className="px-2 pb-1">
+            <UserWidget variant="sidebar" collapsed={collapsed} />
+          </div>
+          <div className="border-t my-1" style={{ borderColor: 'var(--border)' }} />
 
           <div className="px-3 pb-3 flex items-center justify-between gap-2">
             <button
