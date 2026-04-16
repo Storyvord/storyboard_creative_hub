@@ -18,9 +18,10 @@ export interface UnifiedCalendar {
 }
 
 // GET /api/calendar/unified/
-export const getUnifiedCalendar = async (): Promise<UnifiedCalendar> => {
+export const getUnifiedCalendar = async (): Promise<UnifiedCalendar[]> => {
   const res = await api.get('/api/calendar/unified/');
-  return res.data?.data ?? res.data;
+  const d = res.data?.data ?? res.data;
+  return Array.isArray(d) ? d : [d];
 };
 
 // POST /api/calendar/user/calendar/events/
