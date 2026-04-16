@@ -22,744 +22,487 @@ import {
 // ── Colour palette ───────────────────────────────────────────────────────────
 const PALETTE = ["#22c55e", "#3b82f6", "#f97316", "#a855f7", "#ec4899", "#14b8a6", "#eab308", "#ef4444", "#64748b", "#06b6d4"];
 
-// ── Detect data shape ────────────────────────────────────────────────────────
-type Shape = "bar" | "line" | "pie" | "radar" | "stat" | "list" | "text" | "nested";
+// ── Keys that are project metadata — never render as report sections ──────────
+const SKIP_KEYS = new Set(["name","project","project_name","project_id","title","id","report_id","report_type","created_at","updated_at"]);
 
-function detectShape(data: any): Shape {
-  if (data === null || data === undefined) return "text";
-  if (typeof data === "string" || typeof data === "number" || typeof data === "boolean") return "text";
-  if (Array.isArray(data)) {
-    if (data.length === 0) return "list";
-    if (data.every((v) => typeof v === "string" || typeof v === "number")) return "list";
-    const first = data[0];
-    if (typeof first !== "object") return "list";
-    const numericKeys = Object.keys(first).filter((k) => typeof first[k] === "number");
-    if (numericKeys.length === 0) return "list";
-    const hasTime = Object.keys(first).some((k) =>
-      ["date", "time", "day", "week", "month", "year", "created_at", "period"].some((t) => k.toLowerCase().includes(t))
-    );
-    if (hasTime) return "line";
-    if (data.length <= 7 && numericKeys.length === 1) return "pie";
-    if (data.length <= 8 && numericKeys.length >= 3) return "radar";
-    return "bar";
+// ── Section semantic classifier ───────────────────────────────────────────────
+type SectionKind = "prose" | "kpi_group" | "crew" | "budget" | "timeline" | "chart_bar" | "chart_line" | "chart_pie" | "table" | "nested_kpis";
+
+function classifySection(key: string, value: any): SectionKind {
+  const k = key.toLowerCase();
+  if (typeof value === "string") return "prose";
+  if (value === null || value === undefined) return "prose";
+  const isArr = Array.isArray(value);
+  const isObj = !isArr && typeof value === "object";
+
+  // Crew / casting
+  if (["crew","cast","casting","personnel","members","team","staff","recommended_crew","crew_recommendations"].some(t => k.includes(t))) return "crew";
+
+  // Budget
+  if (["budget","cost","finance","expense","revenue","financial","pricing","monetary"].some(t => k.includes(t))) {
+    if (isObj || isArr) return "budget";
   }
-  if (typeof data === "object") {
-    const entries = Object.entries(data);
-    if (entries.every(([, v]) => typeof v === "number")) {
-      return entries.length <= 7 ? "pie" : "bar";
-    }
-    if (entries.some(([, v]) => typeof v === "object" && v !== null)) return "nested";
-    if (entries.every(([, v]) => typeof v === "string" || typeof v === "number")) return "stat";
-    return "stat";
+
+  // Timeline / logistics / schedule
+  if (["timeline","schedule","logistics","plan","phase","milestone","shooting_schedule","production_plan"].some(t => k.includes(t))) {
+    if (isArr) return "timeline";
   }
-  return "text";
+
+  // Object with all-numeric values → KPI group
+  if (isObj) {
+    const vals = Object.values(value as object);
+    if (vals.length > 0 && vals.every(v => typeof v === "number" || typeof v === "string")) return "nested_kpis";
+    return "nested_kpis";
+  }
+
+  if (isArr) {
+    if ((value as any[]).length === 0) return "table";
+    const first = (value as any[])[0];
+    if (typeof first !== "object" || first === null) return "table";
+    const numKeys = Object.keys(first).filter(k => typeof first[k] === "number");
+    const dateKey = Object.keys(first).find(k => ["date","time","day","week","month","year","period"].some(t => k.toLowerCase().includes(t)));
+    if (dateKey && numKeys.length > 0) return "chart_line";
+    if (numKeys.length === 0) return "table";
+    if ((value as any[]).length <= 7 && numKeys.length === 1) return "chart_pie";
+    return "chart_bar";
+  }
+
+  return "prose";
 }
 
-// ── Chart components ─────────────────────────────────────────────────────────
-function ChartView({ data, shape }: { data: any; shape: Shape }) {
-  if (shape === "bar") {
-    const rows: any[] = Array.isArray(data) ? data : Object.entries(data).map(([k, v]) => ({ _key: k, value: v }));
-    const numericKeys = rows.length > 0 ? Object.keys(rows[0]).filter((k) => typeof rows[0][k] === "number") : [];
-    const labelKey = rows.length > 0
-      ? (Object.keys(rows[0]).find((k) => typeof rows[0][k] === "string") ?? "_key" ?? Object.keys(rows[0])[0])
-      : "";
-    return (
-      <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={rows} margin={{ top: 8, right: 16, bottom: 32, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-          <XAxis dataKey={labelKey} tick={{ fontSize: 11, fill: "var(--text-muted)" }} interval={0} angle={-25} textAnchor="end" />
-          <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} />
-          <Tooltip
-            contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}
-            cursor={{ fill: "rgba(34,197,94,0.06)" }}
-          />
-          {numericKeys.length > 1 && <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />}
-          {numericKeys.map((k, i) => (
-            <Bar key={k} dataKey={k} fill={PALETTE[i % PALETTE.length]} radius={[4, 4, 0, 0]} maxBarSize={48} />
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
-    );
-  }
+// ── Tooltip style ─────────────────────────────────────────────────────────────
+const TT_STYLE = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, boxShadow: "0 4px 16px rgba(0,0,0,0.2)" };
 
-  if (shape === "line") {
-    const rows: any[] = Array.isArray(data) ? data : [];
-    const numericKeys = rows.length > 0 ? Object.keys(rows[0]).filter((k) => typeof rows[0][k] === "number") : [];
-    const labelKey = rows.length > 0
-      ? Object.keys(rows[0]).find((k) =>
-          ["date", "time", "day", "week", "month", "year", "created_at", "period"].some((t) => k.toLowerCase().includes(t))
-        ) ?? Object.keys(rows[0])[0]
-      : "";
-    return (
-      <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 32, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-          <XAxis dataKey={labelKey} tick={{ fontSize: 11, fill: "var(--text-muted)" }} interval={0} angle={-25} textAnchor="end" />
-          <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} />
-          {numericKeys.length > 1 && <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />}
-          {numericKeys.map((k, i) => (
-            <Line key={k} type="monotone" dataKey={k} stroke={PALETTE[i % PALETTE.length]} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-    );
-  }
-
-  if (shape === "pie") {
-    const rows: { name: string; value: number }[] = Array.isArray(data)
-      ? data.map((item: any) => {
-          const keys = Object.keys(item);
-          const valKey = keys.find((k) => typeof item[k] === "number") ?? keys[1];
-          const lKey = keys.find((k) => typeof item[k] === "string") ?? keys[0];
-          return { name: String(item[lKey] ?? ""), value: Number(item[valKey] ?? 0) };
-        })
-      : Object.entries(data).map(([k, v]) => ({ name: k, value: Number(v) }));
-
-    const RADIAN = Math.PI / 180;
-    const renderLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }: any) => {
-      const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-      const x = cx + radius * Math.cos(-midAngle * RADIAN);
-      const y = cy + radius * Math.sin(-midAngle * RADIAN);
-      if (percent < 0.06) return null;
-      return (
-        <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={600}>
-          {`${(percent * 100).toFixed(0)}%`}
-        </text>
-      );
-    };
-
-    return (
-      <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
-        <ResponsiveContainer width={220} height={220}>
-          <PieChart>
-            <Pie data={rows} cx="50%" cy="50%" outerRadius={95} dataKey="value" labelLine={false} label={renderLabel}>
-              {rows.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
-            </Pie>
-            <Tooltip contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
-          </PieChart>
-        </ResponsiveContainer>
-        <div style={{ flex: 1, minWidth: 140, display: "flex", flexDirection: "column", gap: 8 }}>
-          {rows.map((row, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 2, background: PALETTE[i % PALETTE.length], flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: "var(--text-secondary)", flex: 1 }}>{row.name}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{row.value.toLocaleString()}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (shape === "radar") {
-    const rows: any[] = Array.isArray(data) ? data : [];
-    const numericKeys = rows.length > 0 ? Object.keys(rows[0]).filter((k) => typeof rows[0][k] === "number") : [];
-    const labelKey = rows.length > 0 ? Object.keys(rows[0]).find((k) => typeof rows[0][k] === "string") ?? Object.keys(rows[0])[0] : "";
-    return (
-      <ResponsiveContainer width="100%" height={260}>
-        <RadarChart data={rows}>
-          <PolarGrid stroke="var(--border)" />
-          <PolarAngleAxis dataKey={labelKey} tick={{ fontSize: 11, fill: "var(--text-muted)" }} />
-          <Tooltip contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
-          {numericKeys.map((k, i) => (
-            <Radar key={k} dataKey={k} stroke={PALETTE[i % PALETTE.length]} fill={PALETTE[i % PALETTE.length]} fillOpacity={0.15} />
-          ))}
-          {numericKeys.length > 1 && <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />}
-        </RadarChart>
-      </ResponsiveContainer>
-    );
-  }
-
-  return null;
+// ── Shared: label key heuristic ───────────────────────────────────────────────
+function labelKey(obj: Record<string, any>): string {
+  const strKeys = Object.keys(obj).filter(k => typeof obj[k] === "string");
+  const prefer = ["name","title","label","role","position","category","type","phase","department","location"];
+  for (const p of prefer) { const f = strKeys.find(k => k.toLowerCase().includes(p)); if (f) return f; }
+  return strKeys[0] ?? Object.keys(obj)[0];
 }
 
-// ── Stat cards ───────────────────────────────────────────────────────────────
-function StatCards({ data }: { data: Record<string, any> }) {
-  const entries = Object.entries(data).filter(([, v]) => typeof v !== "object" || v === null);
-  if (entries.length === 0) return null;
+// ── KPI strip (scalar fields at top of report) ────────────────────────────────
+function KPIStrip({ stats }: { stats: [string, any][] }) {
+  if (stats.length === 0) return null;
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
-      {entries.map(([k, v]) => (
-        <div
-          key={k}
-          style={{
-            padding: "16px 18px",
-            borderRadius: 12,
-            background: "var(--surface-raised)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <p style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10, marginBottom: 20 }}>
+      {stats.map(([k, v], i) => (
+        <div key={k} style={{ padding: "14px 16px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: PALETTE[i % PALETTE.length] }} />
+          <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {k.replace(/_/g, " ")}
           </p>
-          <p style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.2 }}>
-            {String(v)}
-          </p>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.2, wordBreak: "break-word" }}>{String(v)}</p>
         </div>
       ))}
     </div>
   );
 }
 
-// ── List view ────────────────────────────────────────────────────────────────
-function ListView({ data }: { data: any[] }) {
+// ── Section wrapper (no giant title, just a subtle label) ────────────────────
+function SectionWrap({ label, color, children, fullWidth }: { label: string; color: string; children: React.ReactNode; fullWidth?: boolean }) {
   return (
-    <ul style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      {data.map((item, i) => (
-        <li
-          key={i}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            background: "var(--surface-raised)",
-            border: "1px solid var(--border)",
-            fontSize: 13,
-            color: "var(--text-primary)",
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 8,
-          }}
-        >
-          <span style={{ color: "#22c55e", fontWeight: 700, flexShrink: 0, marginTop: 1 }}>
-            {String(i + 1).padStart(2, "0")}
-          </span>
-          {typeof item === "object" ? (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px" }}>
-              {Object.entries(item).map(([k, v]) => (
-                <span key={k}>
-                  <span style={{ color: "var(--text-muted)", fontSize: 11 }}>{k}: </span>
-                  <span style={{ color: "var(--text-primary)", fontSize: 12 }}>{String(v)}</span>
-                </span>
-              ))}
-            </div>
-          ) : (
-            <span>{String(item)}</span>
-          )}
-        </li>
-      ))}
-    </ul>
+    <div style={{ gridColumn: fullWidth ? "1 / -1" : undefined, borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface)", overflow: "hidden" }}>
+      <div style={{ padding: "10px 16px 6px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0 }} />
+        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          {label.replace(/_/g, " ")}
+        </span>
+      </div>
+      <div style={{ padding: "14px 16px" }}>{children}</div>
+    </div>
   );
 }
 
-// ── Editable text block ──────────────────────────────────────────────────────
-function EditableTextBlock({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+// ── Bar chart ─────────────────────────────────────────────────────────────────
+function BarSection({ data }: { data: any[] }) {
+  const lk = labelKey(data[0]);
+  const numKeys = Object.keys(data[0]).filter(k => typeof data[0][k] === "number");
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={data} margin={{ top: 4, right: 8, bottom: 28, left: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+        <XAxis dataKey={lk} tick={{ fontSize: 10, fill: "var(--text-muted)" }} interval={0} angle={-20} textAnchor="end" />
+        <YAxis tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} />
+        <Tooltip contentStyle={TT_STYLE} cursor={{ fill: "rgba(34,197,94,0.05)" }} />
+        {numKeys.length > 1 && <Legend iconSize={9} wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />}
+        {numKeys.map((k, i) => <Bar key={k} dataKey={k} fill={PALETTE[i % PALETTE.length]} radius={[3,3,0,0]} maxBarSize={40} />)}
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
 
-  useEffect(() => { setDraft(value); }, [value]);
-  useEffect(() => {
-    if (editing && textareaRef.current) {
-      textareaRef.current.focus();
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
-    }
-  }, [editing]);
+// ── Line chart ────────────────────────────────────────────────────────────────
+function LineSection({ data }: { data: any[] }) {
+  const lk = labelKey(data[0]);
+  const numKeys = Object.keys(data[0]).filter(k => typeof data[0][k] === "number");
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <LineChart data={data} margin={{ top: 4, right: 8, bottom: 28, left: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+        <XAxis dataKey={lk} tick={{ fontSize: 10, fill: "var(--text-muted)" }} interval={0} angle={-20} textAnchor="end" />
+        <YAxis tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} />
+        <Tooltip contentStyle={TT_STYLE} />
+        {numKeys.length > 1 && <Legend iconSize={9} wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />}
+        {numKeys.map((k, i) => <Line key={k} type="monotone" dataKey={k} stroke={PALETTE[i % PALETTE.length]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />)}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
 
-  if (editing) {
+// ── Pie chart ─────────────────────────────────────────────────────────────────
+function PieSection({ data }: { data: any[] }) {
+  const lk = labelKey(data[0]);
+  const vk = Object.keys(data[0]).find(k => typeof data[0][k] === "number") ?? Object.keys(data[0])[1];
+  const rows = data.map(d => ({ name: String(d[lk] ?? ""), value: Number(d[vk] ?? 0) }));
+  return (
+    <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+      <ResponsiveContainer width={180} height={180}>
+        <PieChart>
+          <Pie data={rows} cx="50%" cy="50%" outerRadius={80} dataKey="value" labelLine={false}>
+            {rows.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+          </Pie>
+          <Tooltip contentStyle={TT_STYLE} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+        {rows.map((r, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: PALETTE[i % PALETTE.length], flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: "var(--text-secondary)", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{r.value.toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Generic table ─────────────────────────────────────────────────────────────
+function TableSection({ data }: { data: any[] }) {
+  if (data.length === 0) return <p style={{ fontSize: 12, color: "var(--text-muted)" }}>No data.</p>;
+  // If array of primitives
+  if (typeof data[0] !== "object" || data[0] === null) {
     return (
-      <div>
-        <textarea
-          ref={textareaRef}
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            e.target.style.height = "auto";
-            e.target.style.height = e.target.scrollHeight + "px";
-          }}
-          style={{
-            width: "100%",
-            background: "var(--surface-raised)",
-            border: "1px solid #22c55e",
-            borderRadius: 8,
-            padding: "10px 12px",
-            fontSize: 14,
-            lineHeight: 1.7,
-            color: "var(--text-primary)",
-            resize: "none",
-            outline: "none",
-            minHeight: 80,
-          }}
-        />
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-          <button
-            onClick={() => { onChange(draft); setEditing(false); }}
-            style={{
-              display: "flex", alignItems: "center", gap: 4,
-              padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600,
-              background: "#22c55e", color: "#fff", border: "none", cursor: "pointer",
-            }}
-          >
-            <Check size={12} /> Save
-          </button>
-          <button
-            onClick={() => { setDraft(value); setEditing(false); }}
-            style={{
-              padding: "5px 12px", borderRadius: 6, fontSize: 12,
-              background: "none", color: "var(--text-muted)", border: "1px solid var(--border)", cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-        </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {data.map((v, i) => (
+          <span key={i} style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface-raised)", color: "var(--text-secondary)" }}>
+            {String(v)}
+          </span>
+        ))}
+      </div>
+    );
+  }
+  const cols = Object.keys(data[0]).filter(c => !SKIP_KEYS.has(c.toLowerCase()));
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid var(--border)" }}>
+            {cols.map(c => (
+              <th key={c} style={{ padding: "6px 10px", textAlign: "left", fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>
+                {c.replace(/_/g, " ")}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row, i) => (
+            <tr key={i} style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--surface-raised)]">
+              {cols.map(c => (
+                <td key={c} style={{ padding: "8px 10px", color: "var(--text-secondary)", verticalAlign: "top" }}>
+                  {typeof row[c] === "object" && row[c] !== null ? JSON.stringify(row[c]) : String(row[c] ?? "—")}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Budget section (KPI row + chart + table) ──────────────────────────────────
+function BudgetSection({ data }: { data: any }) {
+  const isArr = Array.isArray(data);
+  const isObj = !isArr && typeof data === "object" && data !== null;
+
+  // Object of scalars → KPI cards
+  if (isObj && Object.values(data).every(v => typeof v === "number" || typeof v === "string")) {
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
+        {Object.entries(data as Record<string,any>).map(([k,v], i) => {
+          const isNum = typeof v === "number";
+          const formatted = isNum ? (v as number).toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(v);
+          return (
+            <div key={k} style={{ padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface-raised)", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: PALETTE[i % PALETTE.length] }} />
+              <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>{k.replace(/_/g, " ")}</p>
+              <p style={{ fontSize: 16, fontWeight: 700, color: isNum ? PALETTE[i % PALETTE.length] : "var(--text-primary)", lineHeight: 1.1 }}>{formatted}</p>
+            </div>
+          );
+        })}
       </div>
     );
   }
 
-  return (
-    <div
-      onClick={() => setEditing(true)}
-      style={{
-        position: "relative",
-        padding: "10px 12px",
-        borderRadius: 8,
-        border: "1px solid transparent",
-        cursor: "text",
-        transition: "all 0.15s",
-        lineHeight: 1.7,
-        fontSize: 14,
-        color: "var(--text-primary)",
-        whiteSpace: "pre-wrap",
-      }}
-      className="group hover:border-[var(--border)] hover:bg-[var(--surface-raised)]"
-    >
-      {value || <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>Click to add content…</span>}
-      <span
-        className="opacity-0 group-hover:opacity-100 transition-opacity"
-        style={{ position: "absolute", top: 8, right: 8 }}
-      >
-        <Edit3 size={12} color="var(--text-muted)" />
-      </span>
-    </div>
-  );
-}
-
-// ── Section icon picker ──────────────────────────────────────────────────────
-function sectionIcon(key: string) {
-  const k = key.toLowerCase();
-  if (["summary", "overview", "description", "synopsis", "story"].some((t) => k.includes(t))) return <FileText size={15} />;
-  if (["character", "cast", "crew", "team", "people"].some((t) => k.includes(t))) return <Sparkles size={15} />;
-  if (["scene", "shot", "location", "place"].some((t) => k.includes(t))) return <Activity size={15} />;
-  if (["budget", "cost", "finance", "revenue", "profit"].some((t) => k.includes(t))) return <TrendingUp size={15} />;
-  if (["genre", "tone", "theme", "mood", "style"].some((t) => k.includes(t))) return <PieIcon size={15} />;
-  if (["timeline", "schedule", "plan", "phase"].some((t) => k.includes(t))) return <Activity size={15} />;
-  return <Layers size={15} />;
-}
-
-// ── Report section block ─────────────────────────────────────────────────────
-function ReportSection({
-  sectionKey,
-  sectionData,
-  edits,
-  onEdit,
-  accent,
-}: {
-  sectionKey: string;
-  sectionData: any;
-  edits: Record<string, string>;
-  onEdit: (path: string, value: string) => void;
-  accent: string;
-}) {
-  const [open, setOpen] = useState(true);
-  const shape = detectShape(sectionData);
-
-  const hasChart = ["bar", "line", "pie", "radar"].includes(shape);
-  const hasStats = shape === "stat" && typeof sectionData === "object" && !Array.isArray(sectionData);
-  const hasList = shape === "list" && Array.isArray(sectionData);
-  const hasText = shape === "text";
-  const hasNested = shape === "nested";
-
-  // For text/string values, allow editing
-  const editKey = `section:${sectionKey}`;
-  const displayText = edits[editKey] ?? (hasText ? String(sectionData) : "");
-
-  return (
-    <section
-      style={{
-        borderRadius: 16,
-        border: "1px solid var(--border)",
-        background: "var(--surface)",
-        overflow: "hidden",
-      }}
-    >
-      {/* Section header */}
-      <button
-        onClick={() => setOpen((p) => !p)}
-        style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "16px 24px",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          borderBottom: open ? "1px solid var(--border)" : "none",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: `${accent}18`,
-              color: accent,
-              flexShrink: 0,
-            }}
-          >
-            {sectionIcon(sectionKey)}
-          </span>
-          <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", textAlign: "left" }}>
-            {sectionKey.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-          </span>
-        </div>
-        <span style={{ color: "var(--text-muted)" }}>
-          {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </span>
-      </button>
-
-      {open && (
-        <div style={{ padding: "20px 24px" }}>
-          {hasText && (
-            <EditableTextBlock
-              value={displayText}
-              onChange={(v) => onEdit(editKey, v)}
-            />
-          )}
-
-          {hasStats && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <StatCards data={sectionData} />
-              {/* Also editable notes */}
-              {edits[editKey] !== undefined && (
-                <EditableTextBlock value={edits[editKey]} onChange={(v) => onEdit(editKey, v)} />
-              )}
-              <button
-                onClick={() => onEdit(editKey, edits[editKey] ?? "")}
-                style={{
-                  alignSelf: "flex-start",
-                  display: "flex", alignItems: "center", gap: 4,
-                  fontSize: 11, color: "var(--text-muted)",
-                  background: "none", border: "1px dashed var(--border)", borderRadius: 6,
-                  padding: "4px 10px", cursor: "pointer",
-                }}
-              >
-                <Edit3 size={10} /> Add notes
-              </button>
-            </div>
-          )}
-
-          {hasChart && (
-            <div>
-              <ChartView data={sectionData} shape={shape} />
-              {edits[editKey] !== undefined && (
-                <div style={{ marginTop: 16 }}>
-                  <EditableTextBlock value={edits[editKey]} onChange={(v) => onEdit(editKey, v)} />
-                </div>
-              )}
-              <button
-                onClick={() => onEdit(editKey, edits[editKey] ?? "")}
-                style={{
-                  marginTop: 12,
-                  display: "flex", alignItems: "center", gap: 4,
-                  fontSize: 11, color: "var(--text-muted)",
-                  background: "none", border: "1px dashed var(--border)", borderRadius: 6,
-                  padding: "4px 10px", cursor: "pointer",
-                }}
-              >
-                <Edit3 size={10} /> Add analysis notes
-              </button>
-            </div>
-          )}
-
-          {hasList && <ListView data={sectionData} />}
-
-          {hasNested && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {Object.entries(sectionData as Record<string, any>).map(([k, v]) => (
-                <div key={k}>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
-                    {k.replace(/_/g, " ")}
-                  </p>
-                  <ReportSection
-                    sectionKey={k}
-                    sectionData={v}
-                    edits={edits}
-                    onEdit={onEdit}
-                    accent={accent}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ── Generate panel ───────────────────────────────────────────────────────────
-function GeneratePanel({
-  systemReports, customReports, onGenerate, generating, isPolling, onClose,
-}: {
-  systemReports: AvailableReport[];
-  customReports: AvailableReport[];
-  onGenerate: (selected: string[]) => void;
-  generating: boolean;
-  isPolling: boolean;
-  onClose: () => void;
-}) {
-  const [selected, setSelected] = useState<string[]>([]);
-  const toggle = (n: string) => setSelected((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex" onClick={onClose}>
-      <div
-        className="ml-auto h-full flex flex-col shadow-2xl"
-        style={{ width: 320, background: "var(--surface)", borderLeft: "1px solid var(--border)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: "var(--border)" }}>
-          <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Generate Reports</h3>
-          <button onClick={onClose} style={{ color: "var(--text-muted)" }}><X size={16} /></button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {systemReports.length > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>System</p>
-              {systemReports.map((r) => (
-                <label key={r.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer mb-1.5 transition-colors ${selected.includes(r.name) ? "border-emerald-500/40 bg-emerald-500/5" : ""}`} style={!selected.includes(r.name) ? { borderColor: "var(--border)", background: "var(--surface-raised)" } : undefined}>
-                  <input type="checkbox" checked={selected.includes(r.name)} onChange={() => toggle(r.name)} className="accent-emerald-500" />
-                  <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{r.name.replace(/_/g, " ")}</span>
-                </label>
-              ))}
-            </div>
-          )}
-          {customReports.length > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>Custom</p>
-              {customReports.map((r) => (
-                <label key={r.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer mb-1.5 transition-colors ${selected.includes(r.name) ? "border-blue-500/40 bg-blue-500/5" : ""}`} style={!selected.includes(r.name) ? { borderColor: "var(--border)", background: "var(--surface-raised)" } : undefined}>
-                  <input type="checkbox" checked={selected.includes(r.name)} onChange={() => toggle(r.name)} className="accent-blue-500" />
-                  <span className="text-xs px-1.5 py-0.5 rounded border border-blue-500/30 bg-blue-500/10 text-blue-400 mr-1">custom</span>
-                  <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{r.name.replace(/_/g, " ")}</span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="p-4 border-t" style={{ borderColor: "var(--border)" }}>
-          <button
-            onClick={() => onGenerate(selected)}
-            disabled={generating || isPolling || selected.length === 0}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
-          >
-            {(generating || isPolling) ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-            {isPolling ? "Generating…" : `Generate (${selected.length})`}
-          </button>
-        </div>
+  // Array → bar chart + table
+  if (isArr && data.length > 0 && typeof data[0] === "object") {
+    const numKeys = Object.keys(data[0]).filter(k => typeof data[0][k] === "number");
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {numKeys.length > 0 && (
+          <div>
+            <BarSection data={data} />
+          </div>
+        )}
+        <TableSection data={data} />
       </div>
-    </div>
-  );
+    );
+  }
+
+  return <ProseSection text={JSON.stringify(data)} />;
 }
 
-// ── New custom report modal ──────────────────────────────────────────────────
-function NewCustomModal({
-  projectId, systemReports, onClose, onCreated,
-}: {
-  projectId: string;
-  systemReports: AvailableReport[];
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const [name, setName] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [promptTemplate, setPromptTemplate] = useState("");
-  const [deps, setDeps] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = async () => {
-    if (!name.trim()) { toast.error("Name is required."); return; }
-    setSaving(true);
-    try {
-      await createCustomReport({ project_id: projectId, name: name.trim(), display_name: displayName.trim() || undefined, prompt_template: promptTemplate.trim() || undefined, dependencies: deps.length > 0 ? deps : undefined });
-      toast.success("Custom report created!");
-      onCreated();
-      onClose();
-    } catch (e: any) {
-      toast.error(Object.values(e?.response?.data || {}).flat().join(" ") || "Failed to create.");
-    } finally { setSaving(false); }
-  };
-
+// ── Timeline section ──────────────────────────────────────────────────────────
+function TimelineSection({ data }: { data: any[] }) {
+  if (data.length === 0) return null;
+  const first = data[0];
+  if (typeof first !== "object") return <TableSection data={data} />;
+  const numKeys = Object.keys(first).filter(k => typeof first[k] === "number");
+  const textKeys = Object.keys(first).filter(k => typeof first[k] === "string" && !SKIP_KEYS.has(k));
+  const lk = labelKey(first);
+  // has both text and number → table + chart
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl border p-6 shadow-2xl max-h-[90vh] overflow-y-auto" style={{ borderColor: "var(--border)", background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>New Custom Report</h3>
-          <button onClick={onClose} style={{ color: "var(--text-muted)" }}><X size={16} /></button>
-        </div>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Internal name <span className="text-red-400">*</span></label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="my_report" className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Display name</label>
-            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="My Report" className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Prompt template</label>
-            <textarea value={promptTemplate} onChange={(e) => setPromptTemplate(e.target.value)} rows={4} className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 resize-none" />
-          </div>
-          {systemReports.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium mb-2" style={{ color: "var(--text-secondary)" }}>Dependencies</label>
-              <div className="flex flex-wrap gap-2">
-                {systemReports.map((r) => (
-                  <label key={r.id} className="flex items-center gap-1.5 text-xs cursor-pointer px-2 py-1 rounded-md border transition-colors" style={{ borderColor: deps.includes(r.name) ? "rgb(16,185,129)" : "var(--border)", color: deps.includes(r.name) ? "rgb(52,211,153)" : "var(--text-muted)", background: deps.includes(r.name) ? "rgba(16,185,129,0.1)" : "var(--surface-raised)" }}>
-                    <input type="checkbox" checked={deps.includes(r.name)} onChange={() => setDeps((p) => p.includes(r.name) ? p.filter((d) => d !== r.name) : [...p, r.name])} className="accent-emerald-500" />
-                    {r.name}
-                  </label>
-                ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {numKeys.length > 0 && <LineSection data={data} />}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {data.map((item, i) => {
+          const mainLabel = String(item[lk] ?? i + 1);
+          const rest = textKeys.filter(k => k !== lk).map(k => item[k]).filter(Boolean);
+          const nums = numKeys.map(k => `${k.replace(/_/g," ")}: ${item[k]}`);
+          return (
+            <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 0", borderBottom: i < data.length - 1 ? "1px solid var(--border)" : "none" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: PALETTE[i % PALETTE.length], flexShrink: 0, minWidth: 24, marginTop: 1 }}>
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", marginBottom: rest.length || nums.length ? 3 : 0 }}>{mainLabel}</p>
+                {rest.length > 0 && <p style={{ fontSize: 12, color: "var(--text-secondary)" }}>{rest.join(" · ")}</p>}
+                {nums.length > 0 && <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{nums.join(" · ")}</p>}
               </div>
             </div>
-          )}
-        </div>
-        <div className="flex justify-end gap-3 mt-5">
-          <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: "var(--text-secondary)" }}>Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors">
-            {saving && <Loader2 size={13} className="animate-spin" />} Create
-          </button>
-        </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-// ── Report document view ─────────────────────────────────────────────────────
+// ── Crew / cast directory ─────────────────────────────────────────────────────
+function CrewSection({ data }: { data: any }) {
+  const items: any[] = Array.isArray(data) ? data : typeof data === "object" && data !== null ? Object.entries(data).map(([k,v]) => ({ role: k, ...(typeof v === "object" ? v : { name: v }) })) : [];
+  if (items.length === 0) return <p style={{ fontSize: 12, color: "var(--text-muted)" }}>No crew data.</p>;
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+      {items.map((person, i) => {
+        const nameKey = Object.keys(person).find(k => ["name","full_name","person","member"].some(t => k.toLowerCase().includes(t))) ?? Object.keys(person).find(k => typeof person[k] === "string") ?? "name";
+        const roleKey = Object.keys(person).find(k => ["role","position","title","job","department"].some(t => k.toLowerCase().includes(t)) && k !== nameKey);
+        const name = person[nameKey] ?? `Person ${i+1}`;
+        const role = roleKey ? person[roleKey] : undefined;
+        const extras = Object.entries(person).filter(([k]) => k !== nameKey && k !== roleKey && !SKIP_KEYS.has(k) && typeof person[k] !== "object");
+        const initials = String(name).split(" ").map((n:string) => n[0]).join("").toUpperCase().slice(0,2);
+        const color = PALETTE[i % PALETTE.length];
+        return (
+          <div key={i} style={{ padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface-raised)", display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${color}20`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color, flexShrink: 0 }}>
+              {initials}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: role ? 2 : 0 }}>{String(name)}</p>
+              {role && <p style={{ fontSize: 11, color, marginBottom: extras.length ? 4 : 0 }}>{String(role)}</p>}
+              {extras.map(([k,v]) => (
+                <p key={k} style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                  <span style={{ fontWeight: 500 }}>{k.replace(/_/g," ")}: </span>{String(v)}
+                </p>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Prose / text ──────────────────────────────────────────────────────────────
+function ProseSection({ text }: { text: string }) {
+  return (
+    <p style={{ fontSize: 13, lineHeight: 1.75, color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>{text}</p>
+  );
+}
+
+// ── Nested KPI group ──────────────────────────────────────────────────────────
+function NestedKPIs({ data }: { data: Record<string,any> }) {
+  const entries = Object.entries(data).filter(([k]) => !SKIP_KEYS.has(k));
+  const scalars = entries.filter(([,v]) => typeof v !== "object" || v === null);
+  const nested = entries.filter(([,v]) => typeof v === "object" && v !== null);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {scalars.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
+          {scalars.map(([k,v], i) => (
+            <div key={k} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-raised)" }}>
+              <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{k.replace(/_/g," ")}</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{String(v)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      {nested.map(([k,v]) => (
+        <div key={k}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>{k.replace(/_/g," ")}</p>
+          {Array.isArray(v) ? <TableSection data={v} /> : typeof v === "object" ? <NestedKPIs data={v} /> : <ProseSection text={String(v)} />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+// ── Report document — PowerBI-style dashboard ────────────────────────────────
 function ReportDocument({ report }: { report: ProjectReport }) {
-  const [edits, setEdits] = useState<Record<string, string>>({});
-
-  const handleEdit = useCallback((path: string, value: string) => {
-    setEdits((prev) => ({ ...prev, [path]: value }));
-  }, []);
-
   const data = report.data;
 
   if (!data || report.status.toLowerCase() !== "success") {
     return (
-      <div className="flex flex-col items-center gap-3 py-24 rounded-2xl border border-dashed" style={{ borderColor: "var(--border)" }}>
-        {report.status.toLowerCase() === "pending" || report.status.toLowerCase() === "processing" ? (
-          <>
-            <Loader2 size={28} className="animate-spin" style={{ color: "var(--text-muted)" }} />
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Report is being generated…</p>
-          </>
+      <div style={{ textAlign: "center", padding: "64px 0", borderRadius: 12, border: "2px dashed var(--border)" }}>
+        {["pending","processing"].includes(report.status.toLowerCase()) ? (
+          <><Loader2 size={24} className="animate-spin" style={{ margin: "0 auto 10px", color: "var(--text-muted)" }} /><p style={{ fontSize: 13, color: "var(--text-muted)" }}>Generating report…</p></>
         ) : report.status.toLowerCase() === "failed" ? (
-          <>
-            <BarChart2 size={28} className="opacity-30" style={{ color: "var(--text-muted)" }} />
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Generation failed. Try regenerating.</p>
-          </>
+          <><BarChart2 size={24} style={{ margin: "0 auto 10px", opacity: 0.2, color: "var(--text-muted)" }} /><p style={{ fontSize: 13, color: "var(--text-muted)" }}>Generation failed. Try regenerating.</p></>
         ) : (
-          <>
-            <BarChart2 size={28} className="opacity-30" style={{ color: "var(--text-muted)" }} />
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>No data available.</p>
-          </>
+          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>No data available.</p>
         )}
       </div>
     );
   }
 
-  // Identify top-level structure
-  const isTopLevelObject = typeof data === "object" && !Array.isArray(data);
-  const sections = isTopLevelObject ? Object.entries(data as Record<string, any>) : null;
-
-  // Extract scalar/stat fields to show as hero stats at top
-  const heroStats: Record<string, any> = {};
-  const sectionEntries: [string, any][] = [];
-
-  if (sections) {
-    sections.forEach(([k, v]) => {
-      if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
-        heroStats[k] = v;
-      } else {
-        sectionEntries.push([k, v]);
-      }
-    });
+  if (typeof data !== "object" || Array.isArray(data)) {
+    return <div style={{ borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", padding: "16px" }}><TableSection data={Array.isArray(data) ? data : [data]} /></div>;
   }
 
-  const accent = report.report_type === "custom" ? "#3b82f6" : "#22c55e";
+  const entries = Object.entries(data as Record<string, any>).filter(([k]) => !SKIP_KEYS.has(k.toLowerCase()));
+
+  // Split scalars (→ KPI strip) vs complex (→ sections)
+  const scalars: [string, any][] = entries.filter(([, v]) => typeof v !== "object" || v === null);
+  const sections: [string, any][] = entries.filter(([, v]) => typeof v === "object" && v !== null);
+
+  // Separate chart-friendly sections (half-width) from full-width ones
+  const halfWidthKinds: SectionKind[] = ["chart_bar", "chart_line", "chart_pie"];
+  const classified = sections.map(([k, v]) => ({ key: k, value: v, kind: classifySection(k, v) }));
+
+  // Build rows: pair up adjacent chart sections side-by-side; everything else full-width
+  type Row = { type: "kpi" } | { type: "pair"; a: typeof classified[0]; b: typeof classified[0] } | { type: "single"; item: typeof classified[0] };
+  const rows: Row[] = [];
+  if (scalars.length > 0) rows.push({ type: "kpi" });
+
+  let i = 0;
+  while (i < classified.length) {
+    const cur = classified[i];
+    const next = classified[i + 1];
+    if (halfWidthKinds.includes(cur.kind) && next && halfWidthKinds.includes(next.kind)) {
+      rows.push({ type: "pair", a: cur, b: next });
+      i += 2;
+    } else {
+      rows.push({ type: "single", item: cur });
+      i++;
+    }
+  }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Hero stats strip */}
-      {Object.keys(heroStats).length > 0 && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            gap: 12,
-          }}
-        >
-          {Object.entries(heroStats).map(([k, v], i) => (
-            <div
-              key={k}
-              style={{
-                padding: "18px 20px",
-                borderRadius: 14,
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                position: "relative",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 3,
-                  background: PALETTE[i % PALETTE.length],
-                  borderRadius: "14px 14px 0 0",
-                }}
-              />
-              <p style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
-                {k.replace(/_/g, " ")}
-              </p>
-              <p style={{ fontSize: 17, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.1 }}>
-                {String(v)}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Section cards */}
-      {sectionEntries.length > 0 ? (
-        sectionEntries.map(([k, v], i) => (
-          <ReportSection
-            key={k}
-            sectionKey={k}
-            sectionData={v}
-            edits={edits}
-            onEdit={handleEdit}
-            accent={PALETTE[i % PALETTE.length]}
-          />
-        ))
-      ) : !sections ? (
-        // Root data is array/primitive
-        <div style={{ borderRadius: 16, border: "1px solid var(--border)", background: "var(--surface)", padding: "20px 24px" }}>
-          <ChartView data={data} shape={detectShape(data)} />
-        </div>
-      ) : null}
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {rows.map((row, ri) => {
+        if (row.type === "kpi") return <KPIStrip key="kpi" stats={scalars} />;
+        if (row.type === "pair") return (
+          <div key={ri} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <SectionBlock item={row.a} colorIdx={ri * 2} />
+            <SectionBlock item={row.b} colorIdx={ri * 2 + 1} />
+          </div>
+        );
+        return <SectionBlock key={ri} item={row.single} colorIdx={ri} />;
+      })}
     </div>
   );
 }
+
+// ── Section block dispatcher ──────────────────────────────────────────────────
+function SectionBlock({ item, colorIdx }: { item: { key: string; value: any; kind: SectionKind }; colorIdx: number }) {
+  const color = PALETTE[colorIdx % PALETTE.length];
+  const { key, value, kind } = item;
+
+  if (kind === "crew") return (
+    <SectionWrap label={key} color={color} fullWidth>
+      <CrewSection data={value} />
+    </SectionWrap>
+  );
+
+  if (kind === "budget") return (
+    <SectionWrap label={key} color={color} fullWidth>
+      <BudgetSection data={value} />
+    </SectionWrap>
+  );
+
+  if (kind === "timeline") return (
+    <SectionWrap label={key} color={color} fullWidth>
+      <TimelineSection data={value} />
+    </SectionWrap>
+  );
+
+  if (kind === "chart_bar" && Array.isArray(value) && value.length > 0 && typeof value[0] === "object") return (
+    <SectionWrap label={key} color={color}>
+      <BarSection data={value} />
+    </SectionWrap>
+  );
+
+  if (kind === "chart_line" && Array.isArray(value) && value.length > 0) return (
+    <SectionWrap label={key} color={color}>
+      <LineSection data={value} />
+    </SectionWrap>
+  );
+
+  if (kind === "chart_pie" && Array.isArray(value) && value.length > 0) return (
+    <SectionWrap label={key} color={color}>
+      <PieSection data={value} />
+    </SectionWrap>
+  );
+
+  if (kind === "table") return (
+    <SectionWrap label={key} color={color} fullWidth>
+      <TableSection data={Array.isArray(value) ? value : [value]} />
+    </SectionWrap>
+  );
+
+  if (kind === "nested_kpis") return (
+    <SectionWrap label={key} color={color} fullWidth>
+      <NestedKPIs data={value} />
+    </SectionWrap>
+  );
+
+  if (kind === "prose") return (
+    <SectionWrap label={key} color={color} fullWidth>
+      <ProseSection text={typeof value === "string" ? value : JSON.stringify(value, null, 2)} />
+    </SectionWrap>
+  );
+
+  // fallback
+  return (
+    <SectionWrap label={key} color={color} fullWidth>
+      <NestedKPIs data={typeof value === "object" ? value : { value }} />
+    </SectionWrap>
+  );
+}
+
 
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function ResearchDeckPage() {
