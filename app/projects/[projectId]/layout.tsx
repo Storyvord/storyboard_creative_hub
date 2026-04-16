@@ -18,7 +18,7 @@ const PROJECT_NAV = [
   { name: "Team", href: (id: string) => `/projects/${id}/team`, icon: Users },
   { name: "Callsheets", href: (id: string) => `/projects/${id}/callsheets`, icon: Calendar },
   { name: "Files", href: (id: string) => `/projects/${id}/files`, icon: FolderOpen },
-  { name: "Reports", href: (id: string) => `/projects/${id}/reports`, icon: BarChart2 },
+  { name: "Research Deck", href: (id: string) => `/projects/${id}/reports`, icon: BarChart2 },
 ];
 
 const CREATIVE_HUB_NAV = [

@@ -2,59 +2,234 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, BarChart2, RefreshCw, CheckSquare, Plus, X, Copy, Check } from "lucide-react";
+import {
+  Loader2, BookOpen, RefreshCw, Plus, X, BarChart2, TrendingUp, PieChart as PieIcon,
+  Layers, ChevronDown, ChevronUp, Sparkles,
+} from "lucide-react";
 import { toast } from "react-toastify";
 import {
   getGeneratedReports, getAvailableReports, generateReports, createCustomReport,
 } from "@/services/project";
 import { ProjectReport, AvailableReport } from "@/types/project";
 import { useTaskPoller } from "@/hooks/useTaskPoller";
+import {
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from "recharts";
 
-type Tab = "generated" | "available";
+// ── Colour palette for charts ──────────────────────────────────────────────
+const CHART_COLORS = ["#22c55e", "#3b82f6", "#f97316", "#a855f7", "#ec4899", "#14b8a6", "#eab308", "#ef4444"];
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    completed: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-    failed: "bg-red-500/10 text-red-400 border-red-500/20",
-    processing: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  };
-  const cls = map[status.toLowerCase()] ?? "bg-[var(--surface-raised)] text-[var(--text-muted)] border-[var(--border)]";
-  return <span className={`text-xs px-2 py-0.5 rounded border ${cls}`}>{status}</span>;
+// ── JSON → chart type heuristic ─────────────────────────────────────────────
+type ChartKind = "bar" | "line" | "pie" | "stat" | "table" | "nested";
+
+function detectChartKind(data: any): ChartKind {
+  if (!data) return "stat";
+  if (Array.isArray(data)) {
+    if (data.length === 0) return "stat";
+    const first = data[0];
+    if (typeof first !== "object" || first === null) return "stat";
+    const keys = Object.keys(first);
+    const numericKeys = keys.filter((k) => typeof first[k] === "number");
+    if (numericKeys.length === 0) return "table";
+    const timeKey = keys.find((k) =>
+      ["date", "time", "day", "week", "month", "year", "created_at", "updated_at"].some((t) => k.toLowerCase().includes(t))
+    );
+    if (timeKey) return "line";
+    // If only 2 keys (label + value), prefer pie for small arrays
+    if (keys.length === 2 && data.length <= 8 && numericKeys.length === 1) return "pie";
+    return "bar";
+  }
+  if (typeof data === "object") {
+    const vals = Object.values(data);
+    if (vals.every((v) => typeof v === "number")) {
+      return Object.keys(data).length <= 8 ? "pie" : "bar";
+    }
+    if (vals.some((v) => typeof v === "object" && v !== null)) return "nested";
+    return "stat";
+  }
+  return "stat";
 }
 
-function DataModal({ report, onClose }: { report: ProjectReport; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const json = JSON.stringify(report.data, null, 2);
+// ── Chart renderer ────────────────────────────────────────────────────────
+function SmartChart({ data, title }: { data: any; title?: string }) {
+  const kind = detectChartKind(data);
 
-  const copy = () => {
-    navigator.clipboard.writeText(json);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  if (kind === "bar") {
+    const rows: any[] = Array.isArray(data) ? data : Object.entries(data).map(([k, v]) => ({ key: k, value: v }));
+    const keys = Object.keys(rows[0] ?? {}).filter((k) => typeof rows[0][k] === "number");
+    const labelKey = Object.keys(rows[0] ?? {}).find((k) => typeof rows[0][k] === "string") || Object.keys(rows[0] ?? {})[0];
+    return (
+      <ResponsiveContainer width="100%" height={260}>
+        <BarChart data={rows} margin={{ top: 4, right: 12, left: 0, bottom: 24 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+          <XAxis dataKey={labelKey} tick={{ fontSize: 11, fill: "var(--text-muted)" }} interval={0} angle={-20} textAnchor="end" />
+          <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} />
+          <Tooltip contentStyle={{ background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
+          {keys.length > 1 && <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />}
+          {keys.map((k, i) => <Bar key={k} dataKey={k} fill={CHART_COLORS[i % CHART_COLORS.length]} radius={[3, 3, 0, 0]} />)}
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-2xl max-h-[85vh] rounded-xl border shadow-2xl flex flex-col" style={{ borderColor: "var(--border)", background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: "var(--border)" }}>
-          <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{report.display_name || report.name || `Report #${report.id}`}</h3>
-          <div className="flex items-center gap-2">
-            <button onClick={copy} className="flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors hover:border-emerald-500/50" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
-              {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
-              {copied ? "Copied" : "Copy"}
-            </button>
-            <button onClick={onClose} style={{ color: "var(--text-muted)" }}><X size={16} /></button>
+  if (kind === "line") {
+    const rows: any[] = Array.isArray(data) ? data : [];
+    const keys = Object.keys(rows[0] ?? {}).filter((k) => typeof rows[0][k] === "number");
+    const labelKey = Object.keys(rows[0] ?? {}).find((k) =>
+      ["date", "time", "day", "week", "month", "year", "created_at"].some((t) => k.toLowerCase().includes(t))
+    ) || Object.keys(rows[0] ?? {})[0];
+    return (
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart data={rows} margin={{ top: 4, right: 12, left: 0, bottom: 24 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+          <XAxis dataKey={labelKey} tick={{ fontSize: 11, fill: "var(--text-muted)" }} interval={0} angle={-20} textAnchor="end" />
+          <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} />
+          <Tooltip contentStyle={{ background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
+          {keys.length > 1 && <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />}
+          {keys.map((k, i) => (
+            <Line key={k} type="monotone" dataKey={k} stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={2} dot={false} />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  if (kind === "pie") {
+    const rows: { name: string; value: number }[] = Array.isArray(data)
+      ? data.map((item: any) => {
+          const keys = Object.keys(item);
+          const valKey = keys.find((k) => typeof item[k] === "number") || keys[1];
+          const labelKey = keys.find((k) => typeof item[k] === "string") || keys[0];
+          return { name: String(item[labelKey] ?? ""), value: Number(item[valKey] ?? 0) };
+        })
+      : Object.entries(data).map(([k, v]) => ({ name: k, value: Number(v) }));
+
+    return (
+      <ResponsiveContainer width="100%" height={260}>
+        <PieChart>
+          <Pie data={rows} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+            {rows.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+          </Pie>
+          <Tooltip contentStyle={{ background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
+        </PieChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  if (kind === "stat") {
+    const entries = typeof data === "object" && data !== null ? Object.entries(data) : [["value", data]];
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {entries.map(([k, v]) => (
+          <div key={k} className="rounded-lg p-3 border" style={{ borderColor: "var(--border)", background: "var(--surface-raised)" }}>
+            <p className="text-xs mb-1 truncate" style={{ color: "var(--text-muted)" }}>{k.replace(/_/g, " ")}</p>
+            <p className="text-lg font-bold truncate" style={{ color: "var(--text-primary)" }}>{String(v)}</p>
           </div>
-        </div>
-        <pre className="flex-1 overflow-auto p-4 text-xs font-mono leading-relaxed" style={{ color: "var(--text-secondary)", background: "var(--surface-raised)" }}>
-          {json}
-        </pre>
+        ))}
       </div>
+    );
+  }
+
+  if (kind === "table") {
+    const rows: any[] = Array.isArray(data) ? data : [];
+    const cols = rows.length > 0 ? Object.keys(rows[0]) : [];
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr>
+              {cols.map((c) => <th key={c} className="px-3 py-2 text-left font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)" }}>{c.replace(/_/g, " ")}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                {cols.map((c) => <td key={c} className="px-3 py-2" style={{ color: "var(--text-secondary)" }}>{String(row[c] ?? "")}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // nested: render each sub-key as its own chart card
+  if (kind === "nested") {
+    const entries = Object.entries(data as Record<string, any>);
+    return (
+      <div className="space-y-4">
+        {entries.map(([k, v]) => (
+          <div key={k}>
+            <p className="text-xs font-semibold mb-2 capitalize" style={{ color: "var(--text-secondary)" }}>{k.replace(/_/g, " ")}</p>
+            <SmartChart data={v} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// ── Section (collapsible data block within a report tab) ──────────────────
+function DataSection({ sectionKey, sectionData }: { sectionKey: string; sectionData: any }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--surface-raised)" }}>
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+      >
+        <span className="text-sm font-semibold capitalize" style={{ color: "var(--text-primary)" }}>
+          {sectionKey.replace(/_/g, " ")}
+        </span>
+        {open ? <ChevronUp size={15} style={{ color: "var(--text-muted)" }} /> : <ChevronDown size={15} style={{ color: "var(--text-muted)" }} />}
+      </button>
+      {open && (
+        <div className="px-4 pb-4">
+          <SmartChart data={sectionData} />
+        </div>
+      )}
     </div>
   );
 }
 
-function CustomReportModal({
+// ── Report tab content ────────────────────────────────────────────────────
+function ReportTabContent({ report }: { report: ProjectReport }) {
+  const data = report.data;
+
+  if (!data) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-16" style={{ color: "var(--text-muted)" }}>
+        <Layers size={32} className="opacity-40" />
+        <p className="text-sm">No data available for this report.</p>
+      </div>
+    );
+  }
+
+  // If data is an object with multiple top-level keys that are themselves objects/arrays, render as sections
+  if (typeof data === "object" && !Array.isArray(data)) {
+    const entries = Object.entries(data as Record<string, any>);
+    const isSectioned = entries.length > 1 && entries.some(([, v]) => typeof v === "object" && v !== null);
+    if (isSectioned) {
+      return (
+        <div className="space-y-4">
+          {entries.map(([k, v]) => <DataSection key={k} sectionKey={k} sectionData={v} />)}
+        </div>
+      );
+    }
+  }
+
+  return (
+    <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface-raised)" }}>
+      <SmartChart data={data} />
+    </div>
+  );
+}
+
+// ── Custom report creation modal ──────────────────────────────────────────
+function NewCustomReportModal({
   projectId,
   systemReports,
   onClose,
@@ -89,7 +264,7 @@ function CustomReportModal({
       onCreated();
       onClose();
     } catch (e: any) {
-      const msg = Object.values(e?.response?.data || {}).flat().join(' ') || "Failed to create custom report.";
+      const msg = Object.values(e?.response?.data || {}).flat().join(" ") || "Failed to create custom report.";
       toast.error(msg);
     } finally {
       setSaving(false);
@@ -100,7 +275,7 @@ function CustomReportModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-lg rounded-xl border p-6 shadow-2xl max-h-[90vh] overflow-y-auto" style={{ borderColor: "var(--border)", background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
-          <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>Create Custom Report</h3>
+          <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>New Custom Report</h3>
           <button onClick={onClose} style={{ color: "var(--text-muted)" }}><X size={16} /></button>
         </div>
         <div className="space-y-4">
@@ -142,65 +317,133 @@ function CustomReportModal({
   );
 }
 
-export default function ReportsPage() {
+// ── Generate panel (slide-in drawer) ─────────────────────────────────────
+function GeneratePanel({
+  systemReports,
+  customReports,
+  onGenerate,
+  generating,
+  isPolling,
+  onClose,
+}: {
+  systemReports: AvailableReport[];
+  customReports: AvailableReport[];
+  onGenerate: (selected: string[]) => void;
+  generating: boolean;
+  isPolling: boolean;
+  onClose: () => void;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const toggle = (n: string) => setSelected((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n]);
+  const all = [...systemReports, ...customReports];
+
+  return (
+    <div className="fixed inset-0 z-50 flex" onClick={onClose}>
+      <div className="ml-auto w-80 h-full shadow-2xl flex flex-col" style={{ background: "var(--surface)", borderLeft: "1px solid var(--border)" }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: "var(--border)" }}>
+          <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Generate Reports</h3>
+          <button onClick={onClose} style={{ color: "var(--text-muted)" }}><X size={16} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {systemReports.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>System</p>
+              <div className="space-y-1">
+                {systemReports.map((r) => (
+                  <label key={r.id} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${selected.includes(r.name) ? "border-emerald-500/40 bg-emerald-500/5" : ""}`} style={!selected.includes(r.name) ? { borderColor: "var(--border)", background: "var(--surface-raised)" } : undefined}>
+                    <input type="checkbox" checked={selected.includes(r.name)} onChange={() => toggle(r.name)} className="accent-emerald-500" />
+                    <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{r.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          {customReports.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>Custom</p>
+              <div className="space-y-1">
+                {customReports.map((r) => (
+                  <label key={r.id} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${selected.includes(r.name) ? "border-emerald-500/40 bg-emerald-500/5" : ""}`} style={!selected.includes(r.name) ? { borderColor: "var(--border)", background: "var(--surface-raised)" } : undefined}>
+                    <input type="checkbox" checked={selected.includes(r.name)} onChange={() => toggle(r.name)} className="accent-emerald-500" />
+                    <span className="text-xs px-1 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/20 mr-1">custom</span>
+                    <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{r.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          {all.length === 0 && <p className="text-sm" style={{ color: "var(--text-muted)" }}>No reports available.</p>}
+        </div>
+        <div className="p-4 border-t" style={{ borderColor: "var(--border)" }}>
+          <button
+            onClick={() => onGenerate(selected)}
+            disabled={generating || isPolling || selected.length === 0}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
+          >
+            {(generating || isPolling) ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            {isPolling ? "Generating…" : `Generate (${selected.length})`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────
+type ReportTab = "system" | "custom" | string; // string = report id
+
+export default function ResearchDeckPage() {
   const params = useParams();
   const projectId = params.projectId as string;
 
-  const [tab, setTab] = useState<Tab>("generated");
   const [generatedReports, setGeneratedReports] = useState<ProjectReport[]>([]);
   const [systemReports, setSystemReports] = useState<AvailableReport[]>([]);
   const [customReports, setCustomReports] = useState<AvailableReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [selected, setSelected] = useState<string[]>([]);
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
-  const [viewData, setViewData] = useState<ProjectReport | null>(null);
-  const [customModal, setCustomModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<ReportTab>("system");
+  const [showGenerate, setShowGenerate] = useState(false);
+  const [showNewCustom, setShowNewCustom] = useState(false);
 
-  const loadGenerated = async () => {
-    const data = await getGeneratedReports(projectId);
-    setGeneratedReports(data);
-  };
-
-  useEffect(() => {
-    Promise.allSettled([
-      getGeneratedReports(projectId).then(setGeneratedReports),
-      getAvailableReports(projectId).then((d) => {
-        setSystemReports(d.system_reports ?? []);
-        setCustomReports(d.custom_reports ?? []);
-      }),
-    ]).finally(() => setLoading(false));
+  const loadAll = useCallback(async () => {
+    const [gen, avail] = await Promise.all([
+      getGeneratedReports(projectId),
+      getAvailableReports(projectId),
+    ]);
+    setGeneratedReports(gen);
+    setSystemReports(avail.system_reports ?? []);
+    setCustomReports(avail.custom_reports ?? []);
   }, [projectId]);
 
-  const toggleSelect = (name: string) =>
-    setSelected((prev) => prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]);
+  useEffect(() => {
+    loadAll().finally(() => setLoading(false));
+  }, [loadAll]);
 
   const handlePollSuccess = useCallback(async () => {
     setPendingTaskId(null);
-    toast.success('Reports generated!');
-    await loadGenerated();
-  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+    toast.success("Reports generated!");
+    await loadAll();
+  }, [loadAll]);
 
   const handlePollFailure = useCallback((error?: string) => {
     setPendingTaskId(null);
-    toast.error(error === 'Timed out'
-      ? 'Report generation timed out. Please try again.'
-      : 'Report generation failed. Please try again.');
+    toast.error(error === "Timed out" ? "Report generation timed out." : "Report generation failed.");
   }, []);
 
   const { isPolling } = useTaskPoller(pendingTaskId, handlePollSuccess, handlePollFailure);
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (selected: string[]) => {
     if (selected.length === 0) { toast.error("Select at least one report."); return; }
     setGenerating(true);
+    setShowGenerate(false);
     try {
       const result = await generateReports(projectId, selected);
-      setSelected([]);
       if (result.task_id) {
         setPendingTaskId(result.task_id);
       } else {
-        toast.success(result.message ?? 'Generation queued.');
-        await loadGenerated();
+        toast.success(result.message ?? "Generation queued.");
+        await loadAll();
       }
     } catch (e: any) {
       toast.error(e?.response?.data?.detail ?? "Failed to generate reports.");
@@ -208,6 +451,20 @@ export default function ReportsPage() {
       setGenerating(false);
     }
   };
+
+  const systemGenerated = generatedReports.filter((r) => r.report_type !== "custom");
+  const customGenerated = generatedReports.filter((r) => r.report_type === "custom");
+
+  // Build tab list: "System" tab + each completed system report + "Custom" tab + each completed custom report + "+" new custom
+  type TabDef = { id: string; label: string; icon?: React.ElementType };
+  const tabs: TabDef[] = [
+    { id: "system", label: "System Reports", icon: BarChart2 },
+    ...systemGenerated.map((r) => ({ id: `report-${r.id}`, label: r.display_name || r.name || `Report #${r.id}` })),
+    { id: "custom", label: "Custom Reports", icon: Sparkles },
+    ...customGenerated.map((r) => ({ id: `report-${r.id}`, label: r.display_name || r.name || `Report #${r.id}` })),
+  ];
+
+  const activeReport = generatedReports.find((r) => `report-${r.id}` === activeTab);
 
   if (loading) {
     return (
@@ -218,189 +475,181 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="p-8 max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <BarChart2 className="h-6 w-6" style={{ color: "var(--text-muted)" }} />
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>Reports</h1>
-      </div>
-
-      {isPolling && (
-        <div className="flex items-center gap-2 p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
-          <Loader2 size={14} className="animate-spin text-emerald-400 flex-shrink-0" />
-          <p className="text-sm text-emerald-400">Generating reports…</p>
+    <div className="flex flex-col h-full" style={{ background: "var(--background)" }}>
+      {/* Header */}
+      <div className="px-8 pt-8 pb-0 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <BookOpen className="h-6 w-6" style={{ color: "var(--text-muted)" }} />
+          <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>Research Deck</h1>
         </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex border-b" style={{ borderColor: "var(--border)" }}>
-        {(["generated", "available"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px capitalize ${
-              tab === t ? "border-emerald-500 text-emerald-400" : "border-transparent"
-            }`}
-            style={tab !== t ? { color: "var(--text-muted)" } : undefined}
-          >
-            {t === "generated" ? "Generated Reports" : "Available Reports"}
-          </button>
-        ))}
-      </div>
-
-      {/* Generated tab */}
-      {tab === "generated" && (
-        <div className="space-y-3">
-          {generatedReports.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-12" style={{ color: "var(--text-muted)" }}>
-              <BarChart2 size={36} className="opacity-40" />
-              <p className="text-sm">No generated reports yet. Go to Available Reports to generate some.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left" style={{ color: "var(--text-muted)" }}>
-                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-widest">Report</th>
-                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-widest">Type</th>
-                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-widest">Status</th>
-                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-widest">Created</th>
-                    <th className="px-3 py-2 text-xs font-semibold uppercase tracking-widest">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
-                  {generatedReports.map((report) => (
-                    <tr key={report.id} className="hover:bg-[var(--surface-hover)] transition-colors">
-                      <td className="px-3 py-3" style={{ color: "var(--text-primary)" }}>
-                        {report.display_name || report.name || `Report #${report.id}`}
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className={`text-xs px-1.5 py-0.5 rounded border ${
-                          report.report_type === "custom"
-                            ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
-                            : "bg-[var(--surface-raised)] text-[var(--text-muted)] border-[var(--border)]"
-                        }`}>
-                          {report.report_type}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3"><StatusBadge status={report.status} /></td>
-                      <td className="px-3 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
-                        {new Date(report.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-3 py-3">
-                        <button
-                          onClick={() => setViewData(report)}
-                          className="text-xs px-2 py-1 rounded border transition-colors hover:border-emerald-500/50 hover:text-emerald-400"
-                          style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
-                        >
-                          View Data
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <div className="flex items-center gap-2">
+          {isPolling && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
+              <Loader2 size={13} className="animate-spin text-emerald-400" />
+              <span className="text-xs text-emerald-400">Generating…</span>
             </div>
           )}
+          <button
+            onClick={() => setShowGenerate(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-md transition-colors"
+          >
+            <RefreshCw size={13} />
+            Generate
+          </button>
         </div>
-      )}
+      </div>
 
-      {/* Available tab */}
-      {tab === "available" && (
-        <div className="space-y-6">
-          {/* System reports */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>System Reports</h2>
+      {/* Tab bar */}
+      <div className="px-8 mt-5 overflow-x-auto flex-shrink-0">
+        <div className="flex items-center gap-0 border-b min-w-max" style={{ borderColor: "var(--border)" }}>
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
               <button
-                onClick={handleGenerate}
-                disabled={generating || selected.length === 0}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
+                  active ? "border-emerald-500 text-emerald-400" : "border-transparent"
+                }`}
+                style={!active ? { color: "var(--text-muted)" } : undefined}
               >
-                {generating ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                Generate Selected ({selected.length})
+                {Icon && <Icon size={13} />}
+                {tab.label}
               </button>
-            </div>
-            {systemReports.length === 0 ? (
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>No system reports available.</p>
+            );
+          })}
+          {/* "+" tab to create new custom report */}
+          <button
+            onClick={() => setShowNewCustom(true)}
+            className="flex items-center gap-1 px-3 py-2.5 text-sm border-b-2 border-transparent transition-colors -mb-px"
+            style={{ color: "var(--text-muted)" }}
+            title="New custom report"
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Tab content */}
+      <div className="flex-1 overflow-y-auto px-8 py-6">
+        {/* "System Reports" overview tab */}
+        {activeTab === "system" && (
+          <div className="space-y-4 max-w-4xl">
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              System-generated analytical reports for this project. Click a report tab above to explore visualisations.
+            </p>
+            {systemGenerated.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 py-16 rounded-xl border border-dashed" style={{ borderColor: "var(--border)" }}>
+                <BarChart2 size={36} className="opacity-30" style={{ color: "var(--text-muted)" }} />
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>No system reports generated yet.</p>
+                <button onClick={() => setShowGenerate(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-md transition-colors hover:border-emerald-500/50 hover:text-emerald-400" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+                  <RefreshCw size={13} /> Generate Reports
+                </button>
+              </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                {systemReports.map((r) => (
-                  <label
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {systemGenerated.map((r) => (
+                  <button
                     key={r.id}
-                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      selected.includes(r.name) ? "border-emerald-500/40 bg-emerald-500/5" : "hover:border-[var(--border-hover)]"
-                    }`}
-                    style={!selected.includes(r.name) ? { borderColor: "var(--border)", background: "var(--surface)" } : undefined}
+                    onClick={() => setActiveTab(`report-${r.id}`)}
+                    className="text-left p-4 rounded-xl border transition-colors hover:border-emerald-500/40"
+                    style={{ borderColor: "var(--border)", background: "var(--surface-raised)" }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(r.name)}
-                      onChange={() => toggleSelect(r.name)}
-                      className="accent-emerald-500"
-                    />
-                    <div className="flex items-center gap-1.5">
-                      <CheckSquare size={13} style={{ color: selected.includes(r.name) ? "rgb(52,211,153)" : "var(--text-muted)" }} />
-                      <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{r.name}</span>
+                    <div className="flex items-center gap-2 mb-1">
+                      <TrendingUp size={14} className="text-emerald-400" />
+                      <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{r.display_name || r.name}</span>
                     </div>
-                  </label>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      {new Date(r.created_at).toLocaleDateString()} · {r.status}
+                    </p>
+                  </button>
                 ))}
               </div>
             )}
-          </section>
+          </div>
+        )}
 
-          {/* Custom reports */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Custom Reports</h2>
-              <button
-                onClick={() => setCustomModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 border text-sm font-medium rounded-md transition-colors hover:border-emerald-500/50 hover:text-emerald-400"
-                style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
-              >
-                <Plus size={13} /> Create Custom Report
+        {/* "Custom Reports" overview tab */}
+        {activeTab === "custom" && (
+          <div className="space-y-4 max-w-4xl">
+            <div className="flex items-center justify-between">
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>Custom AI-generated reports using your own prompt templates.</p>
+              <button onClick={() => setShowNewCustom(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-md transition-colors hover:border-emerald-500/50 hover:text-emerald-400" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+                <Plus size={13} /> New Custom Report
               </button>
             </div>
-            {customReports.length === 0 ? (
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>No custom reports yet.</p>
+            {customGenerated.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 py-16 rounded-xl border border-dashed" style={{ borderColor: "var(--border)" }}>
+                <Sparkles size={36} className="opacity-30" style={{ color: "var(--text-muted)" }} />
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>No custom reports yet. Create one to get started.</p>
+              </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                {customReports.map((r) => (
-                  <label
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {customGenerated.map((r) => (
+                  <button
                     key={r.id}
-                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      selected.includes(r.name) ? "border-emerald-500/40 bg-emerald-500/5" : "hover:border-[var(--border-hover)]"
-                    }`}
-                    style={!selected.includes(r.name) ? { borderColor: "var(--border)", background: "var(--surface)" } : undefined}
+                    onClick={() => setActiveTab(`report-${r.id}`)}
+                    className="text-left p-4 rounded-xl border transition-colors hover:border-blue-500/40"
+                    style={{ borderColor: "var(--border)", background: "var(--surface-raised)" }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(r.name)}
-                      onChange={() => toggleSelect(r.name)}
-                      className="accent-emerald-500"
-                    />
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs px-1 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">custom</span>
-                      <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{r.name}</span>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs px-1 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/20">custom</span>
+                      <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{r.display_name || r.name}</span>
                     </div>
-                  </label>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      {new Date(r.created_at).toLocaleDateString()} · {r.status}
+                    </p>
+                  </button>
                 ))}
               </div>
             )}
-          </section>
-        </div>
+          </div>
+        )}
+
+        {/* Individual report tab */}
+        {activeReport && (
+          <div className="max-w-4xl space-y-2">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+                  {activeReport.display_name || activeReport.name || `Report #${activeReport.id}`}
+                </h2>
+                <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                  Generated {new Date(activeReport.created_at).toLocaleDateString()} · {activeReport.status}
+                  {activeReport.report_type === "custom" && <span className="ml-2 px-1 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/20">custom</span>}
+                </p>
+              </div>
+            </div>
+            {activeReport.status.toLowerCase() !== "completed" ? (
+              <div className="flex items-center gap-2 p-4 rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--surface-raised)" }}>
+                <Loader2 size={14} className="animate-spin" style={{ color: "var(--text-muted)" }} />
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>Report status: {activeReport.status}. Data will appear once generation completes.</p>
+              </div>
+            ) : (
+              <ReportTabContent report={activeReport} />
+            )}
+          </div>
+        )}
+      </div>
+
+      {showGenerate && (
+        <GeneratePanel
+          systemReports={systemReports}
+          customReports={customReports}
+          onGenerate={handleGenerate}
+          generating={generating}
+          isPolling={isPolling}
+          onClose={() => setShowGenerate(false)}
+        />
       )}
 
-      {viewData && <DataModal report={viewData} onClose={() => setViewData(null)} />}
-      {customModal && (
-        <CustomReportModal
+      {showNewCustom && (
+        <NewCustomReportModal
           projectId={projectId}
           systemReports={systemReports}
-          onClose={() => setCustomModal(false)}
-          onCreated={async () => {
-            const d = await getAvailableReports(projectId);
-            setSystemReports(d.system_reports ?? []);
-            setCustomReports(d.custom_reports ?? []);
-          }}
+          onClose={() => setShowNewCustom(false)}
+          onCreated={loadAll}
         />
       )}
     </div>
