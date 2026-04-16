@@ -15,12 +15,20 @@ export const getProject = async (id: string): Promise<Project> => {
   return response.data;
 };
 
-export const createProject = async (data: Partial<Project>): Promise<Project> => {
+export interface CreateProjectPayload {
+  name: string;
+  content_type: string;
+  brief: string;
+  additional_details: string;
+  status?: string;
+}
+
+export const createProject = async (data: CreateProjectPayload): Promise<Project> => {
   const response = await api.post("/api/project/v2/projects/", data);
   return response.data;
 };
 
-export const updateProject = async (id: string, data: Partial<Project>): Promise<Project> => {
+export const updateProject = async (id: string, data: Partial<CreateProjectPayload>): Promise<Project> => {
   const response = await api.put(`/api/project/v2/projects/${id}/`, data);
   return response.data;
 };

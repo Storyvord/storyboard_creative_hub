@@ -1,17 +1,21 @@
 export interface Project {
   project_id: string;
   name: string;
+  content_type?: string;
   brief?: string;
   additional_details?: string;
-  budget_currency?: string;
-  budget_amount?: number | null;
-  content_type?: string;
   status?: string;
   created_at?: string;
   updated_at?: string;
-  user?: string; // owner user id
-  // legacy field kept for backward compat
-  description?: string;
+  owner_details?: {
+    id: string;
+    email: string;
+    full_name?: string | null;
+    job_title?: string | null;
+    image?: string | null;
+  };
+  members?: ProjectMember[];
+  is_favorite?: boolean;
   [key: string]: any;
 }
 
