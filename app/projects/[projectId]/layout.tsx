@@ -5,7 +5,7 @@ import { usePathname, useParams } from "next/navigation";
 import {
   Video, LayoutDashboard, Users, Settings, FileText, Clapperboard,
   UserRound, MapPin, Shirt, Film, ChevronLeft, ChevronRight, Moon, Sun,
-  Calendar, FolderOpen, BarChart2,
+  Calendar, FolderOpen, BarChart2, ListTodo,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useState, useEffect } from "react";
@@ -19,6 +19,7 @@ const PROJECT_NAV = [
   { name: "Team", href: (id: string) => `/projects/${id}/team`, icon: Users },
   { name: "Callsheets", href: (id: string) => `/projects/${id}/callsheets`, icon: Calendar },
   { name: "Files", href: (id: string) => `/projects/${id}/files`, icon: FolderOpen },
+  { name: "Tasks", href: (id: string) => `/projects/${id}/tasks`, icon: ListTodo },
   { name: "Research Deck", href: (id: string) => `/projects/${id}/reports`, icon: BarChart2 },
 ];
 
