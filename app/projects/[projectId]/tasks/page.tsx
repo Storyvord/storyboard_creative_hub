@@ -15,6 +15,7 @@ import {
   ProjectTask, ProjectTaskCheckList, ProjectTaskComment,
   TaskStatus, TaskPriority,
 } from "@/services/tasks";
+import { getProject } from "@/services/project";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -126,8 +127,9 @@ function TaskCard({
 
 // ── New Task Form (inline) ─────────────────────────────────────────────────────
 
-function NewTaskInline({ projectId, status, onCreated, onCancel }: {
-  projectId: string; status: TaskStatus; onCreated: (t: ProjectTask) => void; onCancel: () => void;
+function NewTaskInline({ projectId, status, defaultMembershipId, onCreated, onCancel }: {
+  projectId: string; status: TaskStatus; defaultMembershipId: number | null;
+  onCreated: (t: ProjectTask) => void; onCancel: () => void;
 }) {
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(false);
@@ -136,9 +138,13 @@ function NewTaskInline({ projectId, status, onCreated, onCancel }: {
 
   const submit = async () => {
     if (!title.trim()) return;
+    if (!defaultMembershipId) { toast.error("Project membership not loaded yet."); return; }
     setLoading(true);
     try {
-      const t = await createProjectTask({ title: title.trim(), ProjectId: projectId, status });
+      const t = await createProjectTask({
+        title: title.trim(), ProjectId: projectId, status,
+        priority: "medium", AssignedTo: [defaultMembershipId],
+      });
       onCreated(t);
     } catch {
       toast.error("Failed to create task.");
@@ -428,11 +434,25 @@ export default function TasksPage() {
   const [addingIn, setAddingIn] = useState<TaskStatus | null>(null);
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [filter, setFilter] = useState<TaskStatus | "all">("all");
+  const [myMembershipId, setMyMembershipId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!projectId) return;
     setLoading(true);
-    getProjectTasks(projectId).then(setTasks).catch(() => toast.error("Failed to load tasks.")).finally(() => setLoading(false));
+    Promise.all([
+      getProjectTasks(projectId),
+      getProject(projectId),
+    ]).then(([taskList, project]) => {
+      setTasks(taskList);
+      // Extract current user's membership ID from project members
+      const members: any[] = project.members ?? [];
+      if (members.length > 0) {
+        // members[].membership_id is the ID we need for AssignedTo
+        const firstMember = members[0];
+        const mid = firstMember.membership_id ?? firstMember.id ?? null;
+        if (mid) setMyMembershipId(mid);
+      }
+    }).catch(() => toast.error("Failed to load tasks.")).finally(() => setLoading(false));
   }, [projectId]);
 
   const handleCreate = (t: ProjectTask) => {
@@ -481,7 +501,7 @@ export default function TasksPage() {
             </div>
             {/* Inline add */}
             {addingIn === col.status && (
-              <NewTaskInline projectId={projectId} status={col.status} onCreated={handleCreate} onCancel={() => setAddingIn(null)} />
+              <NewTaskInline projectId={projectId} status={col.status} defaultMembershipId={myMembershipId} onCreated={handleCreate} onCancel={() => setAddingIn(null)} />
             )}
             {/* Cards */}
             {colTasks.map((t) => (

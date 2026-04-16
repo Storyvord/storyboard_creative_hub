@@ -136,8 +136,16 @@ export const getFolders = async (projectId: string): Promise<Folder[]> => {
   return [];
 };
 
-export const createFolder = async (projectId: string, data: { name: string; description?: string; icon?: string }): Promise<Folder> => {
-  const response = await api.post(`/api/files/folders/${projectId}/`, { ...data, icon: data.icon || '📁' });
+export const createFolder = async (
+  projectId: string,
+  data: { name: string; description?: string; icon?: string; allowed_users?: number[] }
+): Promise<Folder> => {
+  const DEFAULT_FOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>`;
+  const response = await api.post(`/api/files/folders/${projectId}/`, {
+    ...data,
+    icon: data.icon || DEFAULT_FOLDER_SVG,
+    allowed_users: data.allowed_users ?? [],
+  });
   return response.data?.data ?? response.data;
 };
 
