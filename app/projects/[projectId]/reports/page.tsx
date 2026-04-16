@@ -185,6 +185,9 @@ function PieSection({ data }: { data: any[] }) {
 }
 
 // ── Generic table ─────────────────────────────────────────────────────────────
+// Columns that likely contain long prose — give them proportionally more width
+const WIDE_COL_HINTS = ["description","notes","details","summary","reason","comment","remarks","scope","tasks","deliverable","objective","activity"];
+
 function TableSection({ data }: { data: any[] }) {
   if (data.length === 0) return <p style={{ fontSize: 12, color: "var(--text-muted)" }}>No data.</p>;
   // If array of primitives
@@ -200,13 +203,20 @@ function TableSection({ data }: { data: any[] }) {
     );
   }
   const cols = Object.keys(data[0]).filter(c => !SKIP_KEYS.has(c.toLowerCase()));
+  // Decide column widths: wide columns get 2× weight via minWidth
+  const isWide = (c: string) => WIDE_COL_HINTS.some(h => c.toLowerCase().includes(h));
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+    <div style={{ width: "100%", overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, tableLayout: "fixed" }}>
+        <colgroup>
+          {cols.map(c => (
+            <col key={c} style={{ width: isWide(c) ? "30%" : undefined }} />
+          ))}
+        </colgroup>
         <thead>
           <tr style={{ borderBottom: "1px solid var(--border)" }}>
             {cols.map(c => (
-              <th key={c} style={{ padding: "6px 10px", textAlign: "left", fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>
+              <th key={c} style={{ padding: "6px 10px", textAlign: "left", fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {c.replace(/_/g, " ")}
               </th>
             ))}
@@ -216,8 +226,12 @@ function TableSection({ data }: { data: any[] }) {
           {data.map((row, i) => (
             <tr key={i} style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--surface-raised)]">
               {cols.map(c => (
-                <td key={c} style={{ padding: "8px 10px", color: "var(--text-secondary)", verticalAlign: "top" }}>
-                  {typeof row[c] === "object" && row[c] !== null ? JSON.stringify(row[c]) : String(row[c] ?? "—")}
+                <td key={c} style={{ padding: "8px 10px", color: "var(--text-secondary)", verticalAlign: "top", wordBreak: "break-word", whiteSpace: "normal", lineHeight: 1.5 }}>
+                  {typeof row[c] === "object" && row[c] !== null
+                    ? Array.isArray(row[c])
+                      ? (row[c] as any[]).join(", ")
+                      : Object.entries(row[c] as Record<string,any>).map(([k,v]) => `${k}: ${v}`).join("; ")
+                    : String(row[c] ?? "—")}
                 </td>
               ))}
             </tr>
@@ -260,15 +274,15 @@ function BudgetSection({ data }: { data: any }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {/* KPI cards for scalar values */}
         {scalars.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(28%, 1fr))", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(22%, 1fr))", gap: 8 }}>
             {scalars.map(([k, v], i) => {
               const isNum = typeof v === "number";
               const formatted = isNum ? (v as number).toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(v);
               return (
-                <div key={k} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-raised)", position: "relative", overflow: "hidden" }}>
+                <div key={k} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-raised)", position: "relative", overflow: "hidden", minWidth: 0 }}>
                   <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: PALETTE[i % PALETTE.length] }} />
-                  <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{k.replace(/_/g, " ")}</p>
-                  <p style={{ fontSize: 15, fontWeight: 700, color: isNum ? PALETTE[i % PALETTE.length] : "var(--text-primary)", lineHeight: 1.1 }}>{formatted}</p>
+                  <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{k.replace(/_/g, " ")}</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: isNum ? PALETTE[i % PALETTE.length] : "var(--text-primary)", lineHeight: 1.2, wordBreak: "break-word" }}>{formatted}</p>
                 </div>
               );
             })}
@@ -321,10 +335,10 @@ function TimelineSection({ data }: { data: any[] }) {
               <span style={{ fontSize: 11, fontWeight: 700, color: PALETTE[i % PALETTE.length], flexShrink: 0, minWidth: 24, marginTop: 1 }}>
                 {String(i + 1).padStart(2, "0")}
               </span>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", marginBottom: rest.length || nums.length ? 3 : 0 }}>{mainLabel}</p>
-                {rest.length > 0 && <p style={{ fontSize: 12, color: "var(--text-secondary)" }}>{rest.join(" · ")}</p>}
-                {nums.length > 0 && <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{nums.join(" · ")}</p>}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", marginBottom: rest.length || nums.length ? 3 : 0, wordBreak: "break-word" }}>{mainLabel}</p>
+                {rest.length > 0 && <p style={{ fontSize: 12, color: "var(--text-secondary)", wordBreak: "break-word" }}>{rest.join(" · ")}</p>}
+                {nums.length > 0 && <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, wordBreak: "break-word" }}>{nums.join(" · ")}</p>}
               </div>
             </div>
           );
@@ -350,15 +364,15 @@ function CrewSection({ data }: { data: any }) {
         const initials = String(name).split(" ").map((n:string) => n[0]).join("").toUpperCase().slice(0,2);
         const color = PALETTE[i % PALETTE.length];
         return (
-          <div key={i} style={{ padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface-raised)", display: "flex", gap: 10, alignItems: "flex-start" }}>
-            <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${color}20`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color, flexShrink: 0 }}>
+          <div key={i} style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface-raised)", display: "flex", gap: 10, alignItems: "flex-start", minWidth: 0 }}>
+            <div style={{ width: 34, height: 34, borderRadius: "50%", background: `${color}20`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color, flexShrink: 0 }}>
               {initials}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: role ? 2 : 0 }}>{String(name)}</p>
-              {role && <p style={{ fontSize: 11, color, marginBottom: extras.length ? 4 : 0 }}>{String(role)}</p>}
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: role ? 2 : 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{String(name)}</p>
+              {role && <p style={{ fontSize: 11, color, marginBottom: extras.length ? 4 : 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{String(role)}</p>}
               {extras.map(([k,v]) => (
-                <p key={k} style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                <p key={k} style={{ fontSize: 11, color: "var(--text-muted)", wordBreak: "break-word" }}>
                   <span style={{ fontWeight: 500 }}>{k.replace(/_/g," ")}: </span>{String(v)}
                 </p>
               ))}
@@ -373,7 +387,7 @@ function CrewSection({ data }: { data: any }) {
 // ── Prose / text ──────────────────────────────────────────────────────────────
 function ProseSection({ text }: { text: string }) {
   return (
-    <p style={{ fontSize: 13, lineHeight: 1.75, color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>{text}</p>
+    <p style={{ fontSize: 13, lineHeight: 1.75, color: "var(--text-secondary)", whiteSpace: "pre-wrap", wordBreak: "break-word", width: "100%" }}>{text}</p>
   );
 }
 
@@ -385,11 +399,11 @@ function NestedKPIs({ data }: { data: Record<string,any> }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {scalars.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(22%, 1fr))", gap: 8 }}>
           {scalars.map(([k,v], i) => (
-            <div key={k} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-raised)" }}>
-              <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{k.replace(/_/g," ")}</p>
-              <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{String(v)}</p>
+            <div key={k} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-raised)", minWidth: 0 }}>
+              <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{k.replace(/_/g," ")}</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", wordBreak: "break-word" }}>{String(v)}</p>
             </div>
           ))}
         </div>
