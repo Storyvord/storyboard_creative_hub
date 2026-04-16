@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Loader2, BarChart2, RefreshCw, CheckSquare, Plus, X, Copy, Check } from "lucide-react";
 import { toast } from "react-toastify";
@@ -8,6 +8,7 @@ import {
   getGeneratedReports, getAvailableReports, generateReports, createCustomReport,
 } from "@/services/project";
 import { ProjectReport, AvailableReport } from "@/types/project";
+import { useTaskPoller } from "@/hooks/useTaskPoller";
 
 type Tab = "generated" | "available";
 
@@ -152,7 +153,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
-  const [taskBanner, setTaskBanner] = useState<string | null>(null);
+  const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
   const [viewData, setViewData] = useState<ProjectReport | null>(null);
   const [customModal, setCustomModal] = useState(false);
 
@@ -174,14 +175,33 @@ export default function ReportsPage() {
   const toggleSelect = (name: string) =>
     setSelected((prev) => prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]);
 
+  const handlePollSuccess = useCallback(async () => {
+    setPendingTaskId(null);
+    toast.success('Reports generated!');
+    await loadGenerated();
+  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handlePollFailure = useCallback((error?: string) => {
+    setPendingTaskId(null);
+    toast.error(error === 'Timed out'
+      ? 'Report generation timed out. Please try again.'
+      : 'Report generation failed. Please try again.');
+  }, []);
+
+  const { isPolling } = useTaskPoller(pendingTaskId, handlePollSuccess, handlePollFailure);
+
   const handleGenerate = async () => {
     if (selected.length === 0) { toast.error("Select at least one report."); return; }
     setGenerating(true);
     try {
       const result = await generateReports(projectId, selected);
-      setTaskBanner(result.task_id ? `Report generation queued. Task ID: ${result.task_id}` : (result.message ?? "Generation queued."));
       setSelected([]);
-      await loadGenerated();
+      if (result.task_id) {
+        setPendingTaskId(result.task_id);
+      } else {
+        toast.success(result.message ?? 'Generation queued.');
+        await loadGenerated();
+      }
     } catch (e: any) {
       toast.error(e?.response?.data?.detail ?? "Failed to generate reports.");
     } finally {
@@ -204,10 +224,10 @@ export default function ReportsPage() {
         <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>Reports</h1>
       </div>
 
-      {taskBanner && (
-        <div className="flex items-center justify-between p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
-          <p className="text-sm text-emerald-400">{taskBanner}</p>
-          <button onClick={() => setTaskBanner(null)} style={{ color: "var(--text-muted)" }}><X size={14} /></button>
+      {isPolling && (
+        <div className="flex items-center gap-2 p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
+          <Loader2 size={14} className="animate-spin text-emerald-400 flex-shrink-0" />
+          <p className="text-sm text-emerald-400">Generating reports…</p>
         </div>
       )}
 
