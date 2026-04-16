@@ -55,5 +55,6 @@ export const getMyProfile = async (): Promise<UserProfile> => {
 // GET /api/accounts/tiers/info/
 export const getUserTierInfo = async (): Promise<UserTierInfo> => {
   const response = await api.get('/api/accounts/tiers/info/');
-  return response.data;
+  // Response envelope: { status, code, message, data: { current_tier, credit_balances, ... } }
+  return response.data?.data ?? response.data;
 };

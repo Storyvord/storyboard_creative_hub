@@ -621,7 +621,7 @@ export default function ResearchDeckPage() {
                 </p>
               </div>
             </div>
-            {activeReport.status.toLowerCase() !== "completed" ? (
+            {activeReport.status.toLowerCase() !== "success" ? (
               <div className="flex items-center gap-2 p-4 rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--surface-raised)" }}>
                 <Loader2 size={14} className="animate-spin" style={{ color: "var(--text-muted)" }} />
                 <p className="text-sm" style={{ color: "var(--text-muted)" }}>Report status: {activeReport.status}. Data will appear once generation completes.</p>
