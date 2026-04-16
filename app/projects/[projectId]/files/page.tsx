@@ -7,6 +7,20 @@ import { toast } from "react-toastify";
 import { getFolders, createFolder, getFilesInFolder, uploadFile, deleteFile } from "@/services/project";
 import { Folder, ProjectFile } from "@/types/project";
 
+// Render icon: if it looks like SVG markup render it as HTML, otherwise render as text/emoji
+function FolderIcon({ icon, size = 18 }: { icon?: string | null; size?: number }) {
+  const isSvg = icon && icon.trim().startsWith("<");
+  if (isSvg) {
+    return (
+      <span
+        style={{ width: size, height: size, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+        dangerouslySetInnerHTML={{ __html: icon }}
+      />
+    );
+  }
+  return <span style={{ fontSize: size, lineHeight: 1, flexShrink: 0 }}>{icon || "📁"}</span>;
+}
+
 export default function FilesPage() {
   const params = useParams();
   const projectId = params.projectId as string;
@@ -131,7 +145,7 @@ export default function FilesPage() {
                 }`}
                 style={selectedFolder?.id !== folder.id ? { color: "var(--text-secondary)" } : undefined}
               >
-                <span className="text-base">{folder.icon || "📁"}</span>
+                <FolderIcon icon={folder.icon} size={16} />
                 <span className="truncate flex-1">{folder.name}</span>
               </button>
             ))
@@ -150,7 +164,7 @@ export default function FilesPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-xl">{selectedFolder.icon || "📁"}</span>
+                <FolderIcon icon={selectedFolder.icon} size={20} />
                 <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>{selectedFolder.name}</h2>
                 {selectedFolder.description && (
                   <span className="text-xs" style={{ color: "var(--text-muted)" }}>{selectedFolder.description}</span>
