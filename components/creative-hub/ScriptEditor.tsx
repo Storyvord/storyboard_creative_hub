@@ -295,7 +295,8 @@ export const ScriptEditor = ({
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit.configure({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (StarterKit as any).configure({
         // Disable history — Y.js manages undo/redo when Collaboration is active
         history: collab ? false : undefined,
         paragraph: false,

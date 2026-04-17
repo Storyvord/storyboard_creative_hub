@@ -201,18 +201,32 @@ export default function NotificationsPage() {
       {/* List */}
       <div style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", borderTop: "none", borderRadius: "0 0 12px 12px", overflow: "hidden" }}>
         {loading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
-            <Loader2 size={24} className="animate-spin" style={{ color: "var(--text-muted)" }} />
+          <div className="stagger">
+            {[1,2,3,4,5].map((i) => (
+              <div key={i} style={{ display: "flex", gap: 12, padding: "14px 18px", borderBottom: "1px solid var(--border)" }}>
+                <div className="skeleton" style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0 }} />
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <div className="skeleton" style={{ height: 14, width: "50%", borderRadius: 6 }} />
+                    <div className="skeleton" style={{ height: 14, width: 60, borderRadius: 99 }} />
+                  </div>
+                  <div className="skeleton" style={{ height: 13, width: "80%", borderRadius: 6 }} />
+                  <div className="skeleton" style={{ height: 11, width: "30%", borderRadius: 6 }} />
+                </div>
+              </div>
+            ))}
           </div>
         ) : displayed.length === 0 ? (
-          <div style={{ padding: 60, textAlign: "center" }}>
+          <div className="animate-fade-in" style={{ padding: 60, textAlign: "center" }}>
             <BellOff size={32} style={{ color: "var(--text-muted)", margin: "0 auto 12px" }} />
             <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
               {filter === "unread" ? "No unread notifications." : "No notifications yet."}
             </p>
           </div>
         ) : (
-          displayed.map((n) => <NotifCard key={n.uuid} n={n} onRead={handleRead} />)
+          <div className="stagger">
+            {displayed.map((n) => <NotifCard key={n.uuid} n={n} onRead={handleRead} />)}
+          </div>
         )}
       </div>
 

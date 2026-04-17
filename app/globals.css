@@ -136,12 +136,78 @@ body {
   resize: none;
 }
 
-/* Shimmer animation for skeleton loaders */
+/* ── Shimmer for skeleton loaders ──────────────────────────────────────────── */
 @keyframes shimmer {
-  0% { transform: translateX(-100%); }
+  0%   { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
+.animate-shimmer { animation: shimmer 2s infinite linear; }
 
-.animate-shimmer {
-  animation: shimmer 2s infinite linear;
+/* ── Skeleton base class ───────────────────────────────────────────────────── */
+@keyframes shimmer-bg {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-raised, #1a1a1a) 25%,
+    var(--surface-hover, #252525) 50%,
+    var(--surface-raised, #1a1a1a) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-bg 1.6s infinite linear;
+  border-radius: 6px;
+}
+
+/* ── Entry animations ──────────────────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes popIn {
+  0%   { opacity: 0; transform: scale(0.88) translateY(8px); }
+  70%  { transform: scale(1.03) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.animate-fade-in-up    { animation: fadeInUp     0.28s ease-out forwards; }
+.animate-fade-in       { animation: fadeIn        0.22s ease-out forwards; }
+.animate-scale-in      { animation: scaleIn       0.25s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+.animate-slide-in-right{ animation: slideInRight  0.32s cubic-bezier(0.32,0.72,0,1) forwards; }
+.animate-slide-in-up   { animation: slideInUp     0.28s ease-out forwards; }
+.animate-pop-in        { animation: popIn         0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+
+/* ── Staggered list children ───────────────────────────────────────────────── */
+.stagger > * {
+  opacity: 0;
+  animation: fadeInUp 0.28s ease-out forwards;
+}
+.stagger > *:nth-child(1)  { animation-delay:   0ms; }
+.stagger > *:nth-child(2)  { animation-delay:  50ms; }
+.stagger > *:nth-child(3)  { animation-delay: 100ms; }
+.stagger > *:nth-child(4)  { animation-delay: 150ms; }
+.stagger > *:nth-child(5)  { animation-delay: 200ms; }
+.stagger > *:nth-child(6)  { animation-delay: 250ms; }
+.stagger > *:nth-child(n+7){ animation-delay: 300ms; }
+
+/* ── Interactive affordances ───────────────────────────────────────────────── */
+.press-sm  { transition: transform .12s, box-shadow .12s; }
+.press-sm:active { transform: scale(0.97); }
+.press-sm:hover  { transform: scale(1.02); }

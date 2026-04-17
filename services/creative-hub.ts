@@ -306,8 +306,10 @@ export const createCloth = async (scriptId: number, data: { name: string, cloth_
     return response.data;
 }
 
-export const updateCloth = async (clothId: number, data: Partial<Cloth> & { image_url?: File }): Promise<Cloth> => {
-    if (data.image_url instanceof File) {
+export const updateCloth = async (clothId: number, data: Partial<Cloth> & { image_url?: File | string }): Promise<Cloth> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const isFileInstance = typeof File !== 'undefined' && (data.image_url as any) instanceof File;
+    if (isFileInstance) {
         const formData = new FormData();
         Object.entries(data).forEach(([k, v]) => {
             if (v !== undefined && v !== null) formData.append(k, v as string | Blob);

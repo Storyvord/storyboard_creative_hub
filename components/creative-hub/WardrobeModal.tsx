@@ -71,8 +71,8 @@ export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpda
           name,
           description,
           cloth_type: clothType,
-          ...(imageFile ? { image_url: imageFile } : {}),
-        });
+          ...(imageFile ? { image_url: imageFile as unknown as string } : {}),
+        } as Parameters<typeof updateCloth>[1]);
         toast.success("Item updated");
       } else {
         await createCloth(scriptId, {

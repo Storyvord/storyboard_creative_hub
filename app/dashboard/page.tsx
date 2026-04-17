@@ -217,11 +217,55 @@ export default function DashboardPage() {
       </header>
 
       {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "calc(100vh - 56px)" }}>
-          <Loader2 className="animate-spin" size={28} style={{ color: "var(--text-muted)" }} />
-        </div>
-      ) : (
         <main style={{ maxWidth: 1280, margin: "0 auto", padding: "24px 24px 48px" }}>
+          {/* Stat cards skeleton */}
+          <div className="stagger" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 28 }}>
+            {[1,2,3,4,5].map((i) => (
+              <div key={i} style={{ borderRadius: 14, border: "1px solid var(--border)", padding: "18px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 8 }} />
+                  <div className="skeleton" style={{ width: 24, height: 24, borderRadius: 6 }} />
+                </div>
+                <div className="skeleton" style={{ height: 28, width: "60%", borderRadius: 6 }} />
+                <div className="skeleton" style={{ height: 12, width: "80%", borderRadius: 6 }} />
+              </div>
+            ))}
+          </div>
+          {/* Main content skeleton */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ borderRadius: 14, border: "1px solid var(--border)", padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="skeleton" style={{ height: 16, width: "30%", borderRadius: 6 }} />
+                {[1,2,3].map((i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 8, flexShrink: 0 }} />
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div className="skeleton" style={{ height: 13, width: "50%", borderRadius: 6 }} />
+                      <div className="skeleton" style={{ height: 11, width: "30%", borderRadius: 6 }} />
+                    </div>
+                    <div className="skeleton" style={{ width: 70, height: 22, borderRadius: 99 }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ borderRadius: 14, border: "1px solid var(--border)", padding: 20, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div className="skeleton" style={{ height: 16, width: "40%", borderRadius: 6, marginBottom: 4 }} />
+                {[1,2,3,4].map((i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, paddingBottom: 10, borderBottom: "1px solid var(--border)" }}>
+                    <div className="skeleton" style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, marginTop: 4 }} />
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
+                      <div className="skeleton" style={{ height: 13, width: "80%", borderRadius: 6 }} />
+                      <div className="skeleton" style={{ height: 11, width: "40%", borderRadius: 6 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </main>
+      ) : (
+        <main className="animate-fade-in" style={{ maxWidth: 1280, margin: "0 auto", padding: "24px 24px 48px" }}>
 
           {/* ── Stat Row ── */}
           <div data-tour="dash-stats" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 28 }}>

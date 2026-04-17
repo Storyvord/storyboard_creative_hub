@@ -54,8 +54,31 @@ export default function OverviewPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full min-h-[60vh]">
-        <Loader2 className="animate-spin h-6 w-6" style={{ color: "var(--text-muted)" }} />
+      <div style={{ padding: "32px 24px", maxWidth: 800, margin: "0 auto" }}>
+        <div className="stagger" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Header skeleton */}
+          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            <div className="skeleton" style={{ width: 64, height: 64, borderRadius: 14 }} />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="skeleton" style={{ height: 22, width: "40%", borderRadius: 6 }} />
+              <div className="skeleton" style={{ height: 14, width: "60%", borderRadius: 6 }} />
+            </div>
+            <div className="skeleton" style={{ width: 90, height: 32, borderRadius: 8 }} />
+          </div>
+          {/* Detail rows */}
+          {[80, 70, 60, 75].map((w, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div className="skeleton" style={{ width: 18, height: 18, borderRadius: 4, flexShrink: 0 }} />
+              <div className="skeleton" style={{ height: 14, width: `${w}%`, borderRadius: 6 }} />
+            </div>
+          ))}
+          {/* Tags */}
+          <div style={{ display: "flex", gap: 8 }}>
+            {[60, 80, 50].map((w, i) => (
+              <div key={i} className="skeleton" style={{ height: 26, width: w, borderRadius: 99 }} />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -73,7 +96,7 @@ export default function OverviewPage() {
     : null;
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="animate-fade-in p-8 max-w-3xl mx-auto">
       {/* Header */}
       <div data-tour="overview-details" className="flex items-start justify-between mb-6">
         <div>
