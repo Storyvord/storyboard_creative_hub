@@ -32,7 +32,7 @@ const FEATURES = [
     border: "#10b98120",
     items: [
       { icon: <Film size={18} />, title: "Storyboard", desc: "AI-generated shot-by-shot storyboards per scene. Switch styles (Anime, Cinematic, Sketch). Preview full sequences in Slideshow mode.", screenshot: "/screenshots/storyboard.png" },
-      { icon: <Users size={18} />, title: "Characters per Scene", desc: "Full cast management with scene-specific looks — costume, aging, makeup per scene. Global reference portrait with Fitting Room.", screenshot: "/screenshots/characters.png" },
+      { icon: <Users size={18} />, title: "Characters per Scene", desc: "Full cast management with scene-specific looks — costume, aging, makeup per scene. Global reference portrait with Fitting Room.", screenshot: "/screenshots/anna-detail.png" },
       { icon: <MapPin size={18} />, title: "Locations", desc: "Location cards with images, descriptions, and scene links. Your scouting board organised by the AI breakdown.", screenshot: "/screenshots/locations.png" },
     ],
   },
@@ -98,14 +98,15 @@ function GradientText({ children, colors = ["#10b981", "#6366f1"] }: { children:
 // ── Screenshot Showcase ───────────────────────────────────────────────────────
 
 const SHOWCASE_TABS = [
-  { label: "Dashboard", src: "/screenshots/dashboard.png", badge: "Overview", color: "#6366f1" },
-  { label: "Script Editor", src: "/screenshots/script.png", badge: "AI Breakdown", color: "#10b981" },
-  { label: "Storyboard", src: "/screenshots/storyboard.png", badge: "AI Generated", color: "#f59e0b" },
-  { label: "Scenes", src: "/screenshots/scenes.png", badge: "Scene Analysis", color: "#06b6d4" },
-  { label: "Characters", src: "/screenshots/characters.png", badge: "Cast & Looks", color: "#a78bfa" },
-  { label: "Locations", src: "/screenshots/locations.png", badge: "Scouting", color: "#fb923c" },
-  { label: "Research Deck", src: "/screenshots/reports.png", badge: "AI Reports", color: "#34d399" },
-  { label: "Tasks", src: "/screenshots/tasks.png", badge: "Kanban", color: "#f472b6" },
+  { label: "Dashboard",     src: "/screenshots/dashboard.png",    badge: "Overview",      color: "#6366f1" },
+  { label: "Script Editor", src: "/screenshots/script.png",       badge: "AI Breakdown",  color: "#10b981" },
+  { label: "Storyboard",    src: "/screenshots/storyboard.png",   badge: "AI Generated",  color: "#f59e0b" },
+  { label: "Scenes",        src: "/screenshots/scenes.png",       badge: "Scene Analysis",color: "#06b6d4" },
+  { label: "Characters",    src: "/screenshots/anna-detail.png",  badge: "Cast & Looks",  color: "#a78bfa", overlay: "/screenshots/anna-sc03.png" },
+  { label: "Fitting Room",  src: "/screenshots/anna-sc03.png",    badge: "Scene Costume", color: "#f472b6" },
+  { label: "Locations",     src: "/screenshots/locations.png",    badge: "Scouting",      color: "#fb923c" },
+  { label: "Research Deck", src: "/screenshots/reports.png",      badge: "AI Reports",    color: "#34d399" },
+  { label: "Tasks",         src: "/screenshots/tasks.png",        badge: "Kanban",        color: "#ec4899" },
 ];
 
 function ScreenshotShowcase() {
@@ -171,8 +172,38 @@ function ScreenshotShowcase() {
           />
           {/* gradient fade at bottom */}
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 80, background: "linear-gradient(transparent, #0f1117)" }} />
+
+          {/* SC 03 Fitting Room popup overlay — shown when tab has overlay */}
+          {tab.overlay && (
+            <div style={{
+              position: "absolute", bottom: 24, right: 24,
+              width: 260, borderRadius: 12,
+              border: `1px solid ${tab.color}50`,
+              background: "#0d0f1a",
+              boxShadow: `0 8px 40px rgba(0,0,0,.7), 0 0 0 1px ${tab.color}20`,
+              overflow: "hidden",
+              animation: "popIn .35s cubic-bezier(.34,1.56,.64,1)",
+            }}>
+              {/* mini browser bar */}
+              <div style={{ background: "#161822", borderBottom: `1px solid ${tab.color}30`, padding: "5px 8px", display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{ display: "flex", gap: 3 }}>
+                  {["#ff5f57","#febc2e","#28c840"].map(c => <div key={c} style={{ width: 6, height: 6, borderRadius: "50%", background: c }} />)}
+                </div>
+                <span style={{ fontSize: 8, color: tab.color, fontWeight: 700, marginLeft: 4 }}>SC 03 · SOUND STUDIO — Fitting Room</span>
+              </div>
+              <div style={{ position: "relative", height: 180 }}>
+                <Image src={tab.overlay} alt="SC 03 Fitting Room" fill style={{ objectFit: "cover", objectPosition: "top" }} />
+              </div>
+            </div>
+          )}
         </div>
       </div>
+      <style>{`
+        @keyframes popIn {
+          from { opacity: 0; transform: scale(.88) translateY(12px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+      `}</style>
 
       {/* Prev / Next */}
       <button onClick={() => go((active - 1 + SHOWCASE_TABS.length) % SHOWCASE_TABS.length)}
