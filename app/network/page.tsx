@@ -66,7 +66,7 @@ export default function NetworkPage() {
       const data = await getConnections();
       setConnections(data);
     } catch {
-      toast.error("Failed to load connections");
+      toast.error("Couldn't load your connections. Please refresh.");
     }
   };
 
@@ -75,7 +75,7 @@ export default function NetworkPage() {
       const data = await getConnectionRequests();
       setRequests(data);
     } catch {
-      toast.error("Failed to load requests");
+      toast.error("Couldn't load connection requests. Please refresh.");
     }
   };
 
@@ -86,7 +86,7 @@ export default function NetworkPage() {
       const data = await profileSearch(searchQuery.trim());
       setSearchResults(Array.isArray(data) ? data : []);
     } catch {
-      toast.error("Search failed");
+      toast.error("Search is unavailable right now. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -104,18 +104,18 @@ export default function NetworkPage() {
         setShowConnectForm(null);
       }
     } catch {
-      toast.error("Failed to send connection request");
+      toast.error("Couldn't send the connection request. Please try again.");
     }
   };
 
   const handleManage = async (requesterId: number, status: "accepted" | "rejected") => {
     try {
       await manageConnection(requesterId, status);
-      toast.success(`Request ${status}`);
+      toast.success(status === "accepted" ? "Connection accepted!" : "Request declined.");
       loadRequests();
       if (status === "accepted") loadConnections();
     } catch {
-      toast.error("Action failed");
+      toast.error(status === "accepted" ? "Couldn't accept the request. Please try again." : "Couldn't decline the request. Please try again.");
     }
   };
 
@@ -152,7 +152,10 @@ export default function NetworkPage() {
         {tab === "connections" && (
           <div>
             {connections.length === 0 ? (
-              <p style={{ color: "var(--text-muted)", textAlign: "center", marginTop: 40 }}>No connections yet.</p>
+              <div style={{ textAlign: "center", marginTop: 40 }}>
+                <p style={{ color: "var(--text-muted)" }}>No connections yet.</p>
+                <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 6 }}>Use the <strong>Discover</strong> tab to find and connect with crew.</p>
+              </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16 }}>
                 {connections.map((c) => (
@@ -160,12 +163,9 @@ export default function NetworkPage() {
                     key={c.id}
                     user={c.receiver}
                     action={
-                      <button
-                        style={{ fontSize: 12, padding: "4px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}
-                        onClick={() => toast.info("Remove not implemented")}
-                      >
-                        Remove
-                      </button>
+                      <span style={{ fontSize: 11, color: "var(--text-muted)", padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)" }}>
+                        Connected
+                      </span>
                     }
                   />
                 ))}

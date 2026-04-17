@@ -73,7 +73,7 @@ export default function WardrobePage() {
     onError: (taskId, objectId, error) => {
       setTrackedTasks(prev => { const n = { ...prev }; delete n[taskId]; return n; });
       setGeneratingClothIds(prev => { const n = { ...prev }; delete n[objectId]; return n; });
-      toast.error(`Cloth image failed: ${error}`);
+      toast.error("Outfit image generation failed. Please try again.");
     },
   });
 

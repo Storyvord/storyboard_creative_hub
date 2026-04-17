@@ -8,6 +8,7 @@ import {
   getProjectAnnouncements, createProjectAnnouncement,
   ProjectAnnouncement,
 } from "@/services/announcements";
+import { useProjectPermissions } from "@/hooks/useProjectPermissions";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ function NewAnnouncementModal({ projectId, membershipId, onCreated, onClose }: {
       const ann = await createProjectAnnouncement({ title: title.trim(), message: message.trim(), project: projectId, is_urgent: isUrgent });
       onCreated(ann);
       toast.success("Announcement posted!");
-    } catch { toast.error("Failed to post announcement."); }
+    } catch { toast.error("Couldn't post the announcement. Please try again."); }
     finally { setLoading(false); }
   };
 
@@ -155,13 +156,15 @@ export default function AnnouncementsPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [filter, setFilter] = useState<"all" | "urgent">("all");
+  const { canDo } = useProjectPermissions(projectId);
+  const canPost = canDo("announcement:create") || canDo("project:update");
 
   useEffect(() => {
     if (!projectId) return;
     setLoading(true);
     getProjectAnnouncements(projectId)
       .then(setAnnouncements)
-      .catch(() => toast.error("Failed to load announcements."))
+      .catch(() => toast.error("Couldn't load announcements. Please refresh."))
       .finally(() => setLoading(false));
   }, [projectId]);
 
@@ -187,10 +190,12 @@ export default function AnnouncementsPage() {
               </span>
             )}
           </div>
-          <button onClick={() => setShowModal(true)}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, background: "var(--accent)", color: "#fff", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-            <Plus size={15} />New Announcement
-          </button>
+          {canPost && (
+            <button onClick={() => setShowModal(true)}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, background: "var(--accent)", color: "#fff", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+              <Plus size={15} />New Announcement
+            </button>
+          )}
         </div>
 
         {/* Filter tabs */}

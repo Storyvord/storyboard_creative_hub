@@ -116,7 +116,7 @@ export default function LocationsPage() {
     onError: (taskId, objectId, error) => {
       setTrackedTasks(prev => { const n = { ...prev }; delete n[taskId]; return n; });
       setGeneratingLocIds(prev => { const n = { ...prev }; delete n[objectId]; return n; });
-      toast.error(`Location image failed: ${error}`);
+      toast.error("Location image generation failed. Please try again.");
     },
   });
 

@@ -70,7 +70,7 @@ function PreferencesPanel({ onClose }: { onClose: () => void }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    getPreference().then(setPref).catch(() => toast.error("Failed to load preferences."));
+    getPreference().then(setPref).catch(() => toast.error("Couldn't load notification preferences. Please try again."));
   }, []);
 
   const toggle = (key: keyof NotificationPreference) => {
@@ -85,7 +85,7 @@ function PreferencesPanel({ onClose }: { onClose: () => void }) {
       await updatePreference(pref);
       toast.success("Preferences saved.");
       onClose();
-    } catch { toast.error("Failed to save preferences."); }
+    } catch { toast.error("Couldn't save preferences. Please try again."); }
     finally { setSaving(false); }
   };
 
@@ -143,7 +143,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     setLoading(true);
-    getNotifications().then(setNotifs).catch(() => toast.error("Failed to load notifications.")).finally(() => setLoading(false));
+    getNotifications().then(setNotifs).catch(() => toast.error("Couldn't load notifications. Please refresh.")).finally(() => setLoading(false));
   }, []);
 
   const handleRead = async (uuid: string) => {

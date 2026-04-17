@@ -20,7 +20,7 @@ export default function LoginPage() {
       const response = await login(email, password);
       
       if (response.data.requires_2fa) {
-        toast.info("MFA required (Not implemented in this demo)");
+        toast.info("Two-factor authentication is required. Please check your authenticator app.");
         return;
       }
 

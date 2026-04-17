@@ -47,7 +47,7 @@ function EventModal({ event, onClose, onSave, onDelete }: {
     setLoading(true);
     try {
       await onSave({ title: title.trim(), start: new Date(start).toISOString(), end: new Date(end).toISOString(), description: description || undefined, location: location || undefined });
-    } catch { toast.error("Failed to save event."); }
+    } catch { toast.error("Couldn't save the event. Please try again."); }
     finally { setLoading(false); }
   };
 
@@ -55,7 +55,7 @@ function EventModal({ event, onClose, onSave, onDelete }: {
     if (!onDelete || !confirm("Delete this event?")) return;
     setLoading(true);
     try { await onDelete(); }
-    catch { toast.error("Failed to delete."); }
+    catch { toast.error("Couldn't delete the event. Please try again."); }
     finally { setLoading(false); }
   };
 
@@ -198,7 +198,7 @@ export default function CalendarPage() {
         );
         setEvents(evts);
       })
-      .catch(() => toast.error("Failed to load calendar."))
+      .catch(() => toast.error("Couldn't load calendar. Please refresh."))
       .finally(() => setLoading(false));
   }, []);
 

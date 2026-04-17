@@ -15,6 +15,7 @@ import {
   TaskStatus, TaskPriority,
 } from "@/services/tasks";
 import { getProject } from "@/services/project";
+import { useProjectPermissions } from "@/hooks/useProjectPermissions";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -174,12 +175,12 @@ function NewTaskInline({ projectId, status, defaultMembershipId, onCreated, onCa
 
   const submit = async () => {
     if (!title.trim()) return;
-    if (!defaultMembershipId) { toast.error("Project membership not loaded yet."); return; }
+    if (!defaultMembershipId) { toast.error("Your project membership hasn't loaded yet. Please wait a moment and try again."); return; }
     setLoading(true);
     try {
       const t = await createProjectTask({ title: title.trim(), ProjectId: projectId, status, priority: "medium", AssignedTo: [defaultMembershipId] });
       onCreated(t);
-    } catch { toast.error("Failed to create task."); } finally { setLoading(false); }
+    } catch { toast.error("Couldn't create the task. Please try again."); } finally { setLoading(false); }
   };
 
   return (
@@ -246,41 +247,41 @@ function TaskDrawer({ task, projectId, onClose, onUpdate, onDelete }: {
     setSaving(true);
     try {
       const updated = await updateProjectTask(task.taskid, { title: editTitle, description: editDesc });
-      onUpdate(updated); toast.success("Task saved.");
-    } catch { toast.error("Failed to save."); } finally { setSaving(false); }
+      onUpdate(updated); toast.success("Task updated.");
+    } catch { toast.error("Couldn't save your changes. Please try again."); } finally { setSaving(false); }
   };
 
   const changeStatus = async (s: TaskStatus) => {
     try { const u = await updateProjectTask(task.taskid, { status: s }); onUpdate(u); }
-    catch { toast.error("Failed to update status."); }
+    catch { toast.error("Couldn't update status. Please try again."); }
   };
 
   const changePriority = async (p: TaskPriority) => {
     try { const u = await updateProjectTask(task.taskid, { priority: p }); onUpdate(u); }
-    catch { toast.error("Failed to update priority."); }
+    catch { toast.error("Couldn't update priority. Please try again."); }
   };
 
   const addChecklist = async () => {
     if (!newItem.trim()) return;
     try { const item = await createProjectTaskChecklist({ taskid: task.taskid, item: newItem.trim() }); setChecklists((p) => [...p, item]); setNewItem(""); }
-    catch { toast.error("Failed to add checklist item."); }
+    catch { toast.error("Couldn't add checklist item. Please try again."); }
   };
 
   const toggleChecklist = async (cl: ProjectTaskCheckList) => {
     try { const u = await updateProjectTaskChecklist(cl.checklistID, { is_done: !cl.is_done }); setChecklists((prev) => prev.map((c) => c.checklistID === cl.checklistID ? u : c)); }
-    catch { toast.error("Failed to update."); }
+    catch { toast.error("Couldn't update checklist item. Please try again."); }
   };
 
   const removeChecklist = async (cl: ProjectTaskCheckList) => {
     try { await deleteProjectTaskChecklist(cl.checklistID); setChecklists((prev) => prev.filter((c) => c.checklistID !== cl.checklistID)); }
-    catch { toast.error("Failed to delete."); }
+    catch { toast.error("Couldn't delete checklist item. Please try again."); }
   };
 
   const addComment = async () => {
     if (!newComment.trim()) return;
     setSubmittingComment(true);
     try { const c = await createProjectTaskComment({ taskID: task.taskid, content: newComment.trim() }); setComments((p) => [...p, c]); setNewComment(""); }
-    catch { toast.error("Failed to add comment."); } finally { setSubmittingComment(false); }
+    catch { toast.error("Couldn't post comment. Please try again."); } finally { setSubmittingComment(false); }
   };
 
   const done = checklists.filter((c) => c.is_done).length;
@@ -506,6 +507,8 @@ export default function TasksPage() {
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [filter, setFilter] = useState<TaskStatus | "all">("all");
   const [myMembershipId, setMyMembershipId] = useState<number | null>(null);
+  const { canDo } = useProjectPermissions(projectId);
+  const canCreateTask = canDo("task:create");
 
   useEffect(() => {
     if (!projectId) return;
@@ -519,7 +522,7 @@ export default function TasksPage() {
           if (mid) setMyMembershipId(mid);
         }
       })
-      .catch(() => toast.error("Failed to load tasks."))
+      .catch(() => toast.error("Couldn't load tasks. Please refresh."))
       .finally(() => setLoading(false));
   }, [projectId]);
 
@@ -531,7 +534,7 @@ export default function TasksPage() {
       const u = await updateProjectTask(taskId, { status });
       setTasks((p) => p.map((t) => t.taskid === taskId ? u : t));
       if (selectedTask?.taskid === taskId) setSelectedTask(u);
-    } catch { toast.error("Failed to update status."); }
+    } catch { toast.error("Couldn't update task status. Please try again."); }
   };
 
   const filtered = filter === "all" ? tasks : tasks.filter((t) => t.status === filter);
@@ -549,14 +552,16 @@ export default function TasksPage() {
                 <span style={{ fontSize: 13, fontWeight: 600 }}>{col.label}</span>
                 <span style={{ fontSize: 12, color: "var(--text-muted)", background: "var(--surface-raised)", borderRadius: 10, padding: "1px 7px" }}>{colTasks.length}</span>
               </div>
-              <button onClick={() => setAddingIn(col.status)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 4, borderRadius: 6, transition: "color .15s, background .15s" }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = col.color; e.currentTarget.style.background = "var(--surface-raised)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.background = "none"; }}
-                title="Add task"
-              >
-                <Plus size={15} />
-              </button>
+              {canCreateTask && (
+                <button onClick={() => setAddingIn(col.status)}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 4, borderRadius: 6, transition: "color .15s, background .15s" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = col.color; e.currentTarget.style.background = "var(--surface-raised)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.background = "none"; }}
+                  title="Add task"
+                >
+                  <Plus size={15} />
+                </button>
+              )}
             </div>
 
             {addingIn === col.status && (
@@ -587,7 +592,10 @@ export default function TasksPage() {
         <span>Title</span><span>Status</span><span>Priority</span><span>Due Date</span>
       </div>
       {filtered.length === 0 && (
-        <p style={{ padding: "48px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 14 }}>No tasks yet.</p>
+        <div style={{ padding: "48px 16px", textAlign: "center" }}>
+          <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No tasks yet.</p>
+          {canCreateTask && <p style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 6 }}>Use the <strong>New Task</strong> button above to get started.</p>}
+        </div>
       )}
       <div className="stagger">
         {filtered.map((t) => {
@@ -633,15 +641,17 @@ export default function TasksPage() {
               </button>
             ))}
           </div>
-          <button
-            data-tour="tasks-add-btn"
-            onClick={() => setAddingIn("pending")}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, background: "var(--accent)", color: "#fff", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, transition: "opacity .15s, transform .15s" }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-          >
-            <Plus size={15} />New Task
-          </button>
+          {canCreateTask && (
+            <button
+              data-tour="tasks-add-btn"
+              onClick={() => setAddingIn("pending")}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, background: "var(--accent)", color: "#fff", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, transition: "opacity .15s, transform .15s" }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              <Plus size={15} />New Task
+            </button>
+          )}
         </div>
       </div>
 

@@ -60,7 +60,7 @@ export default function InboxPage() {
         const data = await getDialogs();
         setDialogs(data);
       } catch {
-        toast.error("Failed to load conversations");
+        toast.error("Couldn't load your conversations. Please refresh.");
       } finally {
         setLoadingDialogs(false);
       }
@@ -73,7 +73,7 @@ export default function InboxPage() {
     setLoadingMessages(true);
     getMessages(other.id)
       .then(setMessages)
-      .catch(() => toast.error("Failed to load messages"))
+      .catch(() => toast.error("Couldn't load messages. Please try again."))
       .finally(() => setLoadingMessages(false));
   }, [selectedDialog, myId]);
 
@@ -90,7 +90,7 @@ export default function InboxPage() {
       setMessages((prev) => [...prev, msg]);
       setText("");
     } catch {
-      toast.error("Failed to send message");
+      toast.error("Message couldn't be sent. Check your connection and try again.");
     } finally {
       setSending(false);
     }

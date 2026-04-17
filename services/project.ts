@@ -38,8 +38,11 @@ export const deleteProject = async (id: string): Promise<void> => {
 
 // ── Crew / Members ────────────────────────────────────────────────────────────
 export const getProjectCrew = async (projectId: string): Promise<ProjectMember[]> => {
-  const response = await api.get(`/api/project/crew/${projectId}/`);
+  // The V1 /api/project/crew/<id>/ endpoint only works with the legacy Project model.
+  // V2 projects use memberships. Fetch from the V2 memberships endpoint instead.
+  const response = await api.get(`/api/project/v2/memberships/?project_id=${projectId}`);
   if (Array.isArray(response.data)) return response.data;
+  if (response.data?.data && Array.isArray(response.data.data)) return response.data.data;
   if (response.data.results) return response.data.results;
   return [];
 };
@@ -95,8 +98,15 @@ export const getPermissions = async (): Promise<Permission[]> => {
 export const getUserPermissions = async (projectId: string): Promise<string[]> => {
   try {
     const response = await api.get(`/api/project/v2/user_permissions/${projectId}/`);
-    if (Array.isArray(response.data)) return response.data;
-    if (response.data.permissions) return response.data.permissions;
+    // API returns { permissions: { resource: ["action", ...] } }
+    // Flatten to ["resource:action", ...] for easy canDo("task:create") checks
+    const raw = response.data?.permissions ?? response.data;
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      return Object.entries(raw as Record<string, string[]>).flatMap(
+        ([resource, actions]) => (actions as string[]).map((action) => `${resource}:${action}`)
+      );
+    }
+    if (Array.isArray(raw)) return raw;
     return [];
   } catch { return []; }
 };

@@ -673,11 +673,11 @@ export default function CharacterDetailPage() {
         setTrackedPortraitTasks(prev => { const n = { ...prev }; delete n[taskId]; return n; });
         setGenerating(false);
         setPortraitGenStep(null);
-        toast.error(`Portrait failed: ${error}`);
+        toast.error("Portrait generation failed. Please try again.");
       } else {
         setTrackedSceneTasks(prev => { const n = { ...prev }; delete n[taskId]; return n; });
         setGeneratingScenes(prev => { const m = new Map(prev); m.delete(objectId); return m; });
-        toast.error(`Scene look failed: ${error}`);
+        toast.error("Scene look generation failed. Please try again.");
       }
     },
   });
