@@ -16,6 +16,7 @@ const WS_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000")
 
 // ── Lightweight markdown renderer ─────────────────────────────────────────────
 function renderMarkdown(text: string): React.ReactNode[] {
+  if (!text) return [];
   const lines = text.split("\n");
   const nodes: React.ReactNode[] = [];
   let key = 0;
