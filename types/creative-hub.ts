@@ -22,6 +22,7 @@ export interface Script {
   aspect_ratio?: string;
   storyboarding_type?: 'sketch' | 'storyboard' | 'hd' | 'anime';
   uploaded_at: string;
+  updated_at?: string;
   task_id?: string;
   requires_confirmation?: boolean;
   review_status?: string;
@@ -30,7 +31,7 @@ export interface Script {
 }
 
 export interface Scene {
-  id: number | null;
+  id: number;
   scene_name: string;
   description: string;
   order: number;

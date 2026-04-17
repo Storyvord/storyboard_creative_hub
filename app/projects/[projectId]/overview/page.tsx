@@ -75,7 +75,7 @@ export default function OverviewPage() {
   return (
     <div className="p-8 max-w-3xl mx-auto">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div data-tour="overview-details" className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>{project.name}</h1>
           <div className="flex items-center gap-2 flex-wrap">
@@ -136,7 +136,7 @@ export default function OverviewPage() {
         </div>
 
         {/* Team preview */}
-        <div className="p-4 rounded-lg border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+        <div data-tour="overview-crew" className="p-4 rounded-lg border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-semibold uppercase tracking-widest flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
               <Users size={12} /> Team Members

@@ -583,7 +583,7 @@ export default function StoryboardPage() {
     const parsedScenes: Scene[] = [];
     const parsedShotsMap: Record<number, Shot[]> = {};
     data.forEach((sceneData: any) => {
-      parsedScenes.push({ id: sceneData.id, script_id: scriptId, scene_name: sceneData.scene_name, description: sceneData.description, order: sceneData.order, location: "", set_number: "", environment: "", int_ext: "", date: "", timeline: [], scene_characters: sceneData.scene_characters || [], created_at: "", updated_at: "", storyboarding_type: sceneData.storyboarding_type ?? null, effective_storyboarding_type: sceneData.effective_storyboarding_type });
+      parsedScenes.push({ id: sceneData.id, script_id: scriptId, scene_name: sceneData.scene_name, description: sceneData.description, order: sceneData.order, location: "", environment: "", int_ext: "", date: "", timeline: [], scene_characters: sceneData.scene_characters || [], created_at: "", updated_at: "", storyboarding_type: sceneData.storyboarding_type ?? null, effective_storyboarding_type: sceneData.effective_storyboarding_type });
       const shots: Shot[] = (sceneData.shots || []).map((sd: any) => {
         let imageUrl = null;
         let activePreviz = null;

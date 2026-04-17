@@ -191,7 +191,13 @@ export default function CalendarPage() {
   useEffect(() => {
     setLoading(true);
     getUnifiedCalendar()
-      .then((cal) => setEvents(cal.user_calendar_events))
+      .then((cal) => {
+        // getUnifiedCalendar returns UnifiedCalendar[] — flatten all event arrays
+        const evts = cal.flatMap((c: any) =>
+          c.user_calendar_events ?? c.events ?? c.calendar_events ?? []
+        );
+        setEvents(evts);
+      })
       .catch(() => toast.error("Failed to load calendar."))
       .finally(() => setLoading(false));
   }, []);

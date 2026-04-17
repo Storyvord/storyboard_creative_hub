@@ -18,6 +18,7 @@ import { useTheme } from "@/context/ThemeContext";
 import CreateProjectModal from "@/components/project/CreateProjectModal";
 import StatusBadge from "@/components/project/StatusBadge";
 import UserWidget from "@/components/UserWidget";
+import AppTour, { AppTourTrigger, APP_TOUR_DONE_KEY } from "@/components/AppTour";
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -118,7 +119,14 @@ export default function DashboardPage() {
   const [connectionCount, setConnectionCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [tourVisible, setTourVisible] = useState(false);
   const { theme, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && !localStorage.getItem(APP_TOUR_DONE_KEY)) {
+      setTourVisible(true);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -216,7 +224,7 @@ export default function DashboardPage() {
         <main style={{ maxWidth: 1280, margin: "0 auto", padding: "24px 24px 48px" }}>
 
           {/* ── Stat Row ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 28 }}>
+          <div data-tour="dash-stats" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 28 }}>
             <StatCard icon={<FolderOpen size={18} />} label="Total Projects" value={projects.length} sub={`${activeProjects.length} active`} color="#34d399" href="/dashboard" />
             <StatCard icon={<Bell size={18} />} label="Notifications" value={unreadCount} sub="unread" color="#60a5fa" href="/notifications" />
             <StatCard icon={<Calendar size={18} />} label="Today's Events" value={todayEvents.length} sub={events.length > 0 ? `${events.length} upcoming` : "no events"} color="#a78bfa" href="/dashboard" />
@@ -232,7 +240,7 @@ export default function DashboardPage() {
 
               {/* Today at a glance */}
               {todayEvents.length > 0 && (
-                <div style={{ background: "linear-gradient(135deg, #059669 0%, #0d9488 100%)", borderRadius: 14, padding: "18px 20px", color: "#fff" }}>
+                <div data-tour="dash-schedule" style={{ background: "linear-gradient(135deg, #059669 0%, #0d9488 100%)", borderRadius: 14, padding: "18px 20px", color: "#fff" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                     <Star size={15} style={{ opacity: .9 }} />
                     <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", opacity: .85 }}>Today's Schedule</span>
@@ -250,7 +258,7 @@ export default function DashboardPage() {
               )}
 
               {/* Recent Projects */}
-              <div>
+              <div data-tour="dash-projects">
                 <SectionHeader title="Recent Projects" href="/dashboard" icon={<FolderOpen size={14} />} />
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
                   {recentProjects.map(project => (
@@ -304,7 +312,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Notifications Feed */}
-              <div>
+              <div data-tour="dash-activity">
                 <SectionHeader title="Recent Activity" href="/notifications" icon={<Activity size={14} />} />
                 {notifications.length === 0 ? (
                   <div style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>No recent activity.</div>
@@ -347,7 +355,7 @@ export default function DashboardPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
               {/* Upcoming Events */}
-              <div style={{ background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
+              <div data-tour="dash-upcoming" style={{ background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
                 <SectionHeader title="Upcoming Events" icon={<Calendar size={14} />} />
                 {events.length === 0 ? (
                   <div style={{ padding: "24px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>No upcoming events.</div>
@@ -413,7 +421,7 @@ export default function DashboardPage() {
               )}
 
               {/* Quick Links */}
-              <div style={{ background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
+              <div data-tour="dash-quicklinks" style={{ background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
                 <SectionHeader title="Quick Links" icon={<Star size={14} />} />
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   {[
@@ -465,6 +473,13 @@ export default function DashboardPage() {
       {createOpen && (
         <CreateProjectModal onClose={() => setCreateOpen(false)} onCreated={load} />
       )}
+
+      {/* Tour trigger — fixed bottom-left of AI button */}
+      <div style={{ position: "fixed", bottom: 28, right: 96, zIndex: 50 }}>
+        <AppTourTrigger onClick={() => { localStorage.removeItem(APP_TOUR_DONE_KEY); setTourVisible(true); }} />
+      </div>
+
+      {tourVisible && <AppTour onDone={() => setTourVisible(false)} />}
     </div>
   );
 }

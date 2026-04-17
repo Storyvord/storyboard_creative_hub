@@ -89,7 +89,7 @@ const TOUR_STEPS: TourStep[] = [
 
 const PAD = 10; // px padding around the highlighted element
 const TOOLTIP_W = 320;
-const TOOLTIP_H = 200; // approximate, for initial placement
+const TOOLTIP_H = 280; // generous estimate to keep tooltip on-screen
 
 interface SpotlightRect {
   top: number;
@@ -180,7 +180,8 @@ export default function StoryboardTour({ onComplete }: Props) {
         break;
       case "bottom-left":
         top = sp.top + sp.height + margin;
-        right = vw - (sp.left + sp.width);
+        right = Math.min(vw - (sp.left + sp.width), vw - TOOLTIP_W - 12);
+        right = Math.max(right, 12);
         left = undefined;
         break;
       default: // "bottom"
@@ -286,8 +287,8 @@ export default function StoryboardTour({ onComplete }: Props) {
       {/* ── Tooltip Card ── */}
       <div
         ref={tooltipRef}
-        style={{ ...tooltipStyle, width: TOOLTIP_W }}
-        className="fixed z-[10000] bg-[#0f0f0f] border border-[#2c2c2c] rounded-2xl shadow-2xl p-5 select-none"
+        style={{ ...tooltipStyle, width: TOOLTIP_W, maxHeight: "calc(100vh - 24px)" }}
+        className="fixed z-[10000] bg-[#0f0f0f] border border-[#2c2c2c] rounded-2xl shadow-2xl p-5 select-none overflow-y-auto"
       >
         {/* Progress dots */}
         <div className="flex items-center justify-between mb-4">

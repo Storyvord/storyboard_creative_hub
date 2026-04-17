@@ -13,6 +13,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { getProject } from "@/services/project";
 import UserWidget from "@/components/UserWidget";
 import AIAssistantWidget from "@/components/AIAssistantWidget";
+import AppTour, { AppTourTrigger, APP_TOUR_DONE_KEY } from "@/components/AppTour";
 
 const PROJECT_NAV = [
   { name: "Overview", href: (id: string) => `/projects/${id}/overview`, icon: LayoutDashboard },
@@ -42,6 +43,15 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
   const { theme, toggleTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [projectName, setProjectName] = useState<string>("");
+  const [tourVisible, setTourVisible] = useState(false);
+
+  // Auto-show tour on first visit to a project page (but not creative-hub pages, they have their own)
+  useEffect(() => {
+    const isCreativeHub = pathname.includes("/creative-hub");
+    if (!isCreativeHub && typeof window !== "undefined" && !localStorage.getItem(APP_TOUR_DONE_KEY)) {
+      setTourVisible(true);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -212,6 +222,17 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
 
       {/* Floating AI Assistant */}
       <AIAssistantWidget />
+
+      {/* Tour trigger — shown on non-creative-hub project pages */}
+      {!pathname.includes("/creative-hub") && (
+        <div style={{ position: "fixed", bottom: 28, right: 96, zIndex: 50 }}>
+          <AppTourTrigger onClick={() => { localStorage.removeItem(APP_TOUR_DONE_KEY); setTourVisible(true); }} />
+        </div>
+      )}
+
+      {tourVisible && !pathname.includes("/creative-hub") && (
+        <AppTour onDone={() => setTourVisible(false)} />
+      )}
     </div>
   );
 }

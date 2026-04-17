@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AppTour, { AppTourTrigger, APP_TOUR_DONE_KEY } from "@/components/AppTour";
 import { Bell, BellOff, Check, CheckCheck, Loader2, Settings, X } from "lucide-react";
 import { toast } from "react-toastify";
 import {
@@ -138,6 +139,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [showPrefs, setShowPrefs] = useState(false);
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [tourVisible, setTourVisible] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -185,7 +187,7 @@ export default function NotificationsPage() {
       </div>
 
       {/* Filter tabs */}
-      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--border)", marginBottom: 0 }}>
+      <div data-tour="notif-filter" style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--border)", marginBottom: 0 }}>
         {(["all", "unread"] as const).map((f) => (
           <button key={f} onClick={() => setFilter(f)}
             style={{ padding: "8px 18px", background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: filter === f ? 600 : 400,
@@ -215,6 +217,11 @@ export default function NotificationsPage() {
       </div>
 
       {showPrefs && <PreferencesPanel onClose={() => setShowPrefs(false)} />}
+
+      <div style={{ position: "fixed", bottom: 28, right: 96, zIndex: 50 }}>
+        <AppTourTrigger onClick={() => { localStorage.removeItem(APP_TOUR_DONE_KEY); setTourVisible(true); }} />
+      </div>
+      {tourVisible && <AppTour onDone={() => setTourVisible(false)} />}
     </div>
   );
 }

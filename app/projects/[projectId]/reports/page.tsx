@@ -553,6 +553,114 @@ function SectionBlock({ item, colorIdx }: { item: { key: string; value: any; kin
 }
 
 
+// ── GeneratePanel modal ───────────────────────────────────────────────────────
+function GeneratePanel({
+  systemReports, customReports, onGenerate, generating, isPolling, onClose,
+}: {
+  systemReports: AvailableReport[];
+  customReports: AvailableReport[];
+  onGenerate: (selected: string[]) => void;
+  generating: boolean;
+  isPolling: boolean;
+  onClose: () => void;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const all = [...systemReports, ...customReports];
+
+  const toggle = (name: string) =>
+    setSelected((s) => s.includes(name) ? s.filter((x) => x !== name) : [...s, name]);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.6)" }}>
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: 28, width: 480, maxWidth: "calc(100vw - 32px)", maxHeight: "80vh", overflow: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Generate Reports</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 20 }}>×</button>
+        </div>
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--text-muted)" }}>Select report types to generate for this project.</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+          {all.map((r) => (
+            <label key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 12px", borderRadius: 8, border: `1px solid ${selected.includes(r.name) ? "#34d399" : "var(--border)"}`, background: selected.includes(r.name) ? "#34d39912" : "var(--surface-raised)" }}>
+              <input type="checkbox" checked={selected.includes(r.name)} onChange={() => toggle(r.name)} style={{ accentColor: "#34d399" }} />
+              <span style={{ fontSize: 13 }}>{r.name}</span>
+            </label>
+          ))}
+          {all.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>No report types available.</p>}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button onClick={onClose} style={{ padding: "8px 18px", borderRadius: 8, border: "1px solid var(--border)", background: "none", cursor: "pointer", fontSize: 13 }}>Cancel</button>
+          <button
+            onClick={() => onGenerate(selected)}
+            disabled={generating || isPolling || selected.length === 0}
+            style={{ padding: "8px 18px", borderRadius: 8, background: "#34d399", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, opacity: (generating || isPolling || selected.length === 0) ? 0.6 : 1 }}
+          >
+            {generating || isPolling ? "Generating…" : `Generate ${selected.length > 0 ? `(${selected.length})` : ""}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── NewCustomModal ────────────────────────────────────────────────────────────
+function NewCustomModal({
+  projectId, systemReports, onClose, onCreated,
+}: {
+  projectId: string;
+  systemReports: AvailableReport[];
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleCreate = async () => {
+    if (!name.trim()) { toast.error("Report name is required."); return; }
+    setSaving(true);
+    try {
+      await createCustomReport({ project_id: projectId, name: name.trim(), prompt_template: prompt.trim() || undefined });
+      toast.success("Custom report created.");
+      onCreated();
+      onClose();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail ?? "Failed to create report.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.6)" }}>
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: 28, width: 440, maxWidth: "calc(100vw - 32px)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>New Custom Report</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 20 }}>×</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6, color: "var(--text-muted)" }}>Report Name *</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Crew Budget Summary"
+              style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-raised)", fontSize: 13, boxSizing: "border-box" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6, color: "var(--text-muted)" }}>Custom Prompt (optional)</label>
+            <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} placeholder="Describe what this report should contain…"
+              style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-raised)", fontSize: 13, resize: "vertical", boxSizing: "border-box" }} />
+          </div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button onClick={onClose} style={{ padding: "8px 18px", borderRadius: 8, border: "1px solid var(--border)", background: "none", cursor: "pointer", fontSize: 13 }}>Cancel</button>
+          <button onClick={handleCreate} disabled={saving}
+            style={{ padding: "8px 18px", borderRadius: 8, background: "#34d399", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, opacity: saving ? 0.6 : 1 }}>
+            {saving ? "Creating…" : "Create Report"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function ResearchDeckPage() {
   const params = useParams();

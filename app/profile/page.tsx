@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import AppTour, { AppTourTrigger, APP_TOUR_DONE_KEY } from "@/components/AppTour";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -51,6 +52,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [tourVisible, setTourVisible] = useState(false);
 
   // ── Load profile ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -227,7 +229,7 @@ export default function ProfilePage() {
           display: "flex", alignItems: "center", gap: 24,
         }}>
           {/* Avatar */}
-          <div style={{ position: "relative", flexShrink: 0 }}>
+          <div data-tour="profile-photo" style={{ position: "relative", flexShrink: 0 }}>
             <div style={{
               width: 88, height: 88, borderRadius: "50%",
               background: imagePreview ? "transparent" : "#10b98120",
@@ -398,6 +400,11 @@ export default function ProfilePage() {
           </button>
         </div>
       </div>
+
+      <div style={{ position: "fixed", bottom: 28, right: 96, zIndex: 50 }}>
+        <AppTourTrigger onClick={() => { localStorage.removeItem(APP_TOUR_DONE_KEY); setTourVisible(true); }} />
+      </div>
+      {tourVisible && <AppTour onDone={() => setTourVisible(false)} />}
     </div>
   );
 }
