@@ -129,6 +129,10 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
 
           {/* CREATIVE HUB section */}
           <div>
+            <div
+              className="mx-2 mb-3"
+              style={{ height: 1, background: "var(--border)" }}
+            />
             {!collapsed && (
               <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
                 Creative Hub
