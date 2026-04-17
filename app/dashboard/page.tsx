@@ -4,13 +4,12 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { getProjects } from "@/services/project";
 import { Project } from "@/types/project";
-import { logout } from "@/services/auth";
 import { getUnreadCount, getNotifications, Notification } from "@/services/notifications";
 import { getUnifiedCalendar, CalendarEvent, UnifiedCalendar } from "@/services/calendar";
 import { getConnections } from "@/services/network";
 import {
-  Loader2, LogOut, Moon, Plus, Sun, Video, Bell, BellDot,
-  Calendar, CheckSquare, Users, Briefcase, Inbox, Network,
+  Loader2, Moon, Plus, Sun, Video, Bell, BellDot,
+  Calendar, Users, Briefcase, Inbox, Network,
   ChevronRight, Clock, AlertCircle, TrendingUp, FolderOpen,
   Activity, Star,
 } from "lucide-react";
@@ -205,13 +204,6 @@ export default function DashboardPage() {
             background: "var(--surface-raised)", color: "var(--text-secondary)", cursor: "pointer",
           }}>
             {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
-          <button onClick={logout} style={{
-            display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8,
-            fontSize: 12, fontWeight: 500, color: "var(--text-secondary)",
-            background: "var(--surface-raised)", border: "1px solid var(--border)", cursor: "pointer",
-          }}>
-            <LogOut size={13} />Logout
           </button>
         </nav>
       </header>

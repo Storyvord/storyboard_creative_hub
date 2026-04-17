@@ -283,11 +283,17 @@ function FeatureSection() {
 export default function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem("accessToken");
+    setIsLoggedIn(!!token);
   }, []);
 
   return (
@@ -320,12 +326,20 @@ export default function LandingPage() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Link href="/login" style={{ fontSize: 13, color: "#94a3b8", textDecoration: "none", padding: "7px 14px", borderRadius: 8 }}>
-            Sign in
-          </Link>
-          <Link href="/login" style={{ fontSize: 13, fontWeight: 600, color: "#000", textDecoration: "none", padding: "7px 18px", borderRadius: 8, background: "#10b981" }}>
-            Get started free
-          </Link>
+          {isLoggedIn ? (
+            <Link href="/dashboard" style={{ fontSize: 13, fontWeight: 600, color: "#000", textDecoration: "none", padding: "7px 18px", borderRadius: 8, background: "#10b981", display: "flex", alignItems: "center", gap: 6 }}>
+              Go to Dashboard <ArrowRight size={13} />
+            </Link>
+          ) : (
+            <>
+              <Link href="/login" style={{ fontSize: 13, color: "#94a3b8", textDecoration: "none", padding: "7px 14px", borderRadius: 8 }}>
+                Sign in
+              </Link>
+              <Link href="/login" style={{ fontSize: 13, fontWeight: 600, color: "#000", textDecoration: "none", padding: "7px 18px", borderRadius: 8, background: "#10b981" }}>
+                Get started free
+              </Link>
+            </>
+          )}
           <button onClick={() => setMenuOpen(!menuOpen)} style={{ display: "none", background: "none", border: "none", color: "#e2e8f0", cursor: "pointer" }} className="mobile-btn">
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -366,9 +380,15 @@ export default function LandingPage() {
           </p>
 
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginBottom: 56 }}>
-            <Link href="/login" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 28px", borderRadius: 12, background: "#10b981", color: "#000", fontWeight: 700, fontSize: 15, textDecoration: "none" }}>
-              Start for free <ArrowRight size={16} />
-            </Link>
+            {isLoggedIn ? (
+              <Link href="/dashboard" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", borderRadius: 12, background: "#10b981", color: "#000", fontWeight: 700, fontSize: 15, textDecoration: "none" }}>
+                Go to Dashboard <ArrowRight size={16} />
+              </Link>
+            ) : (
+              <Link href="/login" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 28px", borderRadius: 12, background: "#10b981", color: "#000", fontWeight: 700, fontSize: 15, textDecoration: "none" }}>
+                Start for free <ArrowRight size={16} />
+              </Link>
+            )}
             <a href="#features" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 24px", borderRadius: 12, border: "1px solid rgba(255,255,255,.1)", color: "#e2e8f0", fontWeight: 600, fontSize: 15, textDecoration: "none" }}>
               <Play size={14} style={{ fill: "#e2e8f0" }} /> See it in action
             </a>
@@ -479,8 +499,8 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-          <Link href="/login" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", borderRadius: 12, background: "#10b981", color: "#000", fontWeight: 700, fontSize: 15, textDecoration: "none" }}>
-            Try it free <ArrowRight size={16} />
+          <Link href={isLoggedIn ? "/dashboard" : "/login"} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", borderRadius: 12, background: "#10b981", color: "#000", fontWeight: 700, fontSize: 15, textDecoration: "none" }}>
+            {isLoggedIn ? "Go to Dashboard" : "Try it free"} <ArrowRight size={16} />
           </Link>
         </div>
       </section>
@@ -576,10 +596,10 @@ export default function LandingPage() {
           <p style={{ color: "#475569", fontSize: 17, marginBottom: 36, lineHeight: 1.65 }}>
             Join thousands of filmmakers who use Storyvord to ship better productions, faster.
           </p>
-          <Link href="/login" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "16px 36px", borderRadius: 12, background: "#10b981", color: "#000", fontWeight: 700, fontSize: 16, textDecoration: "none" }}>
-            Start for free <ArrowRight size={16} />
+          <Link href={isLoggedIn ? "/dashboard" : "/login"} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "16px 36px", borderRadius: 12, background: "#10b981", color: "#000", fontWeight: 700, fontSize: 16, textDecoration: "none" }}>
+            {isLoggedIn ? "Go to Dashboard" : "Start for free"} <ArrowRight size={16} />
           </Link>
-          <p style={{ marginTop: 14, fontSize: 12, color: "#1e293b" }}>No credit card required · Free forever plan</p>
+          {!isLoggedIn && <p style={{ marginTop: 14, fontSize: 12, color: "#1e293b" }}>No credit card required · Free forever plan</p>}
         </div>
       </section>
 

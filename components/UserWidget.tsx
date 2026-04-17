@@ -1,7 +1,10 @@
 "use client";
 
 import { useRef, useState, useEffect } from 'react';
+import Link from 'next/link';
+import { LogOut, UserCircle } from 'lucide-react';
 import { useUserInfo } from '@/hooks/useUserInfo';
+import { logout } from '@/services/auth';
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -244,6 +247,40 @@ function CreditsPopover({
             />
           </div>
         </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{ borderTop: '1px solid var(--border)', padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Link
+          href="/profile"
+          onClick={onClose}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '7px 8px', borderRadius: 8, fontSize: 13,
+            color: 'var(--text-secondary)', textDecoration: 'none',
+            transition: 'background .15s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-raised)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+        >
+          <UserCircle size={14} style={{ flexShrink: 0 }} />
+          Edit Profile
+        </Link>
+        <button
+          onClick={() => { onClose(); logout(); }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '7px 8px', borderRadius: 8, fontSize: 13,
+            color: '#f87171', background: 'none', border: 'none',
+            cursor: 'pointer', width: '100%', textAlign: 'left',
+            transition: 'background .15s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(248,113,113,.08)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+        >
+          <LogOut size={14} style={{ flexShrink: 0 }} />
+          Log out
+        </button>
       </div>
     </div>
   );
