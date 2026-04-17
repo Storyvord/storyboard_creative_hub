@@ -4,8 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Camera, ChevronLeft, Loader2, Save, User, Mail, Briefcase,
-  MapPin, Globe, Phone, FileText, CheckCircle, AlertCircle,
+  Camera, ChevronLeft, Loader2, Save, User, Mail,
+  Globe, Phone, FileText,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import api from "@/services/api";
@@ -18,12 +18,24 @@ interface ProfileData {
   languages: string;
   job_title: string;
   bio: string;
-  image: string | null;  // base64 or URL
+  image: string | null;
+}
+
+interface ClientProfile {
+  role: string;
+  address: string;
+  personalWebsite: string;
+  drive: boolean;
+  active: boolean;
 }
 
 const EMPTY: ProfileData = {
   full_name: "", contact_number: "", location: "",
   languages: "", job_title: "", bio: "", image: null,
+};
+
+const EMPTY_CLIENT: ClientProfile = {
+  role: "", address: "", personalWebsite: "", drive: true, active: true,
 };
 
 export default function ProfilePage() {
@@ -32,6 +44,7 @@ export default function ProfilePage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<ProfileData>(EMPTY);
+  const [clientForm, setClientForm] = useState<ClientProfile>(EMPTY_CLIENT);
   const [email, setEmail] = useState("");
   const [tierName, setTierName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,6 +65,7 @@ export default function ProfilePage() {
           const data = profileRes.value.data?.data ?? profileRes.value.data;
           const pi = data?.personal_info ?? {};
           const user = data?.user ?? {};
+          const cp = data?.client_profile ?? {};
           setEmail(user.email ?? "");
           setForm({
             full_name: pi.full_name ?? "",
@@ -61,6 +75,13 @@ export default function ProfilePage() {
             job_title: pi.job_title ?? "",
             bio: pi.bio ?? "",
             image: pi.image ?? null,
+          });
+          setClientForm({
+            role: cp.role ?? "",
+            address: cp.address ?? "",
+            personalWebsite: cp.personalWebsite ?? "",
+            drive: cp.drive ?? true,
+            active: cp.active ?? true,
           });
           if (pi.image) setImagePreview(pi.image);
         }
@@ -96,20 +117,28 @@ export default function ProfilePage() {
     if (!form.full_name.trim()) { toast.error("Full name is required."); return; }
     setSaving(true);
     try {
-      const payload: { personal_info: Partial<ProfileData> } = {
-        personal_info: {
-          full_name: form.full_name,
-          contact_number: form.contact_number,
-          location: form.location,
-          languages: form.languages,
-          job_title: form.job_title,
-          bio: form.bio,
-        },
+      const personalInfo: Record<string, unknown> = {
+        full_name: form.full_name,
+        contact_number: form.contact_number,
+        location: form.location,
+        languages: form.languages,
+        job_title: form.job_title,
+        bio: form.bio,
       };
       // Only include image if it was changed (base64 data URL)
       if (imageFile && form.image?.startsWith("data:")) {
-        (payload.personal_info as any).image = form.image;
+        personalInfo.image = form.image;
       }
+      const payload = {
+        personal_info: personalInfo,
+        client_profile: {
+          role: clientForm.role,
+          address: clientForm.address,
+          personalWebsite: clientForm.personalWebsite,
+          drive: clientForm.drive,
+          active: clientForm.active,
+        },
+      };
       await api.put("/api/accounts/v2/saveprofile/", payload);
       toast.success("Profile updated!");
       // Update localStorage user cache if present
@@ -132,6 +161,9 @@ export default function ProfilePage() {
 
   const set = (k: keyof ProfileData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const setClient = (k: keyof ClientProfile) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setClientForm(f => ({ ...f, [k]: e.target.value }));
 
   const initials = form.full_name
     ? form.full_name.trim().split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)
@@ -297,6 +329,18 @@ export default function ProfilePage() {
             <div>
               <label style={labelStyle}>Languages</label>
               <input value={form.languages} onChange={set("languages")} placeholder="e.g. English, Hindi" style={inputStyle}
+                onFocus={e => { (e.target as HTMLElement).style.borderColor = "#10b981"; }}
+                onBlur={e => { (e.target as HTMLElement).style.borderColor = "var(--border)"; }} />
+            </div>
+            <div>
+              <label style={labelStyle}>Role / Department</label>
+              <input value={clientForm.role} onChange={setClient("role")} placeholder="e.g. Producer, Director" style={inputStyle}
+                onFocus={e => { (e.target as HTMLElement).style.borderColor = "#10b981"; }}
+                onBlur={e => { (e.target as HTMLElement).style.borderColor = "var(--border)"; }} />
+            </div>
+            <div>
+              <label style={labelStyle}>Website</label>
+              <input value={clientForm.personalWebsite} onChange={setClient("personalWebsite")} placeholder="yourwebsite.com" style={inputStyle}
                 onFocus={e => { (e.target as HTMLElement).style.borderColor = "#10b981"; }}
                 onBlur={e => { (e.target as HTMLElement).style.borderColor = "var(--border)"; }} />
             </div>
