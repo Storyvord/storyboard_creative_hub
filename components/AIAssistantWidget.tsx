@@ -151,7 +151,7 @@ export default function AIAssistantWidget() {
   const projectId = params?.projectId as string | undefined;
 
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<"sessions" | "chat">("sessions");
+  const [view, setView] = useState<"sessions" | "chat">("chat");
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [messages, setMessages] = useState<ExtendedMessage[]>([]);
   const [selected, setSelected] = useState<ChatSession | null>(null);
@@ -179,14 +179,12 @@ export default function AIAssistantWidget() {
     }
   }, [messages, isTyping, open, view]);
 
-  // ── Load sessions ─────────────────────────────────────────────────────────
+  // ── Load sessions (background, for history panel) ─────────────────────────
   useEffect(() => {
     if (!open) return;
-    setLoadingSessions(true);
     getChatSessions()
       .then(setSessions)
-      .catch(() => toast.error("Failed to load sessions."))
-      .finally(() => setLoadingSessions(false));
+      .catch(() => {});
   }, [open]);
 
   // ── WebSocket lifecycle ───────────────────────────────────────────────────
@@ -219,6 +217,12 @@ export default function AIAssistantWidget() {
           if (data.session_id && !sessionId) {
             setSelected((prev) => prev ?? { session_id: data.session_id, title: "New conversation", updated_at: new Date().toISOString() });
           }
+          return;
+        }
+
+        // ── Greeting (new session) ──
+        if (data.type === "greeting") {
+          setMessages((prev) => [...prev, { id: Date.now(), role: "assistant", content: data.content, timestamp: new Date().toISOString() }]);
           return;
         }
 
@@ -265,8 +269,9 @@ export default function AIAssistantWidget() {
             }
           }
 
-          if (data.session_id) {
-            setSessions((prev) => prev.map((s) => s.session_id === data.session_id ? { ...s, title: data.title || s.title, updated_at: new Date().toISOString() } : s));
+          if (data.session_id && data.title) {
+            setSessions((prev) => prev.map((s) => s.session_id === data.session_id ? { ...s, title: data.title, updated_at: new Date().toISOString() } : s));
+            setSelected((prev) => prev && prev.session_id === data.session_id ? { ...prev, title: data.title } : prev);
           }
           return;
         }
@@ -339,6 +344,8 @@ export default function AIAssistantWidget() {
 
   useEffect(() => {
     if (view === "chat" && open) {
+      // When opening a new chat (no selected session), reset messages so greeting appears fresh
+      if (!selected) setMessages([]);
       connectWs(selected?.session_id);
     } else {
       wsRef.current?.close(1000);
@@ -521,6 +528,24 @@ export default function AIAssistantWidget() {
             </div>
 
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              {view === "chat" && (
+                <>
+                  <button
+                    onClick={startNewChat}
+                    title="New chat"
+                    style={{ background: "none", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 8px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-secondary)" }}
+                  >
+                    <Plus size={12} /> New
+                  </button>
+                  <button
+                    onClick={goToSessions}
+                    title="Chat history"
+                    style={{ background: "none", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 8px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-secondary)" }}
+                  >
+                    <MessageSquare size={12} /> History
+                  </button>
+                </>
+              )}
               {view === "sessions" && (
                 <button onClick={startNewChat} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 8px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-secondary)" }}>
                   <Plus size={12} /> New
