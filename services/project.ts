@@ -192,7 +192,7 @@ export const getChatSessions = async (): Promise<ChatSession[]> => {
 export const getChatHistory = async (sessionId: string): Promise<ChatMessage[]> => {
   const response = await api.get(`/api/ai_chat/history/${sessionId}/`);
   if (Array.isArray(response.data)) return response.data;
-  if (response.data.results) return response.data.results;
+  if (Array.isArray(response.data?.results)) return response.data.results;
   return [];
 };
 

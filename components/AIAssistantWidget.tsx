@@ -269,10 +269,13 @@ export default function AIAssistantWidget() {
             }
           }
 
-          if (data.session_id && data.title) {
-            setSessions((prev) => prev.map((s) => s.session_id === data.session_id ? { ...s, title: data.title, updated_at: new Date().toISOString() } : s));
-            setSelected((prev) => prev && prev.session_id === data.session_id ? { ...prev, title: data.title } : prev);
-          }
+          return;
+        }
+
+        // ── Title update (fires after done, from background title generation) ──
+        if (data.type === "title_update" && data.title) {
+          setSessions((prev) => prev.map((s) => s.session_id === data.session_id ? { ...s, title: data.title, updated_at: new Date().toISOString() } : s));
+          setSelected((prev) => prev && prev.session_id === data.session_id ? { ...prev, title: data.title } : prev);
           return;
         }
 
