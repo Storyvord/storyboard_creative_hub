@@ -140,9 +140,18 @@ function TypingDots() {
 
 type WsStatus = "disconnected" | "connecting" | "connected" | "error";
 
+// Strip any leaked routing tokens from response content before rendering
+function stripInternalTokens(text: string): string {
+  return text.replace(/\bROUTE_?TO_?(?:PROJECT|REPORT|NAVIGATION)\b/gi, "").replace(/\bCANNOT_?ANSWER\b/gi, "").trim();
+}
+
 interface ExtendedMessage extends ChatMessage {
   streaming?: boolean;
   humanQuestion?: string;
+  /** "status" role = grayed-out thinking/tool bubble, not a real chat message */
+  role: "user" | "assistant" | "status";
+  statusIcon?: React.ReactNode;
+  done?: boolean; // status bubble resolved
 }
 
 export default function AIAssistantWidget() {
@@ -171,6 +180,7 @@ export default function AIAssistantWidget() {
   const inputRef = useRef<HTMLInputElement>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamingIdRef = useRef<number | null>(null);
+  const statusBubbleIdRef = useRef<number | null>(null);
 
   // ── Scroll to bottom ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -226,12 +236,21 @@ export default function AIAssistantWidget() {
           return;
         }
 
-        // ── Status update ──
+        // ── Status update → render as in-chat thinking bubble ──
         if (data.type === "status") {
           setAgentStatus(data.status as AgentStatus);
           setStatusDetail(data.detail);
           setIsTyping(true);
           setIsGenerating(true);
+          const detail = data.detail || STATUS_META[data.status as AgentStatus]?.label || "Working…";
+          if (statusBubbleIdRef.current === null) {
+            const id = Date.now();
+            statusBubbleIdRef.current = id;
+            setMessages((prev) => [...prev, { id, role: "status", content: detail, timestamp: new Date().toISOString() }]);
+          } else {
+            const sid = statusBubbleIdRef.current;
+            setMessages((prev) => prev.map((m) => m.id === sid ? { ...m, content: detail } : m));
+          }
           return;
         }
 
@@ -255,8 +274,13 @@ export default function AIAssistantWidget() {
         if (data.type === "done" || data.type === "response") {
           setIsTyping(false);
           setIsGenerating(false);
-          setAgentStatus("complete");
-          setTimeout(() => setAgentStatus(null), 1500);
+          setAgentStatus(null);
+          // Remove the status bubble
+          if (statusBubbleIdRef.current !== null) {
+            const sid = statusBubbleIdRef.current;
+            statusBubbleIdRef.current = null;
+            setMessages((prev) => prev.filter((m) => m.id !== sid));
+          }
 
           if (streamingIdRef.current !== null) {
             const sid = streamingIdRef.current;
@@ -285,6 +309,11 @@ export default function AIAssistantWidget() {
           setIsGenerating(false);
           setAgentStatus(null);
           streamingIdRef.current = null;
+          if (statusBubbleIdRef.current !== null) {
+            const sid = statusBubbleIdRef.current;
+            statusBubbleIdRef.current = null;
+            setMessages((prev) => prev.filter((m) => m.id !== sid));
+          }
           return;
         }
 
@@ -407,7 +436,7 @@ export default function AIAssistantWidget() {
     }
   }, []);
 
-  const startNewChat = () => { setSelected(null); setMessages([]); setView("chat"); };
+  const startNewChat = () => { setSelected(null); setMessages([]); statusBubbleIdRef.current = null; setView("chat"); };
 
   const goToSessions = () => {
     wsRef.current?.close(1000);
@@ -607,12 +636,6 @@ export default function AIAssistantWidget() {
           {/* Chat view */}
           {view === "chat" && (
             <>
-              {/* Status bar */}
-              {agentStatus && agentStatus !== "complete" && (
-                <div style={{ padding: "6px 14px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 6, background: "var(--surface-raised)", flexShrink: 0 }}>
-                  <StatusBadge status={agentStatus} detail={statusDetail} />
-                </div>
-              )}
 
               {/* Messages */}
               <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -628,7 +651,33 @@ export default function AIAssistantWidget() {
                   </div>
                 ) : (
                   <>
-                    {messages.map((msg) => (
+                    {messages.map((msg) => {
+                      // ── Status / thinking bubble ──
+                      if (msg.role === "status") {
+                        return (
+                          <div key={msg.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 0" }}>
+                            <div style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--surface-raised)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              <Brain size={10} color="var(--text-muted)" />
+                            </div>
+                            <div style={{
+                              display: "inline-flex", alignItems: "center", gap: 6,
+                              padding: "5px 12px", borderRadius: 99,
+                              background: "var(--surface-raised)", border: "1px solid var(--border)",
+                              color: "var(--text-muted)", fontSize: 11,
+                            }}>
+                              <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
+                                {[0,1,2].map((i) => (
+                                  <span key={i} style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--text-muted)", display: "inline-block", animation: `aiDot 1.2s ease-in-out ${i*0.2}s infinite` }} />
+                                ))}
+                              </span>
+                              {stripInternalTokens(msg.content)}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // ── Regular user / assistant message ──
+                      return (
                       <div key={msg.id} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 6 }}>
                         {msg.role === "assistant" && (
                           <div style={{ width: 24, height: 24, borderRadius: "50%", background: "linear-gradient(135deg,#22c55e,#16a34a)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginBottom: 2 }}>
@@ -645,7 +694,7 @@ export default function AIAssistantWidget() {
                         }}>
                           {msg.role === "user"
                             ? <p style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>{msg.content}</p>
-                            : <MarkdownMessage content={msg.content} streaming={msg.streaming} />
+                            : <MarkdownMessage content={stripInternalTokens(msg.content)} streaming={msg.streaming} />
                           }
                           {msg.timestamp && !msg.streaming && (
                             <p style={{ fontSize: 10, marginTop: 4, opacity: 0.55 }}>{relativeTime(msg.timestamp)}</p>
@@ -657,7 +706,8 @@ export default function AIAssistantWidget() {
                           </div>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                     {isTyping && !streamingIdRef.current && (
                       <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
                         <div style={{ width: 24, height: 24, borderRadius: "50%", background: "linear-gradient(135deg,#22c55e,#16a34a)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
