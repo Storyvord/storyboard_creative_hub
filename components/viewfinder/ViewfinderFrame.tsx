@@ -5,6 +5,8 @@ import dynamic from "next/dynamic";
 import { useViewfinder } from "@/context/ViewfinderContext";
 import { useKeyChord } from "@/hooks/useKeyChord";
 import CommandPalette from "./CommandPalette";
+import CompositionGuides from "./CompositionGuides";
+import ProductionHUD from "./ProductionHUD";
 import RouteTransition from "./RouteTransition";
 import SaveIndicator from "./SaveIndicator";
 import ViewfinderPill from "./ViewfinderPill";
@@ -21,13 +23,24 @@ const AIAssistantWidget = dynamic(() => import("@/components/AIAssistantWidget")
 // When Viewfinder mode is off, we still mount SaveIndicator + the toggle pill
 // but skip the vignette so the rest of the app looks unchanged.
 export default function ViewfinderFrame({ children }: { children: React.ReactNode }) {
-  const { mode, paletteOpen, setPaletteOpen } = useViewfinder();
+  const {
+    mode, paletteOpen, setPaletteOpen,
+    bumpTake, resetTake, toggleComposition,
+  } = useViewfinder();
   const active = mode === "on";
 
   useKeyChord(
     { key: "k", meta: true },
     (e) => { e.preventDefault(); setPaletteOpen(!paletteOpen); },
+    true,
+    false, // ⌘K must work even inside inputs (standard palette convention)
   );
+
+  // Filmmaker shortcuts — suppressed inside input / textarea so they never
+  // fight with normal typing.
+  useKeyChord({ key: "t", shift: true }, (e) => { e.preventDefault(); bumpTake(); }, active);
+  useKeyChord({ key: "r", shift: true }, (e) => { e.preventDefault(); resetTake(); }, active);
+  useKeyChord({ key: "g", shift: true }, (e) => { e.preventDefault(); toggleComposition(); }, active);
 
   return (
     <>
@@ -38,6 +51,8 @@ export default function ViewfinderFrame({ children }: { children: React.ReactNod
           <div className="vf-vignette" aria-hidden />
         </>
       )}
+      <CompositionGuides />
+      <ProductionHUD />
       <SaveIndicator />
       <CommandPalette />
       <ViewfinderPill />
