@@ -16,26 +16,22 @@ export const metadata: Metadata = {
 const themeScript = `
 (function() {
   try {
-    // Viewfinder is ON by default — must decide before theme so we can
-    // force dark when Viewfinder is active.
+    // Viewfinder mode default ON; only explicit 'off' disables.
     var vfMode = localStorage.getItem('vf-mode');
-    var vfActive = vfMode !== 'off'; // default-on; only explicit 'off' disables
+    var vfActive = vfMode !== 'off';
     if (vfActive) {
       document.documentElement.setAttribute('data-viewfinder', 'on');
     }
 
-    // Theme: Viewfinder is dark-only by design. If off, honor stored / prefers.
-    if (vfActive) {
-      document.documentElement.setAttribute('data-theme', 'dark');
+    // Theme respects the user's choice regardless of Viewfinder mode.
+    // Viewfinder has both dark and light palettes.
+    var stored = localStorage.getItem('ch-theme');
+    if (stored === 'light' || stored === 'dark') {
+      document.documentElement.setAttribute('data-theme', stored);
+    } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+      document.documentElement.setAttribute('data-theme', 'light');
     } else {
-      var stored = localStorage.getItem('ch-theme');
-      if (stored === 'light' || stored === 'dark') {
-        document.documentElement.setAttribute('data-theme', stored);
-      } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
-        document.documentElement.setAttribute('data-theme', 'light');
-      } else {
-        document.documentElement.setAttribute('data-theme', 'dark');
-      }
+      document.documentElement.setAttribute('data-theme', 'dark');
     }
 
     var vfGel = localStorage.getItem('vf-gel');

@@ -255,6 +255,63 @@ body {
   letter-spacing: -0.005em;
 }
 
+/* Viewfinder LIGHT — warm cream paper + ink. Reads like a bound script, not
+   a blank Figma canvas. Preserves the single-gel accent. */
+[data-viewfinder="on"][data-theme="light"] {
+  --vf-bg: #F5F1EA;
+  --vf-surface: #FBF7EF;
+  --vf-surface-raised: #FFFDF7;
+  --vf-surface-hover: #F0EADD;
+  --vf-border: #DED4C2;
+  --vf-border-hover: #C8BCA5;
+  --vf-text: #141210;
+  --vf-text-muted: #6B6558;
+  --vf-text-dim: #8F8879;
+  --vf-project-soft: rgba(212, 168, 98, 0.22);
+
+  --background: var(--vf-bg);
+  --surface: var(--vf-surface);
+  --surface-raised: var(--vf-surface-raised);
+  --surface-hover: var(--vf-surface-hover);
+  --border: var(--vf-border);
+  --border-hover: var(--vf-border-hover);
+  --text-primary: var(--vf-text);
+  --text-secondary: #3B382F;
+  --text-muted: var(--vf-text-muted);
+  --accent: var(--vf-project);
+  --accent-hover: var(--vf-project);
+  --accent-subtle: var(--vf-project-soft);
+  --accent-border: var(--vf-project-soft);
+  --accent-glow: var(--vf-project-soft);
+}
+
+/* Light-mode film grain — softer, luminance blend reads on paper */
+[data-viewfinder="on"][data-theme="light"] .vf-grain {
+  opacity: 0.045;
+  mix-blend-mode: multiply;
+}
+
+/* Light-mode vignette — subtle gold-tinted shadow at corners */
+[data-viewfinder="on"][data-theme="light"] .vf-vignette {
+  background: radial-gradient(
+    ellipse 110% 90% at 50% 48%,
+    transparent 40%,
+    rgba(110, 90, 50, 0.12) 82%,
+    rgba(80, 60, 30, 0.25) 100%
+  );
+}
+
+/* Shimmer + hover ink-on-paper feel */
+[data-viewfinder="on"][data-theme="light"] .skeleton {
+  background: linear-gradient(
+    90deg,
+    #EFE9DB 25%,
+    #E5DDCB 50%,
+    #EFE9DB 75%
+  );
+  background-size: 200% 100%;
+}
+
 /* Vignette — purely decorative, pointer-events none, sits above everything
    except viewfinder portals (which set their own z-index higher). */
 .vf-vignette {
