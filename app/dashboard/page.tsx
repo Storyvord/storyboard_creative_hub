@@ -71,7 +71,7 @@ const STATUS_COLOR: Record<string, string> = {
   COMPLETED: "#22c55e",       // green
   PAUSED: "#94a3b8",          // gray
   CANCELLED: "#f87171",       // red
-  RELEASED: "#34d399",        // emerald
+  RELEASED: "var(--accent)",        // emerald
 };
 
 // Statuses that represent projects "actively going on" — everything except
@@ -97,15 +97,19 @@ const PRIORITY_COLOR: Record<string, string> = {
 
 // ── sub-components ─────────────────────────────────────────────────────────────
 
+// Accepts either a hex color (legacy paths pass #34d399 etc.) or a CSS
+// variable. For hex, we append an alpha-suffix for the tint; for vars, we
+// fall back to --accent-subtle.
 function StatCard({ icon, label, value, sub, color = "#34d399", href }: {
   icon: React.ReactNode; label: string; value: string | number; sub?: string; color?: string; href?: string;
 }) {
+  const tint = color.startsWith("#") ? `${color}18` : "var(--accent-subtle)";
   const inner = (
     <div style={{
       background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 12,
       padding: "16px 18px", display: "flex", alignItems: "center", gap: 14, transition: "border-color .2s",
     }}>
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <div style={{ width: 40, height: 40, borderRadius: 10, background: tint, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <span style={{ color }}>{icon}</span>
       </div>
       <div style={{ minWidth: 0 }}>
@@ -128,7 +132,7 @@ function SectionHeader({ title, href, icon }: { title: string; href?: string; ic
         <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--text-muted)" }}>{title}</h2>
       </div>
       {href && (
-        <Link href={href} style={{ fontSize: 11, color: "#34d399", display: "flex", alignItems: "center", gap: 2, textDecoration: "none" }}>
+        <Link href={href} style={{ fontSize: 11, color: "var(--accent)", display: "flex", alignItems: "center", gap: 2, textDecoration: "none" }}>
           View all <ChevronRight size={12} />
         </Link>
       )}
@@ -203,7 +207,7 @@ export default function DashboardPage() {
         padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Video size={18} style={{ color: "#34d399" }} />
+          <Video size={18} style={{ color: "var(--accent)" }} />
           <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-.01em" }}>Storyvord</span>
         </div>
         <nav style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -225,11 +229,11 @@ export default function DashboardPage() {
             width: 34, height: 34, borderRadius: 8, border: "1px solid var(--border)",
             background: "var(--surface-raised)", color: "var(--text-secondary)", textDecoration: "none",
           }}>
-            {unreadCount > 0 ? <BellDot size={15} style={{ color: "#34d399" }} /> : <Bell size={15} />}
+            {unreadCount > 0 ? <BellDot size={15} style={{ color: "var(--accent)" }} /> : <Bell size={15} />}
             {unreadCount > 0 && (
               <span style={{
                 position: "absolute", top: 4, right: 4, width: 8, height: 8,
-                borderRadius: "50%", background: "#34d399", border: "2px solid var(--surface)",
+                borderRadius: "50%", background: "var(--accent)", border: "2px solid var(--surface)",
               }} />
             )}
           </Link>
@@ -297,7 +301,7 @@ export default function DashboardPage() {
 
           {/* ── Stat Row ── */}
           <div data-tour="dash-stats" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 28 }}>
-            <StatCard icon={<FolderOpen size={18} />} label="Total Projects" value={projects.length} sub={`${activeProjects.length} active`} color="#34d399" href="/dashboard" />
+            <StatCard icon={<FolderOpen size={18} />} label="Total Projects" value={projects.length} sub={`${activeProjects.length} active`} color="var(--accent)" href="/dashboard" />
             <StatCard icon={<Bell size={18} />} label="Notifications" value={unreadCount} sub="unread" color="#60a5fa" href="/notifications" />
             <StatCard icon={<Calendar size={18} />} label="Today's Events" value={todayEvents.length} sub={events.length > 0 ? `${events.length} upcoming` : "no events"} color="#a78bfa" />
             <StatCard icon={<Users size={18} />} label="Connections" value={connectionCount} sub="in network" color="#fb923c" href="/network" />
@@ -342,9 +346,9 @@ export default function DashboardPage() {
                       }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                           <div style={{
-                            width: 36, height: 36, borderRadius: 9, background: "#34d39918",
+                            width: 36, height: 36, borderRadius: 9, background: "var(--accent-subtle)",
                             display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 15, fontWeight: 700, color: "#34d399",
+                            fontSize: 15, fontWeight: 700, color: "var(--accent)",
                           }}>
                             {project.name.charAt(0).toUpperCase()}
                           </div>
@@ -371,10 +375,10 @@ export default function DashboardPage() {
                       background: "transparent", cursor: "pointer", gap: 6, minHeight: 100,
                       transition: "border-color .2s",
                     }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#34d39966"; }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--accent-border)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}
                   >
-                    <Plus size={20} style={{ color: "#34d399" }} />
+                    <Plus size={20} style={{ color: "var(--accent)" }} />
                     <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>New Project</span>
                   </button>
                 </div>
@@ -391,15 +395,15 @@ export default function DashboardPage() {
                       <div key={n.uuid} style={{
                         display: "flex", alignItems: "flex-start", gap: 10,
                         padding: "10px 12px", borderRadius: 10,
-                        background: n.is_read ? "transparent" : "rgba(52,211,153,.04)",
-                        border: `1px solid ${n.is_read ? "transparent" : "rgba(52,211,153,.12)"}`,
+                        background: n.is_read ? "transparent" : "var(--accent-subtle)",
+                        border: `1px solid ${n.is_read ? "transparent" : "var(--accent-border)"}`,
                       }}>
                         <div style={{
                           width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-                          background: n.is_system_generated ? "#60a5fa18" : "#34d39918",
+                          background: n.is_system_generated ? "#60a5fa18" : "var(--accent-subtle)",
                           display: "flex", alignItems: "center", justifyContent: "center",
                           fontSize: 12, fontWeight: 700,
-                          color: n.is_system_generated ? "#60a5fa" : "#34d399",
+                          color: n.is_system_generated ? "#60a5fa" : "var(--accent)",
                         }}>
                           {n.is_system_generated ? "S" : (n.sender_name?.[0] ?? "?").toUpperCase()}
                         </div>
@@ -411,7 +415,7 @@ export default function DashboardPage() {
                           <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.message}</p>
                         </div>
                         {!n.is_read && (
-                          <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#34d399", flexShrink: 0, marginTop: 4 }} />
+                          <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", flexShrink: 0, marginTop: 4 }} />
                         )}
                       </div>
                     ))}
@@ -434,14 +438,14 @@ export default function DashboardPage() {
                       <div key={ev.id} style={{
                         display: "flex", gap: 10, alignItems: "flex-start",
                         padding: "8px 10px", borderRadius: 9,
-                        background: isToday(ev.start) ? "rgba(52,211,153,.07)" : "var(--surface)",
-                        border: `1px solid ${isToday(ev.start) ? "rgba(52,211,153,.2)" : "var(--border)"}`,
+                        background: isToday(ev.start) ? "var(--accent-subtle)" : "var(--surface)",
+                        border: `1px solid ${isToday(ev.start) ? "var(--accent-border)" : "var(--border)"}`,
                       }}>
                         <div style={{
-                          minWidth: 38, textAlign: "center", background: isToday(ev.start) ? "#34d39920" : "var(--surface-raised)",
+                          minWidth: 38, textAlign: "center", background: isToday(ev.start) ? "var(--accent-subtle)" : "var(--surface-raised)",
                           borderRadius: 8, padding: "4px 2px",
                         }}>
-                          <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: isToday(ev.start) ? "#34d399" : "var(--text-primary)" }}>
+                          <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: isToday(ev.start) ? "var(--accent)" : "var(--text-primary)" }}>
                             {new Date(ev.start).getDate()}
                           </p>
                           <p style={{ margin: 0, fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase" }}>
@@ -451,7 +455,7 @@ export default function DashboardPage() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
                             {isToday(ev.start) && (
-                              <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 99, background: "#34d39918", color: "#34d399", fontWeight: 700 }}>TODAY</span>
+                              <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 99, background: "var(--accent-subtle)", color: "var(--accent)", fontWeight: 700 }}>TODAY</span>
                             )}
                           </div>
                           <p style={{ margin: 0, fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</p>
@@ -497,7 +501,7 @@ export default function DashboardPage() {
                     { href: "/notifications", label: "Notifications", icon: <Bell size={14} />, badge: unreadCount > 0 ? unreadCount : undefined, color: "#60a5fa" },
                     { href: "/inbox", label: "Inbox", icon: <Inbox size={14} />, color: "#a78bfa" },
                     { href: "/network", label: "My Network", icon: <Network size={14} />, color: "#fb923c" },
-                    { href: "/crew-search", label: "Crew Search", icon: <Users size={14} />, color: "#34d399" },
+                    { href: "/crew-search", label: "Crew Search", icon: <Users size={14} />, color: "var(--accent)" },
                   ].map(item => (
                     <Link key={item.href} href={item.href} style={{ textDecoration: "none" }}>
                       <div style={{
@@ -511,7 +515,7 @@ export default function DashboardPage() {
                         <span style={{ color: item.color }}>{item.icon}</span>
                         <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>{item.label}</span>
                         {item.badge !== undefined && (
-                          <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 99, background: "#34d39920", color: "#34d399", fontWeight: 700 }}>{item.badge}</span>
+                          <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 99, background: "var(--accent-subtle)", color: "var(--accent)", fontWeight: 700 }}>{item.badge}</span>
                         )}
                         <ChevronRight size={12} style={{ color: "var(--text-muted)" }} />
                       </div>
@@ -522,11 +526,11 @@ export default function DashboardPage() {
 
               {/* Unread notification snippets */}
               {unreadNotifs.length > 0 && (
-                <div style={{ background: "var(--surface-raised)", border: "1px solid rgba(52,211,153,.2)", borderRadius: 14, padding: "16px 18px" }}>
-                  <SectionHeader title={`${unreadNotifs.length} Unread`} href="/notifications" icon={<AlertCircle size={14} style={{ color: "#34d399" }} />} />
+                <div style={{ background: "var(--surface-raised)", border: "1px solid var(--accent-border)", borderRadius: 14, padding: "16px 18px" }}>
+                  <SectionHeader title={`${unreadNotifs.length} Unread`} href="/notifications" icon={<AlertCircle size={14} style={{ color: "var(--accent)" }} />} />
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {unreadNotifs.slice(0, 3).map(n => (
-                      <div key={n.uuid} style={{ fontSize: 12, padding: "6px 8px", borderRadius: 8, background: "rgba(52,211,153,.05)", borderLeft: "3px solid #34d399" }}>
+                      <div key={n.uuid} style={{ fontSize: 12, padding: "6px 8px", borderRadius: 8, background: "var(--accent-subtle)", borderLeft: "3px solid var(--accent)" }}>
                         <p style={{ margin: 0, fontWeight: 600 }}>{n.title}</p>
                         <p style={{ margin: "2px 0 0", fontSize: 10, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.message}</p>
                       </div>

@@ -477,7 +477,7 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
               return (
                 <div key={shot.id} className="flex items-center flex-shrink-0">
                   {showDropIndicator && (
-                    <div className="flex-shrink-0 w-1 self-stretch bg-emerald-400 rounded-full mx-0.5 shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
+                    <div className="flex-shrink-0 w-1 self-stretch bg-emerald-400 rounded-full mx-0.5 shadow-[0_0_6px_var(--accent)]" />
                   )}
                   <ShotCard
                     shot={shot} onClick={() => onShotClick(shot)}

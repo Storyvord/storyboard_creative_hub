@@ -10,6 +10,7 @@ import {
 import { toast } from "react-toastify";
 import { getChatSessions, getChatHistory, deleteChatSession } from "@/services/project";
 import { ChatSession, ChatMessage } from "@/types/project";
+import SprocketLoader from "@/components/viewfinder/SprocketLoader";
 
 const WS_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000")
   .replace(/^http/, "ws");
@@ -109,7 +110,7 @@ const STATUS_META: Record<NonNullable<AgentStatus>, { icon: React.ReactNode; lab
   agent_working:{ icon: <Bot size={10} />,          label: "Working…",         color: "#6366f1" },
   tool_call:    { icon: <Wrench size={10} />,       label: "Using tool…",      color: "#0ea5e9" },
   thinking:     { icon: <Brain size={10} />,        label: "Thinking…",        color: "#8b5cf6" },
-  complete:     { icon: <CheckCircle2 size={10} />, label: "Done",             color: "#22c55e" },
+  complete:     { icon: <CheckCircle2 size={10} />, label: "Done",             color: "var(--accent)" },
 };
 
 function StatusBadge({ status, detail }: { status: AgentStatus; detail?: string }) {
@@ -294,6 +295,7 @@ export default function AIAssistantWidget() {
           setIsTyping(false);
           setIsGenerating(false);
           setAgentStatus(null);
+          window.dispatchEvent(new CustomEvent("viewfinder:record", { detail: { label: "reply" } }));
           // Remove the status bubble
           if (statusBubbleIdRef.current !== null) {
             const sid = statusBubbleIdRef.current;
@@ -485,7 +487,7 @@ export default function AIAssistantWidget() {
   };
 
   const statusDot = {
-    connected:    { color: "#22c55e", label: "Connected" },
+    connected:    { color: "var(--accent)", label: "Connected" },
     connecting:   { color: "#f97316", label: "Connecting…" },
     disconnected: { color: "var(--text-muted)", label: "Disconnected" },
     error:        { color: "#ef4444", label: "Connection error" },
@@ -509,7 +511,7 @@ export default function AIAssistantWidget() {
           content: '▋';
           animation: aiCursor 0.8s step-end infinite;
           font-size: 0.75em;
-          color: #22c55e;
+          color: var(--accent);
           margin-left: 1px;
         }
       `}</style>
@@ -521,9 +523,9 @@ export default function AIAssistantWidget() {
         style={{
           position: "fixed", bottom: 28, right: 28, width: 56, height: 56,
           borderRadius: "50%",
-          background: open ? "var(--surface-raised)" : "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)",
+          background: open ? "var(--surface-raised)" : "linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)",
           border: open ? "1px solid var(--border)" : "none",
-          boxShadow: open ? "0 4px 20px rgba(0,0,0,0.2)" : "0 8px 32px rgba(34,197,94,0.45)",
+          boxShadow: open ? "0 4px 20px rgba(0,0,0,0.2)" : "0 8px 32px var(--accent)",
           cursor: "pointer", display: "flex", flexDirection: "column",
           alignItems: "center", justifyContent: "center", gap: 1,
           zIndex: 9000, transition: "all 0.25s cubic-bezier(0.34,1.56,0.64,1)",
@@ -550,7 +552,7 @@ export default function AIAssistantWidget() {
             padding: "12px 16px", borderBottom: "1px solid var(--border)",
             display: "flex", alignItems: "center", justifyContent: "space-between",
             flexShrink: 0,
-            background: "linear-gradient(135deg, rgba(34,197,94,0.07) 0%, rgba(99,102,241,0.04) 100%)",
+            background: "linear-gradient(135deg, var(--accent-subtle) 0%, rgba(99,102,241,0.04) 100%)",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {view === "chat" && (
@@ -558,7 +560,7 @@ export default function AIAssistantWidget() {
                   <ChevronLeft size={16} />
                 </button>
               )}
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, #22c55e, #16a34a)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, var(--accent), var(--accent-hover))", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Sparkles size={13} color="#fff" />
               </div>
               <div>
@@ -618,7 +620,7 @@ export default function AIAssistantWidget() {
             <div style={{ flex: 1, overflowY: "auto", padding: 8 }}>
               {loadingSessions ? (
                 <div style={{ display: "flex", justifyContent: "center", paddingTop: 40 }}>
-                  <Loader2 size={20} className="animate-spin" style={{ color: "var(--text-muted)" }} />
+                  <SprocketLoader size={24} color="var(--text-muted)" label="loading" />
                 </div>
               ) : sessions.length === 0 ? (
                 <div style={{ textAlign: "center", paddingTop: 60, color: "var(--text-muted)" }}>
@@ -632,8 +634,8 @@ export default function AIAssistantWidget() {
                     style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius: 10, cursor: "pointer", transition: "background 0.15s", marginBottom: 2 }}
                     className="group hover:bg-[var(--surface-raised)]"
                   >
-                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(34,197,94,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <MessageSquare size={14} color="#22c55e" />
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--accent-subtle)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <MessageSquare size={14} color="var(--accent)" />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -660,11 +662,11 @@ export default function AIAssistantWidget() {
               <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
                 {loadingMessages ? (
                   <div style={{ display: "flex", justifyContent: "center", paddingTop: 40 }}>
-                    <Loader2 size={20} className="animate-spin" style={{ color: "var(--text-muted)" }} />
+                    <SprocketLoader size={24} color="var(--text-muted)" label="loading" />
                   </div>
                 ) : messages.length === 0 && !isTyping ? (
                   <div style={{ textAlign: "center", paddingTop: 40, color: "var(--text-muted)" }}>
-                    <Sparkles size={32} style={{ margin: "0 auto 12px", opacity: 0.3, color: "#22c55e" }} />
+                    <Sparkles size={32} style={{ margin: "0 auto 12px", opacity: 0.3, color: "var(--accent)" }} />
                     <p style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 500 }}>Ask me anything about your project</p>
                     <p style={{ fontSize: 11, marginTop: 6, lineHeight: 1.6 }}>Manage tasks, crew, calendar, scripts and more.</p>
                   </div>
@@ -699,7 +701,7 @@ export default function AIAssistantWidget() {
                       return (
                       <div key={msg.id} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 6 }}>
                         {msg.role === "assistant" && (
-                          <div style={{ width: 24, height: 24, borderRadius: "50%", background: "linear-gradient(135deg,#22c55e,#16a34a)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginBottom: 2 }}>
+                          <div style={{ width: 24, height: 24, borderRadius: "50%", background: "linear-gradient(135deg,var(--accent),var(--accent-hover))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginBottom: 2 }}>
                             <Sparkles size={10} color="#fff" />
                           </div>
                         )}
@@ -707,7 +709,7 @@ export default function AIAssistantWidget() {
                           maxWidth: "78%", padding: "9px 13px",
                           borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
                           fontSize: 13, lineHeight: 1.55,
-                          background: msg.role === "user" ? "linear-gradient(135deg,#22c55e,#16a34a)" : "var(--surface-raised)",
+                          background: msg.role === "user" ? "linear-gradient(135deg,var(--accent),var(--accent-hover))" : "var(--surface-raised)",
                           color: msg.role === "user" ? "#fff" : "var(--text-primary)",
                           border: msg.role === "user" ? "none" : "1px solid var(--border)",
                         }}>
@@ -729,7 +731,7 @@ export default function AIAssistantWidget() {
                     })}
                     {isTyping && !streamingIdRef.current && (
                       <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
-                        <div style={{ width: 24, height: 24, borderRadius: "50%", background: "linear-gradient(135deg,#22c55e,#16a34a)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <div style={{ width: 24, height: 24, borderRadius: "50%", background: "linear-gradient(135deg,var(--accent),var(--accent-hover))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                           <Sparkles size={10} color="#fff" />
                         </div>
                         <div style={{ padding: "8px 13px", borderRadius: "14px 14px 14px 4px", background: "var(--surface-raised)", border: "1px solid var(--border)" }}>
@@ -802,13 +804,13 @@ export default function AIAssistantWidget() {
                         onClick={sendMessage}
                         disabled={wsStatus !== "connected" || !input.trim()}
                         style={{
-                          background: wsStatus === "connected" && input.trim() ? "linear-gradient(135deg,#22c55e,#16a34a)" : "rgba(34,197,94,0.15)",
+                          background: wsStatus === "connected" && input.trim() ? "linear-gradient(135deg,var(--accent),var(--accent-hover))" : "var(--accent-subtle)",
                           border: "none", borderRadius: 8, padding: "6px 8px",
                           cursor: wsStatus === "connected" && input.trim() ? "pointer" : "not-allowed",
                           display: "flex", transition: "background 0.2s",
                         }}
                       >
-                        <Send size={13} color={wsStatus === "connected" && input.trim() ? "#fff" : "#22c55e"} />
+                        <Send size={13} color={wsStatus === "connected" && input.trim() ? "#fff" : "var(--accent)"} />
                       </button>
                     )}
                   </div>

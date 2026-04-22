@@ -580,8 +580,8 @@ function GeneratePanel({
         <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--text-muted)" }}>Select report types to generate for this project.</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
           {all.map((r) => (
-            <label key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 12px", borderRadius: 8, border: `1px solid ${selected.includes(r.name) ? "#34d399" : "var(--border)"}`, background: selected.includes(r.name) ? "#34d39912" : "var(--surface-raised)" }}>
-              <input type="checkbox" checked={selected.includes(r.name)} onChange={() => toggle(r.name)} style={{ accentColor: "#34d399" }} />
+            <label key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 12px", borderRadius: 8, border: `1px solid ${selected.includes(r.name) ? "var(--accent)" : "var(--border)"}`, background: selected.includes(r.name) ? "var(--accent-subtle)" : "var(--surface-raised)" }}>
+              <input type="checkbox" checked={selected.includes(r.name)} onChange={() => toggle(r.name)} style={{ accentColor: "var(--accent)" }} />
               <span style={{ fontSize: 13 }}>{r.name}</span>
             </label>
           ))}
@@ -592,7 +592,7 @@ function GeneratePanel({
           <button
             onClick={() => onGenerate(selected)}
             disabled={generating || isPolling || selected.length === 0}
-            style={{ padding: "8px 18px", borderRadius: 8, background: "#34d399", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, opacity: (generating || isPolling || selected.length === 0) ? 0.6 : 1 }}
+            style={{ padding: "8px 18px", borderRadius: 8, background: "var(--accent)", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, opacity: (generating || isPolling || selected.length === 0) ? 0.6 : 1 }}
           >
             {generating || isPolling ? "Generating…" : `Generate ${selected.length > 0 ? `(${selected.length})` : ""}`}
           </button>
@@ -652,7 +652,7 @@ function NewCustomModal({
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
           <button onClick={onClose} style={{ padding: "8px 18px", borderRadius: 8, border: "1px solid var(--border)", background: "none", cursor: "pointer", fontSize: 13 }}>Cancel</button>
           <button onClick={handleCreate} disabled={saving}
-            style={{ padding: "8px 18px", borderRadius: 8, background: "#34d399", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, opacity: saving ? 0.6 : 1 }}>
+            style={{ padding: "8px 18px", borderRadius: 8, background: "var(--accent)", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, opacity: saving ? 0.6 : 1 }}>
             {saving ? "Creating…" : "Create Report"}
           </button>
         </div>

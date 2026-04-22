@@ -432,7 +432,7 @@ export default function PlatformTour({ projectId, onDone }: Props) {
           />
           {/* Glowing ring */}
           <div
-            className="fixed z-[9999] rounded-lg border-2 border-emerald-400/70 shadow-[0_0_24px_rgba(52,211,153,0.35)] pointer-events-none transition-all duration-300"
+            className="fixed z-[9999] rounded-lg border-2 border-emerald-400/70 shadow-[0_0_24px_var(--accent-border)] pointer-events-none transition-all duration-300"
             style={{
               top: spotlightRect.top,
               left: spotlightRect.left,

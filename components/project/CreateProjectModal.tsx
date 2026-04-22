@@ -70,6 +70,7 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
         status,
       });
       toast.success("Project created!");
+      window.dispatchEvent(new CustomEvent("viewfinder:record", { detail: { label: "project created" } }));
       onCreated?.();
       onClose();
       router.push(`/projects/${project.project_id}/overview`);

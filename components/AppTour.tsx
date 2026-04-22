@@ -438,7 +438,7 @@ export default function AppTour({ onDone }: Props) {
           <div className="fixed inset-x-0 bottom-0 bg-black/75 z-[9998] pointer-events-none" style={{ top: spotlightRect.top + spotlightRect.height }} />
           <div className="fixed bg-black/75 z-[9998] pointer-events-none" style={{ top: spotlightRect.top, left: 0, width: spotlightRect.left, height: spotlightRect.height }} />
           <div className="fixed bg-black/75 z-[9998] pointer-events-none" style={{ top: spotlightRect.top, left: spotlightRect.left + spotlightRect.width, right: 0, height: spotlightRect.height }} />
-          <div className="fixed z-[9999] rounded-lg border-2 border-emerald-400/70 shadow-[0_0_24px_rgba(52,211,153,0.35)] pointer-events-none transition-all duration-300" style={{ top: spotlightRect.top, left: spotlightRect.left, width: spotlightRect.width, height: spotlightRect.height }} />
+          <div className="fixed z-[9999] rounded-lg border-2 border-emerald-400/70 shadow-[0_0_24px_var(--accent-border)] pointer-events-none transition-all duration-300" style={{ top: spotlightRect.top, left: spotlightRect.left, width: spotlightRect.width, height: spotlightRect.height }} />
         </>
       ) : (
         <div className="fixed inset-0 bg-black/75 z-[9998] pointer-events-none" />

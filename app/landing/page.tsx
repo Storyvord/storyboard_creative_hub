@@ -105,7 +105,7 @@ const SHOWCASE_TABS = [
   { label: "Characters",    src: "/screenshots/anna-detail.png",  badge: "Cast & Looks",  color: "#a78bfa", overlay: "/screenshots/anna-sc03.png" },
   { label: "Fitting Room",  src: "/screenshots/anna-sc03.png",    badge: "Scene Costume", color: "#f472b6" },
   { label: "Locations",     src: "/screenshots/locations.png",    badge: "Scouting",      color: "#fb923c" },
-  { label: "Research Deck", src: "/screenshots/reports.png",      badge: "AI Reports",    color: "#34d399" },
+  { label: "Research Deck", src: "/screenshots/reports.png",      badge: "AI Reports",    color: "var(--accent)" },
   { label: "Tasks",         src: "/screenshots/tasks.png",        badge: "Kanban",        color: "#ec4899" },
 ];
 
