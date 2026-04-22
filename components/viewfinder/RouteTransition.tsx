@@ -23,7 +23,12 @@ export default function RouteTransition({ children }: { children: React.ReactNod
   }, [pathname]);
 
   const active = mode === "on" && !reduced;
-  const rack = active && (paletteOpen || assistantOpen);
+  // Rack-focus only for the palette. The AI assistant is a floating widget
+  // that coexists with page content — blurring the page behind it made users
+  // feel like the app was hung, and kept the blur stuck when the widget was
+  // closed internally.
+  void assistantOpen;
+  const rack = active && paletteOpen;
 
   return (
     <div

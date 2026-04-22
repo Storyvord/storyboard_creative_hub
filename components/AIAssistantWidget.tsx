@@ -192,13 +192,19 @@ export default function AIAssistantWidget() {
 
   // ── Viewfinder bridge ─────────────────────────────────────────────────────
   // Opens the widget when the palette / AC pill fires viewfinder:open-assistant.
-  // If a `seed` is provided, pre-fills the input so the user can just hit ↵.
+  // If a `seed` is provided, pre-fills the input; focus lands in the input so
+  // the user can type immediately.
   useEffect(() => {
     const onOpen = (e: Event) => {
       const seed = (e as CustomEvent<{ seed?: string }>).detail?.seed;
       setOpen(true);
       setView("chat");
-      if (seed) setInput(seed);
+      if (seed !== undefined) setInput(seed);
+      // Input ref is populated after the widget's panel renders. One rAF is
+      // enough to land focus on the correct element.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => inputRef.current?.focus());
+      });
     };
     const onClose = () => setOpen(false);
     window.addEventListener("viewfinder:open-assistant", onOpen);
@@ -208,6 +214,29 @@ export default function AIAssistantWidget() {
       window.removeEventListener("viewfinder:close-assistant", onClose);
     };
   }, []);
+
+  // ── ESC closes the widget while open ──────────────────────────────────────
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Don't steal ESC from the palette (it runs its own handler at a higher
+      // z-index); only react if no other overlay is the immediate target.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.("[role='dialog']")) return;
+      setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  // Notify Viewfinder context whenever the widget's open state changes so the
+  // "AC" pill / palette / rack-focus stay in sync with reality.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(
+      open ? "viewfinder:assistant-opened" : "viewfinder:assistant-closed"
+    ));
+  }, [open]);
 
   // ── Load sessions (background, for history panel) ─────────────────────────
   useEffect(() => {
