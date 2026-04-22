@@ -11,6 +11,7 @@ import {
 import { toast } from "react-toastify";
 import api from "@/services/api";
 import { useTheme } from "@/context/ThemeContext";
+import RequireAuth from "@/components/RequireAuth";
 
 interface ProfileData {
   full_name: string;
@@ -117,6 +118,7 @@ export default function ProfilePage() {
   // ── Save ────────────────────────────────────────────────────────────────────
   const save = async () => {
     if (!form.full_name.trim()) { toast.error("Full name is required."); return; }
+    if (form.bio.length > 500) { toast.error("Bio must be 500 characters or fewer."); return; }
     setSaving(true);
     try {
       const personalInfo: Record<string, unknown> = {
@@ -192,6 +194,7 @@ export default function ProfilePage() {
   };
 
   return (
+    <RequireAuth>
     <div style={{ minHeight: "100vh", background: "var(--background)", color: "var(--text-primary)" }}>
       {/* Header */}
       <div style={{
@@ -318,7 +321,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <label style={labelStyle}>Phone</label>
-              <input value={form.contact_number} onChange={set("contact_number")} placeholder="+1 234 567 8900" style={inputStyle}
+              <input type="tel" value={form.contact_number} onChange={set("contact_number")} placeholder="+1 234 567 8900" style={inputStyle}
                 onFocus={e => { (e.target as HTMLElement).style.borderColor = "#10b981"; }}
                 onBlur={e => { (e.target as HTMLElement).style.borderColor = "var(--border)"; }} />
             </div>
@@ -342,7 +345,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <label style={labelStyle}>Website</label>
-              <input value={clientForm.personalWebsite} onChange={setClient("personalWebsite")} placeholder="yourwebsite.com" style={inputStyle}
+              <input type="url" value={clientForm.personalWebsite} onChange={setClient("personalWebsite")} placeholder="yourwebsite.com" style={inputStyle}
                 onFocus={e => { (e.target as HTMLElement).style.borderColor = "#10b981"; }}
                 onBlur={e => { (e.target as HTMLElement).style.borderColor = "var(--border)"; }} />
             </div>
@@ -357,12 +360,13 @@ export default function ProfilePage() {
             value={form.bio}
             onChange={set("bio")}
             rows={4}
+            maxLength={500}
             placeholder="Write a short bio about yourself — your background, specialties, and what drives your work."
             style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
             onFocus={e => { (e.target as HTMLElement).style.borderColor = "#10b981"; }}
             onBlur={e => { (e.target as HTMLElement).style.borderColor = "var(--border)"; }}
           />
-          <p style={{ margin: "6px 0 0", fontSize: 11, color: "var(--text-muted)" }}>{form.bio.length} / 500 characters</p>
+          <p style={{ margin: "6px 0 0", fontSize: 11, color: form.bio.length > 450 ? "#f87171" : "var(--text-muted)" }}>{form.bio.length} / 500 characters</p>
         </div>
 
         {/* Account info read-only */}
@@ -380,7 +384,7 @@ export default function ProfilePage() {
               </span>
             </div>
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12, display: "flex", gap: 12 }}>
-              <Link href="/login?mode=change-password" style={{ fontSize: 12, color: "#10b981", textDecoration: "none" }}>
+              <Link href="/reset-password" style={{ fontSize: 12, color: "#10b981", textDecoration: "none" }}>
                 Change password
               </Link>
             </div>
@@ -404,7 +408,8 @@ export default function ProfilePage() {
       <div style={{ position: "fixed", bottom: 28, right: 96, zIndex: 50 }}>
         <AppTourTrigger onClick={() => { localStorage.removeItem(APP_TOUR_DONE_KEY); setTourVisible(true); }} />
       </div>
-      {tourVisible && <AppTour onDone={() => setTourVisible(false)} />}
+      {tourVisible && <AppTour onDone={() => { setTourVisible(false); localStorage.setItem(APP_TOUR_DONE_KEY, "1"); }} />}
     </div>
+    </RequireAuth>
   );
 }

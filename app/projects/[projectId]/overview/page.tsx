@@ -7,6 +7,7 @@ import { Loader2, Pencil, Trash2, Users, Calendar } from "lucide-react";
 import { toast } from "react-toastify";
 import { getProject, deleteProject, getProjectCrew } from "@/services/project";
 import { useProjectPermissions } from "@/hooks/useProjectPermissions";
+import { useUserInfo } from "@/hooks/useUserInfo";
 import { Project, ProjectMember } from "@/types/project";
 import StatusBadge from "@/components/project/StatusBadge";
 import MemberAvatar from "@/components/project/MemberAvatar";
@@ -24,7 +25,15 @@ export default function OverviewPage() {
   const [deleting, setDeleting] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
-  const { canDo } = useProjectPermissions(projectId);
+  const { canDo, loading: permissionsLoading } = useProjectPermissions(projectId);
+  const { profile, loading: profileLoading } = useUserInfo();
+
+  const canEdit = !permissionsLoading && canDo("project:update");
+  const isOwner =
+    !profileLoading &&
+    !!project?.owner_details?.id &&
+    !!profile?.id &&
+    String(project.owner_details.id) === String(profile.id);
 
   useEffect(() => {
     Promise.all([
@@ -111,20 +120,24 @@ export default function OverviewPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setEditOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors hover:border-emerald-500/50"
-            style={{ borderColor: "var(--border)", background: "var(--surface-raised)", color: "var(--text-secondary)" }}
-          >
-            <Pencil size={13} /> Edit
-          </button>
-          <button
-            onClick={() => setDeleteConfirm(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors hover:border-red-500/50 hover:text-red-400"
-            style={{ borderColor: "var(--border)", background: "var(--surface-raised)", color: "var(--text-secondary)" }}
-          >
-            <Trash2 size={13} /> Delete
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => setEditOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors hover:border-emerald-500/50"
+              style={{ borderColor: "var(--border)", background: "var(--surface-raised)", color: "var(--text-secondary)" }}
+            >
+              <Pencil size={13} /> Edit
+            </button>
+          )}
+          {isOwner && (
+            <button
+              onClick={() => setDeleteConfirm(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors hover:border-red-500/50 hover:text-red-400"
+              style={{ borderColor: "var(--border)", background: "var(--surface-raised)", color: "var(--text-secondary)" }}
+            >
+              <Trash2 size={13} /> Delete
+            </button>
+          )}
         </div>
       </div>
 
@@ -147,16 +160,16 @@ export default function OverviewPage() {
         )}
 
         {/* Details row */}
-        <div className="grid grid-cols-2 gap-4">
-          {formattedDate && (
+        {formattedDate && (
+          <div className="grid grid-cols-2 gap-4">
             <div className="p-4 rounded-lg border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
               <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>Created</h2>
               <p className="text-sm flex items-center gap-1.5" style={{ color: "var(--text-primary)" }}>
                 <Calendar size={13} /> {formattedDate}
               </p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Team preview */}
         <div data-tour="overview-crew" className="p-4 rounded-lg border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>

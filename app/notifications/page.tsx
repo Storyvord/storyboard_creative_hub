@@ -8,6 +8,7 @@ import {
   getNotifications, getPreference, updatePreference, markRead, markAllRead,
   Notification, NotificationPreference,
 } from "@/services/notifications";
+import RequireAuth from "@/components/RequireAuth";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -38,7 +39,7 @@ function NotifCard({ n, onRead }: { n: Notification; onRead: (uuid: string) => v
       onMouseLeave={(e) => { if (!n.is_read) e.currentTarget.style.background = "var(--surface)"; else e.currentTarget.style.background = "transparent"; }}
     >
       {/* Icon */}
-      <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+      <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--surface-raised)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
         {CATEGORY_ICON[n.category] ?? "🔔"}
       </div>
 
@@ -56,7 +57,7 @@ function NotifCard({ n, onRead }: { n: Notification; onRead: (uuid: string) => v
         </div>
         <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)", wordBreak: "break-word" }}>{n.message}</p>
         <p style={{ margin: "6px 0 0", fontSize: 11, color: "var(--text-muted)" }}>
-          {n.sender_name} · {n.time_since} ago
+          {n.sender_name} · {n.time_since}
         </p>
       </div>
     </div>
@@ -91,6 +92,7 @@ function PreferencesPanel({ onClose }: { onClose: () => void }) {
 
   const TOGGLES: { key: keyof NotificationPreference; label: string }[] = [
     { key: "websocket_enabled", label: "Real-time (WebSocket)" },
+    { key: "webhook_enabled", label: "Webhook notifications" },
     { key: "task_notifications", label: "Task notifications" },
     { key: "project_notifications", label: "Project notifications" },
     { key: "calendar_notifications", label: "Calendar notifications" },
@@ -137,14 +139,35 @@ function PreferencesPanel({ onClose }: { onClose: () => void }) {
 export default function NotificationsPage() {
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextUrl, setNextUrl] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
   const [showPrefs, setShowPrefs] = useState(false);
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [tourVisible, setTourVisible] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    getNotifications().then(setNotifs).catch(() => toast.error("Couldn't load notifications. Please refresh.")).finally(() => setLoading(false));
+    getNotifications()
+      .then((res) => { setNotifs(res.results); setNextUrl(res.next); setPage(1); })
+      .catch(() => toast.error("Couldn't load notifications. Please refresh."))
+      .finally(() => setLoading(false));
   }, []);
+
+  const loadMore = async () => {
+    if (!nextUrl || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await getNotifications({ page: page + 1 });
+      setNotifs((prev) => [...prev, ...res.results]);
+      setNextUrl(res.next);
+      setPage((p) => p + 1);
+    } catch {
+      toast.error("Couldn't load more notifications.");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const handleRead = async (uuid: string) => {
     await markRead(uuid).catch(() => {});
@@ -160,6 +183,7 @@ export default function NotificationsPage() {
   const unreadCount = notifs.filter((n) => !n.is_read).length;
 
   return (
+    <RequireAuth>
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
@@ -228,6 +252,18 @@ export default function NotificationsPage() {
             {displayed.map((n) => <NotifCard key={n.uuid} n={n} onRead={handleRead} />)}
           </div>
         )}
+        {!loading && nextUrl && filter === "all" && (
+          <div style={{ padding: "12px 18px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "center" }}>
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-primary)", cursor: loadingMore ? "not-allowed" : "pointer", fontSize: 13 }}
+            >
+              {loadingMore ? <Loader2 size={14} className="animate-spin" /> : null}
+              {loadingMore ? "Loading…" : "Load more"}
+            </button>
+          </div>
+        )}
       </div>
 
       {showPrefs && <PreferencesPanel onClose={() => setShowPrefs(false)} />}
@@ -235,7 +271,8 @@ export default function NotificationsPage() {
       <div style={{ position: "fixed", bottom: 28, right: 96, zIndex: 50 }}>
         <AppTourTrigger onClick={() => { localStorage.removeItem(APP_TOUR_DONE_KEY); setTourVisible(true); }} />
       </div>
-      {tourVisible && <AppTour onDone={() => setTourVisible(false)} />}
+      {tourVisible && <AppTour onDone={() => { setTourVisible(false); localStorage.setItem(APP_TOUR_DONE_KEY, "1"); }} />}
     </div>
+    </RequireAuth>
   );
 }

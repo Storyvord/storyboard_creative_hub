@@ -82,7 +82,14 @@ function CallSheetForm({
       </div>
       <div className="flex justify-end gap-3 pt-2">
         <button onClick={onCancel} className="px-4 py-2 text-sm" style={{ color: "var(--text-secondary)" }}>Cancel</button>
-        <button onClick={() => onSubmit(form)} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors">
+        <button
+          onClick={() => {
+            if (!form.title.trim()) { toast.error("Title is required."); return; }
+            onSubmit(form);
+          }}
+          disabled={saving}
+          className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
+        >
           {saving && <Loader2 size={13} className="animate-spin" />}
           Save
         </button>

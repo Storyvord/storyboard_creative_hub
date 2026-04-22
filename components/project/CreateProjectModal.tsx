@@ -133,6 +133,7 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleNext(); } }}
                 placeholder="My Film Project"
                 className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
                 style={{
@@ -150,6 +151,7 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
               <select
                 value={contentType}
                 onChange={(e) => setContentType(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleNext(); } }}
                 className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
                 style={{
                   borderColor: "var(--border)",
@@ -173,6 +175,7 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
               <textarea
                 value={brief}
                 onChange={(e) => setBrief(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleNext(); } }}
                 rows={4}
                 placeholder="A short description of the project and its goals…"
                 className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 resize-none"

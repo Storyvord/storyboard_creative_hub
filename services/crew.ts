@@ -8,6 +8,7 @@ export interface CrewProfile {
   image?: string | null;
   skills?: string[];
   location?: string;
+  user?: { id: number; email: string };
   [key: string]: unknown;
 }
 

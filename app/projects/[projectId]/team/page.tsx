@@ -123,7 +123,7 @@ function MemberCard({ member, roles, onRemove, onChangeRole }: {
   member: ProjectMember;
   roles: Role[];
   onRemove: (userId: string, name: string) => void;
-  onChangeRole: (userId: string, roleId: number) => void;
+  onChangeRole: (userId: string, roleId: number, memberName: string) => void;
 }) {
   const fullName = [member.user.first_name, member.user.last_name].filter(Boolean).join(" ");
   const displayName = fullName || member.user.email;
@@ -170,16 +170,16 @@ function MemberCard({ member, roles, onRemove, onChangeRole }: {
         <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {displayName}
         </p>
-        {member.role?.name && (
-          <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{member.role.name}</p>
+        {member.role?.role_name && (
+          <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{member.role.role_name}</p>
         )}
       </div>
 
       {/* Role selector */}
       {roles.length > 0 ? (
         <select
-          value={member.role?.id ?? ""}
-          onChange={(e) => onChangeRole(member.user.id, Number(e.target.value))}
+          value={member.role?.role_id ?? ""}
+          onChange={(e) => onChangeRole(member.user.id, Number(e.target.value), displayName)}
           style={{
             fontSize: 11,
             padding: "3px 8px",
@@ -197,7 +197,7 @@ function MemberCard({ member, roles, onRemove, onChangeRole }: {
         </select>
       ) : member.role ? (
         <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, border: "1px solid var(--border)", color: "var(--text-muted)", background: "var(--surface-raised)", flexShrink: 0 }}>
-          {member.role.name}
+          {member.role.role_name}
         </span>
       ) : null}
 
@@ -257,7 +257,9 @@ export default function TeamPage() {
     } catch { toast.error("Failed to remove member."); }
   };
 
-  const handleChangeRole = async (userId: string, roleId: number) => {
+  const handleChangeRole = async (userId: string, roleId: number, memberName: string) => {
+    const targetRoleName = roles.find((r) => r.role_id === roleId)?.role_name ?? "No role";
+    if (!window.confirm(`Change ${memberName}'s role to ${targetRoleName}?`)) return;
     try {
       await changeMemberRole(projectId, { user_id: userId, role_id: roleId });
       toast.success("Role updated.");
@@ -290,8 +292,8 @@ export default function TeamPage() {
   const roleGroups: Record<string, ProjectMember[]> = {};
   const unassigned: ProjectMember[] = [];
   for (const m of crew) {
-    if (m.role?.name) {
-      (roleGroups[m.role.name] = roleGroups[m.role.name] ?? []).push(m);
+    if (m.role?.role_name) {
+      (roleGroups[m.role.role_name] = roleGroups[m.role.role_name] ?? []).push(m);
     } else {
       unassigned.push(m);
     }
@@ -302,7 +304,7 @@ export default function TeamPage() {
     ? crew.filter((m) => {
         const full = [m.user.first_name, m.user.last_name].filter(Boolean).join(" ").toLowerCase();
         const q = search.toLowerCase();
-        return full.includes(q) || m.user.email.toLowerCase().includes(q) || m.role?.name?.toLowerCase().includes(q);
+        return full.includes(q) || m.user.email.toLowerCase().includes(q) || m.role?.role_name?.toLowerCase().includes(q);
       })
     : null; // null = show grouped view
 
@@ -419,7 +421,7 @@ export default function TeamPage() {
       {tab === "crew" && (
         <div>
           {/* Search */}
-          {crew.length > 4 && (
+          {crew.length > 1 && (
             <div style={{ position: "relative", marginBottom: 16 }}>
               <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
               <input
@@ -538,7 +540,7 @@ export default function TeamPage() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {roles.map((role) => {
-                const membersWithRole = crew.filter((m) => m.role?.id === role.role_id);
+                const membersWithRole = crew.filter((m) => m.role?.role_id === role.role_id);
                 return (
                   <div
                     key={role.role_id}
@@ -647,7 +649,7 @@ function RoleGroup({ groupName, members, roles, onRemove, onChangeRole }: {
   members: ProjectMember[];
   roles: Role[];
   onRemove: (userId: string, name: string) => void;
-  onChangeRole: (userId: string, roleId: number) => void;
+  onChangeRole: (userId: string, roleId: number, memberName: string) => void;
 }) {
   const [open, setOpen] = useState(true);
   const isUnassigned = groupName === "Unassigned";

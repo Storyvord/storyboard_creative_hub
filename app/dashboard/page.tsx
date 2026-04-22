@@ -19,6 +19,7 @@ import CreateProjectModal from "@/components/project/CreateProjectModal";
 import StatusBadge from "@/components/project/StatusBadge";
 import UserWidget from "@/components/UserWidget";
 import AppTour, { AppTourTrigger, APP_TOUR_DONE_KEY } from "@/components/AppTour";
+import RequireAuth from "@/components/RequireAuth";
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -59,10 +60,35 @@ function dayLabel(dateStr: string) {
   return fmtDate(dateStr);
 }
 
+// Matches the color palette used by components/project/StatusBadge.tsx
 const STATUS_COLOR: Record<string, string> = {
-  active: "#34d399", in_progress: "#60a5fa", completed: "#a3e635",
-  pending: "#fbbf24", on_hold: "#f87171", draft: "#94a3b8",
+  PLANNING: "#60a5fa",        // blue
+  DEVELOPMENT: "#a78bfa",     // purple
+  PRE_PRODUCTION: "#fb923c",  // orange
+  IN_PROGRESS: "#fbbf24",     // yellow
+  POST_PRODUCTION: "#2dd4bf", // teal
+  COMPLETED: "#22c55e",       // green
+  PAUSED: "#94a3b8",          // gray
+  CANCELLED: "#f87171",       // red
+  RELEASED: "#34d399",        // emerald
 };
+
+// Statuses that represent projects "actively going on" — everything except
+// COMPLETED, PAUSED, CANCELLED, RELEASED.
+const ACTIVE_STATUSES = new Set([
+  "PLANNING",
+  "DEVELOPMENT",
+  "PRE_PRODUCTION",
+  "IN_PROGRESS",
+  "POST_PRODUCTION",
+]);
+
+function formatStatusLabel(status: string) {
+  return status
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 const PRIORITY_COLOR: Record<string, string> = {
   critical: "#f87171", high: "#fb923c", medium: "#fbbf24", low: "#94a3b8",
@@ -137,9 +163,9 @@ export default function DashboardPage() {
       getConnections(),
     ]);
     if (proj.status === "fulfilled") setProjects(proj.value);
-    if (notifs.status === "fulfilled") setNotifications(notifs.value.slice(0, 6));
+    if (notifs.status === "fulfilled") setNotifications(notifs.value.results.slice(0, 6));
     if (unread.status === "fulfilled") setUnreadCount(unread.value);
-    if (connections.status === "fulfilled") setConnectionCount((connections.value as any)?.count ?? (connections.value as any[])?.length ?? 0);
+    if (connections.status === "fulfilled") setConnectionCount(Array.isArray(connections.value) ? connections.value.length : 0);
 
     // Calendar — load for all projects in background
     getUnifiedCalendar().then((cal) => {
@@ -156,7 +182,7 @@ export default function DashboardPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const activeProjects = projects.filter(p => p.status === "active" || p.status === "in_progress");
+  const activeProjects = projects.filter(p => p.status && ACTIVE_STATUSES.has(p.status));
   const recentProjects = [...projects].sort((a, b) =>
     new Date(b.updated_at ?? b.created_at ?? 0).getTime() - new Date(a.updated_at ?? a.created_at ?? 0).getTime()
   ).slice(0, 6);
@@ -167,6 +193,7 @@ export default function DashboardPage() {
   const unreadNotifs = notifications.filter(n => !n.is_read);
 
   return (
+    <RequireAuth>
     <div style={{ minHeight: "100vh", background: "var(--background)", color: "var(--text-primary)" }}>
       {/* ── Top Bar ── */}
       <header style={{
@@ -271,9 +298,9 @@ export default function DashboardPage() {
           <div data-tour="dash-stats" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 28 }}>
             <StatCard icon={<FolderOpen size={18} />} label="Total Projects" value={projects.length} sub={`${activeProjects.length} active`} color="#34d399" href="/dashboard" />
             <StatCard icon={<Bell size={18} />} label="Notifications" value={unreadCount} sub="unread" color="#60a5fa" href="/notifications" />
-            <StatCard icon={<Calendar size={18} />} label="Today's Events" value={todayEvents.length} sub={events.length > 0 ? `${events.length} upcoming` : "no events"} color="#a78bfa" href="/dashboard" />
+            <StatCard icon={<Calendar size={18} />} label="Today's Events" value={todayEvents.length} sub={events.length > 0 ? `${events.length} upcoming` : "no events"} color="#a78bfa" />
             <StatCard icon={<Users size={18} />} label="Connections" value={connectionCount} sub="in network" color="#fb923c" href="/network" />
-            <StatCard icon={<TrendingUp size={18} />} label="Completed" value={projects.filter(p => p.status === "completed").length} sub="projects done" color="#a3e635" />
+            <StatCard icon={<TrendingUp size={18} />} label="Completed" value={projects.filter(p => p.status === "COMPLETED").length} sub="projects done" color="#a3e635" />
           </div>
 
           {/* ── Main 3-col grid ── */}
@@ -303,7 +330,7 @@ export default function DashboardPage() {
 
               {/* Recent Projects */}
               <div data-tour="dash-projects">
-                <SectionHeader title="Recent Projects" href="/dashboard" icon={<FolderOpen size={14} />} />
+                <SectionHeader title="Recent Projects" icon={<FolderOpen size={14} />} />
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
                   {recentProjects.map(project => (
                     <Link key={project.project_id} href={`/projects/${project.project_id}/overview`}
@@ -448,7 +475,7 @@ export default function DashboardPage() {
                     return Object.entries(groups).map(([status, count]) => (
                       <div key={status} style={{ marginBottom: 8 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, textTransform: "capitalize", color: "var(--text-secondary)" }}>{status.replace(/_/g, " ")}</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>{formatStatusLabel(status)}</span>
                           <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{count}</span>
                         </div>
                         <div style={{ height: 6, borderRadius: 99, background: "var(--border)", overflow: "hidden" }}>
@@ -523,7 +550,8 @@ export default function DashboardPage() {
         <AppTourTrigger onClick={() => { localStorage.removeItem(APP_TOUR_DONE_KEY); setTourVisible(true); }} />
       </div>
 
-      {tourVisible && <AppTour onDone={() => setTourVisible(false)} />}
+      {tourVisible && <AppTour onDone={() => { setTourVisible(false); localStorage.setItem(APP_TOUR_DONE_KEY, "1"); }} />}
     </div>
+    </RequireAuth>
   );
 }

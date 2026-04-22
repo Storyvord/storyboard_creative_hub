@@ -14,6 +14,7 @@ import { getProject } from "@/services/project";
 import UserWidget from "@/components/UserWidget";
 import AIAssistantWidget from "@/components/AIAssistantWidget";
 import AppTour, { AppTourTrigger, APP_TOUR_DONE_KEY } from "@/components/AppTour";
+import RequireAuth from "@/components/RequireAuth";
 
 const PROJECT_NAV = [
   { name: "Overview", href: (id: string) => `/projects/${id}/overview`, icon: LayoutDashboard },
@@ -86,6 +87,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
   };
 
   return (
+    <RequireAuth>
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--background)", color: "var(--text-primary)" }}>
       {/* Sidebar */}
       <aside
@@ -231,8 +233,9 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
       )}
 
       {tourVisible && !pathname.includes("/creative-hub") && (
-        <AppTour onDone={() => setTourVisible(false)} />
+        <AppTour onDone={() => { setTourVisible(false); localStorage.setItem(APP_TOUR_DONE_KEY, "1"); }} />
       )}
     </div>
+    </RequireAuth>
   );
 }

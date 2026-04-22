@@ -1,6 +1,44 @@
 import api from "./api";
 import { Project, ProjectMember, Role, Permission, ProjectInvite, CallSheet, Folder, ProjectFile, ChatSession, ChatMessage, ProjectReport, AvailableReport } from "@/types/project";
 
+// ── Role normalization ────────────────────────────────────────────────────────
+// Backend returns two different Role shapes depending on the serializer used:
+//   - MembershipSerializer → RoleSerializer:          { id, name, permission, ... }
+//   - RoleViewSet → RolePermissionOutputSerializer:   { role_id, role_name, permissions, ... }
+// Both represent the same underlying Django Role PK. Normalize to a single
+// canonical shape ({ role_id, role_name, ... }) so the rest of the app only
+// ever reads one set of keys.
+export const normalizeRole = (raw: any): Role => {
+  if (!raw || typeof raw !== "object") return raw;
+  const role_id = raw.role_id ?? raw.id;
+  const role_name = raw.role_name ?? raw.name ?? "";
+  // permissions: RolePermissionOutputSerializer → `permissions`; RoleSerializer → `permission`.
+  // Keep Record<string, string[]> shape when available; fall back to {} to satisfy the type.
+  const rawPermissions = raw.permissions ?? raw.permission;
+  const permissions: Record<string, string[]> =
+    rawPermissions && typeof rawPermissions === "object" && !Array.isArray(rawPermissions)
+      ? (rawPermissions as Record<string, string[]>)
+      : {};
+  return {
+    ...raw,
+    role_id,
+    role_name,
+    description: raw.description,
+    is_global: raw.is_global,
+    permissions,
+    member_count: raw.member_count,
+    order: raw.order,
+  };
+};
+
+const normalizeMember = (raw: any): ProjectMember => {
+  if (!raw || typeof raw !== "object") return raw;
+  return {
+    ...raw,
+    role: raw.role ? normalizeRole(raw.role) : raw.role,
+  };
+};
+
 // ── Projects ──────────────────────────────────────────────────────────────────
 export const getProjects = async (): Promise<Project[]> => {
   const response = await api.get("/api/project/v2/projects/");
@@ -11,7 +49,11 @@ export const getProjects = async (): Promise<Project[]> => {
 
 export const getProject = async (id: string): Promise<Project> => {
   const response = await api.get(`/api/project/v2/projects/${id}/`);
-  return response.data;
+  const data = response.data;
+  if (data && Array.isArray(data.members)) {
+    return { ...data, members: data.members.map(normalizeMember) };
+  }
+  return data;
 };
 
 export interface CreateProjectPayload {
@@ -41,10 +83,11 @@ export const getProjectCrew = async (projectId: string): Promise<ProjectMember[]
   // The V1 /api/project/crew/<id>/ endpoint only works with the legacy Project model.
   // V2 projects use memberships. Fetch from the V2 memberships endpoint instead.
   const response = await api.get(`/api/project/v2/memberships/?project_id=${projectId}`);
-  if (Array.isArray(response.data)) return response.data;
-  if (response.data?.data && Array.isArray(response.data.data)) return response.data.data;
-  if (response.data.results) return response.data.results;
-  return [];
+  let list: any[] = [];
+  if (Array.isArray(response.data)) list = response.data;
+  else if (response.data?.data && Array.isArray(response.data.data)) list = response.data.data;
+  else if (response.data.results) list = response.data.results;
+  return list.map(normalizeMember);
 };
 
 export const removeFromProject = async (projectId: string, userId: string): Promise<void> => {
@@ -54,19 +97,20 @@ export const removeFromProject = async (projectId: string, userId: string): Prom
 // ── Roles ─────────────────────────────────────────────────────────────────────
 export const getProjectRoles = async (projectId: string): Promise<Role[]> => {
   const response = await api.get(`/api/project/v2/roles/?project_id=${projectId}`);
-  if (Array.isArray(response.data)) return response.data;
-  if (response.data.results) return response.data.results;
-  return [];
+  let list: any[] = [];
+  if (Array.isArray(response.data)) list = response.data;
+  else if (response.data.results) list = response.data.results;
+  return list.map(normalizeRole);
 };
 
 export const createRole = async (data: { name: string; description?: string; project: string; is_global: boolean; permissions: Record<string, string[]> }): Promise<Role> => {
   const response = await api.post("/api/project/v2/roles/", data);
-  return response.data;
+  return normalizeRole(response.data);
 };
 
 export const updateRole = async (id: number, data: Partial<{ name: string; description: string; permissions: Record<string, string[]> }>): Promise<Role> => {
   const response = await api.put(`/api/project/v2/roles/${id}/`, data);
-  return response.data;
+  return normalizeRole(response.data);
 };
 
 export const changeMemberRole = async (projectId: string, data: { user_id: string; role_id: number }): Promise<void> => {

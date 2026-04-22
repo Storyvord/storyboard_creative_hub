@@ -1,3 +1,11 @@
+export interface ProjectOwnerDetails {
+  id: string | number;
+  email: string;
+  full_name?: string | null;
+  job_title?: string | null;
+  image?: string | null;
+}
+
 export interface Project {
   project_id: string;
   name: string;
@@ -7,13 +15,7 @@ export interface Project {
   status?: string;
   created_at?: string;
   updated_at?: string;
-  owner_details?: {
-    id: string;
-    email: string;
-    full_name?: string | null;
-    job_title?: string | null;
-    image?: string | null;
-  };
+  owner_details?: ProjectOwnerDetails;
   members?: ProjectMember[];
   is_favorite?: boolean;
   [key: string]: any;
@@ -22,7 +24,7 @@ export interface Project {
 export interface ProjectMember {
   id: number;
   user: { id: string; email: string; first_name?: string; last_name?: string };
-  role?: { id: number; name: string };
+  role?: Role;
   is_active: boolean;
 }
 
@@ -30,7 +32,7 @@ export interface Role {
   role_id: number;
   role_name: string;
   description?: string;
-  is_global: boolean;
+  is_global?: boolean;
   permissions: Record<string, string[]>;
   member_count?: number;
   order?: number;

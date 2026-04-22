@@ -30,9 +30,22 @@ export interface NotificationPreference {
   network_notifications: boolean;
 }
 
-export const getNotifications = async (): Promise<Notification[]> => {
-  const res = await api.get('/api/notification/v2/notifications/');
-  return res.data?.results ?? [];
+export interface NotificationsPage {
+  results: Notification[];
+  next: string | null;
+  count: number;
+}
+
+export const getNotifications = async (opts: { page?: number } = {}): Promise<NotificationsPage> => {
+  const params: Record<string, number> = {};
+  if (opts.page) params.page = opts.page;
+  const res = await api.get('/api/notification/v2/notifications/', { params });
+  const data = res.data ?? {};
+  return {
+    results: data.results ?? [],
+    next: data.next ?? null,
+    count: data.count ?? (data.results?.length ?? 0),
+  };
 };
 
 export const getUnreadCount = async (): Promise<number> => {

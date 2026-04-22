@@ -16,14 +16,16 @@ import {
 } from "@/services/tasks";
 import { getProject } from "@/services/project";
 import { useProjectPermissions } from "@/hooks/useProjectPermissions";
+import { useUserInfo } from "@/hooks/useUserInfo";
+import type { ProjectMember } from "@/types/project";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const STATUS_OPTIONS: { value: TaskStatus; label: string; color: string; icon: React.ReactNode }[] = [
-  { value: "pending",     label: "Pending",     color: "text-gray-400",   icon: <Circle size={14} /> },
-  { value: "in_progress", label: "In Progress", color: "text-blue-400",   icon: <Clock size={14} /> },
-  { value: "on_hold",     label: "On Hold",     color: "text-yellow-400", icon: <PauseCircle size={14} /> },
-  { value: "completed",   label: "Completed",   color: "text-green-400",  icon: <CheckCircle2 size={14} /> },
+const STATUS_OPTIONS: { value: TaskStatus; label: string; color: string; bar: string; icon: React.ReactNode }[] = [
+  { value: "pending",     label: "Pending",     color: "text-gray-400",   bar: "#6b7280", icon: <Circle size={14} /> },
+  { value: "in_progress", label: "In Progress", color: "text-blue-400",   bar: "#60a5fa", icon: <Clock size={14} /> },
+  { value: "on_hold",     label: "On Hold",     color: "text-yellow-400", bar: "#facc15", icon: <PauseCircle size={14} /> },
+  { value: "completed",   label: "Completed",   color: "text-green-400",  bar: "#4ade80", icon: <CheckCircle2 size={14} /> },
 ];
 
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string; color: string }[] = [
@@ -164,8 +166,9 @@ function TaskCard({ task, onOpen, onStatusChange }: {
 
 // ── New Task Inline Form ───────────────────────────────────────────────────────
 
-function NewTaskInline({ projectId, status, defaultMembershipId, onCreated, onCancel }: {
+function NewTaskInline({ projectId, status, defaultMembershipId, membershipLoading, notAMember, onCreated, onCancel }: {
   projectId: string; status: TaskStatus; defaultMembershipId: number | null;
+  membershipLoading: boolean; notAMember: boolean;
   onCreated: (t: ProjectTask) => void; onCancel: () => void;
 }) {
   const [title, setTitle] = useState("");
@@ -173,9 +176,13 @@ function NewTaskInline({ projectId, status, defaultMembershipId, onCreated, onCa
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { ref.current?.focus(); }, []);
 
+  const disabled = membershipLoading || notAMember || !defaultMembershipId;
+
   const submit = async () => {
     if (!title.trim()) return;
-    if (!defaultMembershipId) { toast.error("Your project membership hasn't loaded yet. Please wait a moment and try again."); return; }
+    if (notAMember) { toast.error("You are not a member of this project. Contact an admin to join."); return; }
+    if (membershipLoading) { toast.error("Your project membership hasn't loaded yet. Please wait a moment and try again."); return; }
+    if (!defaultMembershipId) return; // disabled gate should prevent this; bail silently
     setLoading(true);
     try {
       const t = await createProjectTask({ title: title.trim(), ProjectId: projectId, status, priority: "medium", AssignedTo: [defaultMembershipId] });
@@ -183,22 +190,35 @@ function NewTaskInline({ projectId, status, defaultMembershipId, onCreated, onCa
     } catch { toast.error("Couldn't create the task. Please try again."); } finally { setLoading(false); }
   };
 
+  const borderColor = notAMember ? "#f87171" : "var(--accent, #22c55e)";
+  const placeholder = notAMember
+    ? "You are not a member of this project."
+    : membershipLoading
+    ? "Loading your membership…"
+    : "Task title…";
+
   return (
     <div
       className="animate-slide-in-up"
-      style={{ background: "var(--surface)", border: "1px solid var(--accent, #22c55e)", borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}
+      style={{ background: "var(--surface)", border: `1px solid ${borderColor}`, borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}
     >
       <input
         ref={ref}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") onCancel(); }}
-        placeholder="Task title…"
-        style={{ width: "100%", background: "none", border: "none", outline: "none", fontSize: 14, color: "var(--text-primary)" }}
+        placeholder={placeholder}
+        disabled={disabled}
+        style={{ width: "100%", background: "none", border: "none", outline: "none", fontSize: 14, color: "var(--text-primary)", opacity: disabled ? 0.6 : 1 }}
       />
+      {notAMember && (
+        <p style={{ margin: "6px 0 0", fontSize: 12, color: "#f87171" }}>
+          You are not a member of this project. Contact an admin to join.
+        </p>
+      )}
       <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-        <button onClick={submit} disabled={loading}
-          style={{ fontSize: 12, padding: "4px 10px", borderRadius: 6, background: "var(--accent)", color: "#fff", border: "none", cursor: "pointer", transition: "opacity .15s" }}>
+        <button onClick={submit} disabled={loading || disabled}
+          style={{ fontSize: 12, padding: "4px 10px", borderRadius: 6, background: "var(--accent)", color: "#fff", border: "none", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition: "opacity .15s" }}>
           {loading ? <Loader2 size={12} className="animate-spin" /> : "Add"}
         </button>
         <button onClick={onCancel}
@@ -226,6 +246,7 @@ function TaskDrawer({ task, projectId, onClose, onUpdate, onDelete }: {
   const [editTitle, setEditTitle] = useState(task.title);
   const [editDesc, setEditDesc] = useState(task.description ?? "");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [tab, setTab] = useState<"checklist" | "comments">("checklist");
   const [visible, setVisible] = useState(false);
 
@@ -241,6 +262,20 @@ function TaskDrawer({ task, projectId, onClose, onUpdate, onDelete }: {
   const close = () => {
     setVisible(false);
     setTimeout(onClose, 300);
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Delete this task?")) return;
+    setDeleting(true);
+    try {
+      await deleteProjectTask(task.taskid);
+      onDelete(task.taskid);
+      close();
+    } catch {
+      toast.error("Couldn't delete the task. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const save = async () => {
@@ -310,17 +345,19 @@ function TaskDrawer({ task, projectId, onClose, onUpdate, onDelete }: {
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Task Detail</h2>
           <div style={{ display: "flex", gap: 8 }}>
             <button
-              onClick={() => { if (confirm("Delete this task?")) { deleteProjectTask(task.taskid); onDelete(task.taskid); close(); } }}
-              style={{ background: "none", border: "none", cursor: "pointer", color: "#f87171", padding: 4, borderRadius: 6, transition: "background .15s" }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(248,113,113,.1)")}
+              onClick={handleDelete}
+              disabled={deleting}
+              style={{ background: "none", border: "none", cursor: deleting ? "not-allowed" : "pointer", color: "#f87171", padding: 4, borderRadius: 6, transition: "background .15s", opacity: deleting ? 0.6 : 1 }}
+              onMouseEnter={(e) => { if (!deleting) e.currentTarget.style.background = "rgba(248,113,113,.1)"; }}
               onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
             >
-              <Trash2 size={16} />
+              {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
             </button>
             <button
               onClick={close}
-              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 4, borderRadius: 6, transition: "background .15s" }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-raised)")}
+              disabled={deleting}
+              style={{ background: "none", border: "none", cursor: deleting ? "not-allowed" : "pointer", color: "var(--text-muted)", padding: 4, borderRadius: 6, transition: "background .15s", opacity: deleting ? 0.6 : 1 }}
+              onMouseEnter={(e) => { if (!deleting) e.currentTarget.style.background = "var(--surface-raised)"; }}
               onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
             >
               <X size={18} />
@@ -330,7 +367,7 @@ function TaskDrawer({ task, projectId, onClose, onUpdate, onDelete }: {
 
         <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
           {/* Status colour bar */}
-          <div style={{ height: 3, borderRadius: 3, background: statusMeta(task.status).color === "text-green-400" ? "#4ade80" : statusMeta(task.status).color === "text-blue-400" ? "#60a5fa" : statusMeta(task.status).color === "text-yellow-400" ? "#facc15" : "var(--border)", transition: "background .3s" }} />
+          <div style={{ height: 3, borderRadius: 3, background: statusMeta(task.status).bar, transition: "background .3s" }} />
 
           {/* Title */}
           <input
@@ -507,8 +544,11 @@ export default function TasksPage() {
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [filter, setFilter] = useState<TaskStatus | "all">("all");
   const [myMembershipId, setMyMembershipId] = useState<number | null>(null);
+  const [projectMembers, setProjectMembers] = useState<ProjectMember[] | null>(null);
   const { canDo } = useProjectPermissions(projectId);
   const canCreateTask = canDo("task:create");
+  const { profile, loading: userLoading } = useUserInfo();
+  const currentUserId = profile?.id ?? null;
 
   useEffect(() => {
     if (!projectId) return;
@@ -516,15 +556,29 @@ export default function TasksPage() {
     Promise.all([getProjectTasks(projectId), getProject(projectId)])
       .then(([taskList, project]) => {
         setTasks(taskList);
-        const members: any[] = project.members ?? [];
-        if (members.length > 0) {
-          const mid = members[0].membership_id ?? members[0].id ?? null;
-          if (mid) setMyMembershipId(mid);
-        }
+        const members: ProjectMember[] = (project.members ?? []) as ProjectMember[];
+        setProjectMembers(members);
       })
       .catch(() => toast.error("Couldn't load tasks. Please refresh."))
       .finally(() => setLoading(false));
   }, [projectId]);
+
+  // Resolve the logged-in user's membership once both profile and members are loaded.
+  useEffect(() => {
+    if (currentUserId === null || projectMembers === null) {
+      setMyMembershipId(null);
+      return;
+    }
+    const currentUserIdStr = String(currentUserId);
+    const mine = projectMembers.find(
+      (m) => m.is_active && String(m.user?.id) === currentUserIdStr
+    );
+    setMyMembershipId(mine?.id ?? null);
+  }, [currentUserId, projectMembers]);
+
+  const membershipLoading = userLoading || projectMembers === null;
+  const isProjectMember = myMembershipId !== null;
+  const notAMember = !membershipLoading && !isProjectMember;
 
   const handleCreate = (t: ProjectTask) => { setTasks((p) => [t, ...p]); setAddingIn(null); };
   const handleUpdate = (u: ProjectTask) => { setTasks((p) => p.map((t) => t.taskid === u.taskid ? u : t)); setSelectedTask(u); };
@@ -553,11 +607,13 @@ export default function TasksPage() {
                 <span style={{ fontSize: 12, color: "var(--text-muted)", background: "var(--surface-raised)", borderRadius: 10, padding: "1px 7px" }}>{colTasks.length}</span>
               </div>
               {canCreateTask && (
-                <button onClick={() => setAddingIn(col.status)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 4, borderRadius: 6, transition: "color .15s, background .15s" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = col.color; e.currentTarget.style.background = "var(--surface-raised)"; }}
+                <button
+                  onClick={() => setAddingIn(col.status)}
+                  disabled={membershipLoading || notAMember}
+                  style={{ background: "none", border: "none", cursor: (membershipLoading || notAMember) ? "not-allowed" : "pointer", color: "var(--text-muted)", padding: 4, borderRadius: 6, opacity: (membershipLoading || notAMember) ? 0.4 : 1, transition: "color .15s, background .15s" }}
+                  onMouseEnter={(e) => { if (!membershipLoading && !notAMember) { e.currentTarget.style.color = col.color; e.currentTarget.style.background = "var(--surface-raised)"; } }}
                   onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.background = "none"; }}
-                  title="Add task"
+                  title={notAMember ? "You are not a member of this project" : membershipLoading ? "Loading your membership…" : "Add task"}
                 >
                   <Plus size={15} />
                 </button>
@@ -565,7 +621,15 @@ export default function TasksPage() {
             </div>
 
             {addingIn === col.status && (
-              <NewTaskInline projectId={projectId} status={col.status} defaultMembershipId={myMembershipId} onCreated={handleCreate} onCancel={() => setAddingIn(null)} />
+              <NewTaskInline
+                projectId={projectId}
+                status={col.status}
+                defaultMembershipId={myMembershipId}
+                membershipLoading={membershipLoading}
+                notAMember={notAMember}
+                onCreated={handleCreate}
+                onCancel={() => setAddingIn(null)}
+              />
             )}
 
             {colTasks.map((t) => (
@@ -644,10 +708,12 @@ export default function TasksPage() {
           {canCreateTask && (
             <button
               data-tour="tasks-add-btn"
-              onClick={() => setAddingIn("pending")}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, background: "var(--accent)", color: "#fff", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, transition: "opacity .15s, transform .15s" }}
-              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
-              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+              onClick={() => setAddingIn(filter === "all" ? "pending" : filter)}
+              disabled={membershipLoading || notAMember}
+              title={notAMember ? "You are not a member of this project" : membershipLoading ? "Loading your membership…" : "Add a new task"}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, background: "var(--accent)", color: "#fff", border: "none", cursor: (membershipLoading || notAMember) ? "not-allowed" : "pointer", opacity: (membershipLoading || notAMember) ? 0.5 : 1, fontSize: 13, fontWeight: 500, transition: "opacity .15s, transform .15s" }}
+              onMouseEnter={(e) => { if (!membershipLoading && !notAMember) e.currentTarget.style.opacity = "0.88"; }}
+              onMouseLeave={(e) => { if (!membershipLoading && !notAMember) e.currentTarget.style.opacity = "1"; }}
             >
               <Plus size={15} />New Task
             </button>
