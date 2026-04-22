@@ -8,7 +8,13 @@ const api = axios.create({
   timeout: 30000, // 30 s — prevents silent hangs
 });
 
-const PUBLIC_ENDPOINTS = ["/api/accounts/v2/login/", "/api/accounts/v2/register/", "/auth/jwt/refresh/"];
+const PUBLIC_ENDPOINTS = [
+  "/api/accounts/v2/login/",
+  "/api/accounts/v2/register/",
+  "/api/accounts/v2/request-reset-password/",
+  "/api/accounts/v2/reset-password-complete/",
+  "/auth/jwt/refresh/",
+];
 
 api.interceptors.request.use(
   (config) => {
