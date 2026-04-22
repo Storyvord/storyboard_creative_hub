@@ -211,3 +211,116 @@ body {
 .press-sm  { transition: transform .12s, box-shadow .12s; }
 .press-sm:active { transform: scale(0.97); }
 .press-sm:hover  { transform: scale(1.02); }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   VIEWFINDER — cinematic mode. Activated by `data-viewfinder="on"` on <html>.
+   Layered on top of the existing tokens so we can flip it on/off at runtime.
+   ══════════════════════════════════════════════════════════════════════════ */
+[data-viewfinder="on"] {
+  --vf-bg: #08080A;
+  --vf-surface: #0E0E10;
+  --vf-surface-raised: #141417;
+  --vf-surface-hover: #1A1A1E;
+  --vf-border: #1F1F22;
+  --vf-border-hover: #2A2A2F;
+  --vf-text: #F2F2F2;
+  --vf-text-muted: #7A7A80;
+  --vf-text-dim: #4A4A50;
+  --vf-project: #D4A862;           /* default tungsten gel */
+  --vf-project-soft: rgba(212, 168, 98, 0.14);
+  --vf-ease-dolly: cubic-bezier(0.33, 0, 0.15, 1);
+  --vf-ease-rack:  cubic-bezier(0.2, 0.65, 0.15, 1);
+
+  /* Override existing app tokens so existing pages pick up Viewfinder look
+     without being rewritten. */
+  --background: var(--vf-bg);
+  --surface: var(--vf-surface);
+  --surface-raised: var(--vf-surface-raised);
+  --surface-hover: var(--vf-surface-hover);
+  --border: var(--vf-border);
+  --border-hover: var(--vf-border-hover);
+  --text-primary: var(--vf-text);
+  --text-secondary: #B8B8BE;
+  --text-muted: var(--vf-text-muted);
+  --accent: var(--vf-project);
+  --accent-hover: var(--vf-project);
+  --accent-subtle: var(--vf-project-soft);
+  --accent-border: var(--vf-project-soft);
+  --accent-glow: var(--vf-project-soft);
+}
+
+[data-viewfinder="on"] body {
+  background: var(--vf-bg);
+  color: var(--vf-text);
+  letter-spacing: -0.005em;
+}
+
+/* Vignette — purely decorative, pointer-events none, sits above everything
+   except viewfinder portals (which set their own z-index higher). */
+.vf-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 35;
+  background: radial-gradient(
+    ellipse 120% 100% at 50% 48%,
+    transparent 45%,
+    rgba(0, 0, 0, 0.28) 78%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+  mix-blend-mode: multiply;
+}
+
+/* Iris-in page reveal — used once on app mount. */
+@keyframes vf-iris-in {
+  0%   { clip-path: circle(0% at 50% 50%); }
+  100% { clip-path: circle(120% at 50% 50%); }
+}
+.vf-iris-in { animation: vf-iris-in 280ms var(--vf-ease-rack) both; }
+
+/* Sprocket loader — 35mm perforation advancing one frame at a time. */
+@keyframes vf-sprocket {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-20%); }
+}
+.vf-sprocket-track {
+  animation: vf-sprocket 0.8s steps(5, end) infinite;
+}
+
+/* Record-indicator pulse — save toast. */
+@keyframes vf-record-pulse {
+  0%   { opacity: 0; transform: scale(0.6); }
+  30%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+.vf-record { animation: vf-record-pulse 1.2s var(--vf-ease-dolly) forwards; }
+
+/* Tilt card baseline — JS adds rotation; CSS owns transitions. */
+.vf-tilt {
+  transform-style: preserve-3d;
+  transition: transform 220ms var(--vf-ease-dolly), box-shadow 220ms var(--vf-ease-dolly);
+  will-change: transform;
+}
+.vf-tilt-grid { perspective: 1400px; }
+
+/* Rack-focus — applied to <body> while palette/assistant are open. */
+.vf-rack-out {
+  filter: blur(6px) brightness(0.72) saturate(0.85);
+  transition: filter 260ms var(--vf-ease-rack);
+  pointer-events: none;
+}
+
+/* Three-size typographic scale exposed as utility classes. */
+.vf-display { font-size: 32px; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em; }
+.vf-title   { font-size: 18px; line-height: 1.4;  font-weight: 600; letter-spacing: -0.01em; }
+.vf-body    { font-size: 14px; line-height: 1.55; font-weight: 400; }
+.vf-mono    { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+
+/* Reduced motion — strip every viewfinder animation. */
+@media (prefers-reduced-motion: reduce) {
+  .vf-tilt { transform: none !important; transition: none !important; }
+  .vf-iris-in { animation: none !important; }
+  .vf-sprocket-track { animation: none !important; }
+  .vf-record { animation: none !important; }
+  .vf-rack-out { filter: none !important; }
+}

@@ -3,6 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import ToastProvider from "@/context/ToastProvider";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { ViewfinderProvider } from "@/context/ViewfinderContext";
+import ViewfinderFrame from "@/components/viewfinder/ViewfinderFrame";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,6 +24,14 @@ const themeScript = `
     } else {
       document.documentElement.setAttribute('data-theme', 'dark');
     }
+    var vfMode = localStorage.getItem('vf-mode');
+    if (vfMode === 'on') {
+      document.documentElement.setAttribute('data-viewfinder', 'on');
+    }
+    var vfGel = localStorage.getItem('vf-gel');
+    if (vfGel) {
+      document.documentElement.style.setProperty('--vf-project', vfGel);
+    }
   } catch (e) {
     document.documentElement.setAttribute('data-theme', 'dark');
   }
@@ -40,7 +50,11 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <ThemeProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ViewfinderProvider>
+            <ToastProvider>
+              <ViewfinderFrame>{children}</ViewfinderFrame>
+            </ToastProvider>
+          </ViewfinderProvider>
         </ThemeProvider>
       </body>
     </html>
