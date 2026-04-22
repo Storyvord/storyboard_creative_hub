@@ -20,6 +20,7 @@ import StatusBadge from "@/components/project/StatusBadge";
 import UserWidget from "@/components/UserWidget";
 import AppTour, { AppTourTrigger, APP_TOUR_DONE_KEY } from "@/components/AppTour";
 import RequireAuth from "@/components/RequireAuth";
+import TiltCard from "@/components/viewfinder/TiltCard";
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -331,17 +332,14 @@ export default function DashboardPage() {
               {/* Recent Projects */}
               <div data-tour="dash-projects">
                 <SectionHeader title="Recent Projects" icon={<FolderOpen size={14} />} />
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+                <div className="vf-tilt-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
                   {recentProjects.map(project => (
                     <Link key={project.project_id} href={`/projects/${project.project_id}/overview`}
                       style={{ textDecoration: "none", color: "inherit", display: "block" }}>
-                      <div style={{
+                      <TiltCard style={{
                         background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 12,
-                        padding: "14px 16px", transition: "border-color .2s, box-shadow .2s",
-                      }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#34d39940"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 12px rgba(0,0,0,.1)"; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
-                      >
+                        padding: "14px 16px",
+                      }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                           <div style={{
                             width: 36, height: 36, borderRadius: 9, background: "#34d39918",
@@ -361,7 +359,7 @@ export default function DashboardPage() {
                             Updated {fmt(project.updated_at)}
                           </p>
                         )}
-                      </div>
+                      </TiltCard>
                     </Link>
                   ))}
 

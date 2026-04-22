@@ -12,7 +12,6 @@ import { useState, useEffect } from "react";
 import { useTheme } from "@/context/ThemeContext";
 import { getProject } from "@/services/project";
 import UserWidget from "@/components/UserWidget";
-import AIAssistantWidget from "@/components/AIAssistantWidget";
 import AppTour, { AppTourTrigger, APP_TOUR_DONE_KEY } from "@/components/AppTour";
 import RequireAuth from "@/components/RequireAuth";
 
@@ -222,8 +221,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
         {children}
       </main>
 
-      {/* Floating AI Assistant */}
-      <AIAssistantWidget />
+      {/* AI Assistant is mounted globally via ViewfinderFrame in root layout. */}
 
       {/* Tour trigger — shown on non-creative-hub project pages */}
       {!pathname.includes("/creative-hub") && (

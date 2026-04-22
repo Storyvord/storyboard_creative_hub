@@ -189,6 +189,25 @@ export default function AIAssistantWidget() {
     }
   }, [messages, isTyping, open, view]);
 
+  // ── Viewfinder bridge ─────────────────────────────────────────────────────
+  // Opens the widget when the palette / AC pill fires viewfinder:open-assistant.
+  // If a `seed` is provided, pre-fills the input so the user can just hit ↵.
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const seed = (e as CustomEvent<{ seed?: string }>).detail?.seed;
+      setOpen(true);
+      setView("chat");
+      if (seed) setInput(seed);
+    };
+    const onClose = () => setOpen(false);
+    window.addEventListener("viewfinder:open-assistant", onOpen);
+    window.addEventListener("viewfinder:close-assistant", onClose);
+    return () => {
+      window.removeEventListener("viewfinder:open-assistant", onOpen);
+      window.removeEventListener("viewfinder:close-assistant", onClose);
+    };
+  }, []);
+
   // ── Load sessions (background, for history panel) ─────────────────────────
   useEffect(() => {
     if (!open) return;
