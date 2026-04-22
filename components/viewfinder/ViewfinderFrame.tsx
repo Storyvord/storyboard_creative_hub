@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useViewfinder } from "@/context/ViewfinderContext";
 import { useKeyChord } from "@/hooks/useKeyChord";
 import CommandPalette from "./CommandPalette";
+import RouteTransition from "./RouteTransition";
 import SaveIndicator from "./SaveIndicator";
 import ViewfinderPill from "./ViewfinderPill";
 
@@ -30,8 +31,13 @@ export default function ViewfinderFrame({ children }: { children: React.ReactNod
 
   return (
     <>
-      {children}
-      {active && <div className="vf-vignette" aria-hidden />}
+      <RouteTransition>{children}</RouteTransition>
+      {active && (
+        <>
+          <div className="vf-grain" aria-hidden />
+          <div className="vf-vignette" aria-hidden />
+        </>
+      )}
       <SaveIndicator />
       <CommandPalette />
       <ViewfinderPill />

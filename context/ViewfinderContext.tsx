@@ -42,16 +42,17 @@ const MODE_KEY = "vf-mode";
 const GEL_KEY  = "vf-gel";
 
 export function ViewfinderProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<Mode>("off");
+  // Default to ON so first-time visitors land in Viewfinder mode. The early
+  // script in app/layout.tsx already applied the attribute before hydration;
+  // we just mirror it in state here.
+  const [mode, setMode] = useState<Mode>("on");
   const [gel, setGelState] = useState<string>(GELS[0].hex);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
 
-  // Sync from DOM on mount (the inline script in layout.tsx sets the attribute
-  // before React hydrates so we avoid a flash).
   useEffect(() => {
     const attr = document.documentElement.getAttribute("data-viewfinder");
-    if (attr === "on") setMode("on");
+    setMode(attr === "on" ? "on" : "off");
     try {
       const storedGel = localStorage.getItem(GEL_KEY);
       if (storedGel) {
@@ -65,6 +66,11 @@ export function ViewfinderProvider({ children }: { children: React.ReactNode }) 
     setMode((prev) => {
       const next: Mode = prev === "on" ? "off" : "on";
       document.documentElement.setAttribute("data-viewfinder", next);
+      // Viewfinder is dark-only by design. Force dark on, release to user
+      // preference on off.
+      if (next === "on") {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
       try { localStorage.setItem(MODE_KEY, next); } catch {}
       return next;
     });

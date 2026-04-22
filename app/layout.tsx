@@ -16,24 +16,35 @@ export const metadata: Metadata = {
 const themeScript = `
 (function() {
   try {
-    var stored = localStorage.getItem('ch-theme');
-    if (stored === 'light' || stored === 'dark') {
-      document.documentElement.setAttribute('data-theme', stored);
-    } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
-      document.documentElement.setAttribute('data-theme', 'light');
-    } else {
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }
+    // Viewfinder is ON by default — must decide before theme so we can
+    // force dark when Viewfinder is active.
     var vfMode = localStorage.getItem('vf-mode');
-    if (vfMode === 'on') {
+    var vfActive = vfMode !== 'off'; // default-on; only explicit 'off' disables
+    if (vfActive) {
       document.documentElement.setAttribute('data-viewfinder', 'on');
     }
+
+    // Theme: Viewfinder is dark-only by design. If off, honor stored / prefers.
+    if (vfActive) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      var stored = localStorage.getItem('ch-theme');
+      if (stored === 'light' || stored === 'dark') {
+        document.documentElement.setAttribute('data-theme', stored);
+      } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+        document.documentElement.setAttribute('data-theme', 'light');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    }
+
     var vfGel = localStorage.getItem('vf-gel');
     if (vfGel) {
       document.documentElement.style.setProperty('--vf-project', vfGel);
     }
   } catch (e) {
     document.documentElement.setAttribute('data-theme', 'dark');
+    document.documentElement.setAttribute('data-viewfinder', 'on');
   }
 })();
 `;

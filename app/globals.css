@@ -262,13 +262,26 @@ body {
   inset: 0;
   pointer-events: none;
   z-index: 35;
-  background: radial-gradient(
-    ellipse 120% 100% at 50% 48%,
-    transparent 45%,
-    rgba(0, 0, 0, 0.28) 78%,
-    rgba(0, 0, 0, 0.55) 100%
-  );
-  mix-blend-mode: multiply;
+  background:
+    radial-gradient(
+      ellipse 110% 90% at 50% 48%,
+      transparent 38%,
+      rgba(0, 0, 0, 0.42) 82%,
+      rgba(0, 0, 0, 0.78) 100%
+    );
+}
+
+/* Film-grain overlay — subtle animated noise. Data URL = a single static
+   SVG turbulence tile, cheap to render. No re-render per frame.  */
+.vf-grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 34;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 180px 180px;
 }
 
 /* Iris-in page reveal — used once on app mount. */
@@ -323,4 +336,160 @@ body {
   .vf-sprocket-track { animation: none !important; }
   .vf-record { animation: none !important; }
   .vf-rack-out { filter: none !important; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Viewfinder chrome overrides — rebrand emerald Tailwind + common hex
+   emerald values to the project gel. Preserves semantic STATUS colors
+   (which live inside JS mappings, not CSS classes).
+   ══════════════════════════════════════════════════════════════════════════ */
+[data-viewfinder="on"] body {
+  letter-spacing: -0.008em;
+  font-feature-settings: "ss01", "cv11";
+  font-synthesis-weight: none;
+}
+
+[data-viewfinder="on"] h1,
+[data-viewfinder="on"] h2,
+[data-viewfinder="on"] h3,
+[data-viewfinder="on"] h4 {
+  letter-spacing: -0.015em;
+  font-weight: 600;
+}
+
+/* Text / fill — brand green everywhere becomes gel */
+[data-viewfinder="on"] .text-emerald-300,
+[data-viewfinder="on"] .text-emerald-400,
+[data-viewfinder="on"] .text-emerald-500,
+[data-viewfinder="on"] .text-emerald-600,
+[data-viewfinder="on"] .text-green-400,
+[data-viewfinder="on"] .text-green-500 {
+  color: var(--vf-project, #D4A862) !important;
+}
+
+[data-viewfinder="on"] .bg-emerald-300,
+[data-viewfinder="on"] .bg-emerald-400,
+[data-viewfinder="on"] .bg-emerald-500,
+[data-viewfinder="on"] .bg-emerald-600,
+[data-viewfinder="on"] .bg-green-500,
+[data-viewfinder="on"] .bg-green-600 {
+  background-color: var(--vf-project, #D4A862) !important;
+  color: #0A0A0C !important;
+}
+
+/* Tailwind alpha variants compile to escaped class names with \/ */
+[data-viewfinder="on"] .bg-emerald-500\/5,
+[data-viewfinder="on"] .bg-emerald-500\/10,
+[data-viewfinder="on"] .bg-emerald-500\/15,
+[data-viewfinder="on"] .bg-emerald-500\/20,
+[data-viewfinder="on"] .bg-emerald-400\/10,
+[data-viewfinder="on"] .bg-green-500\/10 {
+  background-color: var(--vf-project-soft, rgba(212, 168, 98, 0.12)) !important;
+}
+
+[data-viewfinder="on"] .border-emerald-400,
+[data-viewfinder="on"] .border-emerald-500,
+[data-viewfinder="on"] .border-green-500,
+[data-viewfinder="on"] .border-emerald-500\/10,
+[data-viewfinder="on"] .border-emerald-500\/20,
+[data-viewfinder="on"] .border-emerald-500\/30,
+[data-viewfinder="on"] .border-emerald-400\/20 {
+  border-color: var(--vf-project-soft, rgba(212, 168, 98, 0.2)) !important;
+}
+
+[data-viewfinder="on"] .hover\:text-emerald-400:hover,
+[data-viewfinder="on"] .hover\:text-emerald-500:hover,
+[data-viewfinder="on"] .hover\:bg-emerald-500:hover {
+  color: var(--vf-project, #D4A862) !important;
+}
+
+/* focus rings — gel-tinted */
+[data-viewfinder="on"] .focus\:border-emerald-500:focus,
+[data-viewfinder="on"] .focus\:ring-emerald-500:focus {
+  border-color: var(--vf-project, #D4A862) !important;
+  box-shadow: 0 0 0 3px var(--vf-project-soft, rgba(212, 168, 98, 0.12)) !important;
+}
+
+/* Inline-style emerald hex colors (brand chrome only — we use attribute
+   substring selectors with !important to win over inline). Semantic status
+   colors live in JS STATUS_COLOR maps, not inline styles, so they're
+   preserved. */
+[data-viewfinder="on"] [style*="#34d399"]    { color: var(--vf-project, #D4A862) !important; }
+[data-viewfinder="on"] [style*="color: #22c55e"] { color: var(--vf-project, #D4A862) !important; }
+[data-viewfinder="on"] [style*="color:#22c55e"]  { color: var(--vf-project, #D4A862) !important; }
+
+/* Backgrounds that use the green hex need a slightly different override. Most
+   inline-style patterns in the codebase use a hex followed by hex-alpha (e.g.
+   "#34d39918" = 9% alpha). CSS can't individually re-key those, but the whole
+   element's color — icons, dots — reads from the same hex, so flipping the
+   text color flips the perceived brand-ness. For backgrounds set via
+   `var(--accent)` the top-level token flip already handles it. */
+
+/* Skeleton shimmer — cooler when Viewfinder is on */
+[data-viewfinder="on"] .skeleton {
+  background: linear-gradient(
+    90deg,
+    #141417 25%,
+    #1A1A1E 50%,
+    #141417 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* Links that read as "view all" etc — soften */
+[data-viewfinder="on"] a[style*="color: #34d399"],
+[data-viewfinder="on"] a[style*="color:#34d399"] {
+  color: var(--vf-project, #D4A862) !important;
+}
+
+/* Rack-focus target — applied to main content wrapper when palette/assistant open */
+.vf-rack-target { transition: filter 260ms var(--vf-ease-rack, cubic-bezier(0.2, 0.65, 0.15, 1)); }
+.vf-rack-target.vf-rack-active {
+  filter: blur(6px) brightness(0.72) saturate(0.82);
+  pointer-events: none;
+}
+
+/* Brand mark in top-left — replaces existing logos visually when on */
+.vf-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vf-text-muted, #7A7A80);
+}
+.vf-brand::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+
+/* AI assistant ribbon styling — applied when widget renders inside Viewfinder */
+[data-viewfinder="on"] .vf-ribbon {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.015) 0%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  padding: 14px 16px;
+  font-family: "Inter", system-ui;
+  letter-spacing: -0.005em;
+}
+[data-viewfinder="on"] .vf-ribbon::before {
+  content: "1st ad";
+  display: block;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vf-project, #D4A862);
+  margin-bottom: 6px;
+  opacity: 0.7;
 }
