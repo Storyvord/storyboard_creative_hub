@@ -11,6 +11,7 @@ import { toast } from "react-toastify";
 import { getChatSessions, getChatHistory, deleteChatSession } from "@/services/project";
 import { ChatSession, ChatMessage } from "@/types/project";
 import SprocketLoader from "@/components/viewfinder/SprocketLoader";
+import { useUserInfo } from "@/hooks/useUserInfo";
 
 const WS_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000")
   .replace(/^http/, "ws");
@@ -159,6 +160,9 @@ export default function AIAssistantWidget() {
   const params = useParams();
   const router = useRouter();
   const projectId = params?.projectId as string | undefined;
+  // AI usage debits the V3 wallet — refresh after every reply (and on errors,
+  // since failures auto-refund) so the sidebar widget stays in sync.
+  const { refreshCredits } = useUserInfo();
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"sessions" | "chat">("chat");
@@ -325,6 +329,9 @@ export default function AIAssistantWidget() {
           setIsGenerating(false);
           setAgentStatus(null);
           window.dispatchEvent(new CustomEvent("viewfinder:record", { detail: { label: "reply" } }));
+          // V3 wallet was debited at the start of the turn — refresh now so
+          // the user sees the updated balance.
+          refreshCredits();
           // Remove the status bubble
           if (statusBubbleIdRef.current !== null) {
             const sid = statusBubbleIdRef.current;
@@ -364,6 +371,9 @@ export default function AIAssistantWidget() {
             statusBubbleIdRef.current = null;
             setMessages((prev) => prev.filter((m) => m.id !== sid));
           }
+          // Stop happens after the turn started — credits were already
+          // deducted, so reflect that.
+          refreshCredits();
           return;
         }
 
@@ -372,7 +382,18 @@ export default function AIAssistantWidget() {
           setIsTyping(false);
           setIsGenerating(false);
           setAgentStatus(null);
-          toast.error(data.message || "AI error occurred.");
+          // Backend refund-on-failure / empty-response paths produce messages
+          // mentioning "credit has been refunded" — show as info instead of
+          // error so the user sees this is not a hard failure.
+          const errorMsg = data.error || data.message || "AI error occurred.";
+          if (typeof errorMsg === "string" && /refunded/i.test(errorMsg)) {
+            toast.info(errorMsg);
+          } else {
+            toast.error(errorMsg);
+          }
+          // Either way, refresh the wallet — refund or insufficient-credit
+          // checks may have changed the balance.
+          refreshCredits();
           return;
         }
 
@@ -422,7 +443,7 @@ export default function AIAssistantWidget() {
         reconnectTimer.current = setTimeout(() => connectWs(sessionId), 3000);
       }
     };
-  }, [projectId, router, view]);
+  }, [projectId, router, view, refreshCredits]);
 
   useEffect(() => {
     if (view === "chat" && open) {

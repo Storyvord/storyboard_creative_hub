@@ -10,6 +10,7 @@ import {
 import { toast } from "react-toastify";
 import { getChatSessions, getChatHistory, deleteChatSession } from "@/services/project";
 import { ChatSession, ChatMessage } from "@/types/project";
+import { useUserInfo } from "@/hooks/useUserInfo";
 
 const WS_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000")
   .replace(/^http/, "ws");
@@ -70,6 +71,9 @@ type WsState = "disconnected" | "connecting" | "connected" | "error";
 export default function AIAssistantPage() {
   const params = useParams();
   const router = useRouter();
+  // Refresh wallet after each AI turn — backend debits the V3 wallet up-front
+  // and refunds on failure, so we need to re-read after every settle event.
+  const { refreshCredits } = useUserInfo();
   const projectId = params?.projectId as string | undefined;
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -167,6 +171,8 @@ export default function AIAssistantPage() {
           setIsGenerating(false);
           setAgentStatus("complete");
           setTimeout(() => setAgentStatus(null), 2000);
+          // V3 wallet was debited at turn start — pull the new balance.
+          refreshCredits();
 
           if (streamingIdRef.current !== null) {
             const sid = streamingIdRef.current;
@@ -188,6 +194,7 @@ export default function AIAssistantPage() {
           setIsGenerating(false);
           setAgentStatus(null);
           streamingIdRef.current = null;
+          refreshCredits();
           return;
         }
 
@@ -195,7 +202,15 @@ export default function AIAssistantPage() {
           setIsTyping(false);
           setIsGenerating(false);
           setAgentStatus(null);
-          toast.error(data.message || "AI error.");
+          // Treat refund messages as info, not error.
+          const errorMsg = data.error || data.message || "AI error.";
+          if (typeof errorMsg === "string" && /refunded/i.test(errorMsg)) {
+            toast.info(errorMsg);
+          } else {
+            toast.error(errorMsg);
+          }
+          // Refund / insufficient-credit checks may have changed the balance.
+          refreshCredits();
           return;
         }
 
@@ -234,7 +249,7 @@ export default function AIAssistantPage() {
       setIsGenerating(false);
       if (e.code !== 1000) reconnectRef.current = setTimeout(() => connectWs(selectedRef.current), 4000);
     };
-  }, [projectId, router]);
+  }, [projectId, router, refreshCredits]);
 
   useEffect(() => {
     // intentionally runs once with the current selected (null on mount → new session)

@@ -61,7 +61,8 @@ export default function ProfilePage() {
       try {
         const [profileRes, tierRes] = await Promise.allSettled([
           api.get("/api/accounts/v2/getprofile/"),
-          api.get("/api/accounts/tiers/info/"),
+          // V3 wallet endpoint — returns { wallet: { tier_name, ... }, recent_transactions }
+          api.get("/api/accounts/v3/tier/credit-info/"),
         ]);
 
         if (profileRes.status === "fulfilled") {
@@ -90,8 +91,8 @@ export default function ProfilePage() {
         }
 
         if (tierRes.status === "fulfilled") {
-          const td = tierRes.value.data?.data ?? tierRes.value.data;
-          setTierName(td?.current_tier?.name ?? null);
+          const td = tierRes.value.data ?? {};
+          setTierName(td?.wallet?.tier_name ?? null);
         }
       } catch (e) {
         toast.error("Failed to load profile.");
