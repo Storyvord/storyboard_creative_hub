@@ -38,6 +38,10 @@ export function useUserInfo(): UseUserInfoResult {
   };
 
   const refreshCredits = async () => {
+    // Don't fire when logged out — would trigger a 401 → /login redirect.
+    if (typeof window !== 'undefined' && !window.localStorage.getItem('accessToken')) {
+      return;
+    }
     try {
       const fresh = await getUserCreditInfo();
       cachedCreditInfo = fresh;
@@ -48,6 +52,15 @@ export function useUserInfo(): UseUserInfoResult {
   };
 
   useEffect(() => {
+    // Skip fetching entirely if the user isn't authenticated. Otherwise the
+    // axios 401 interceptor will redirect to /login → AIAssistantWidget
+    // (mounted globally via ViewfinderFrame) re-fetches → 401 → redirect →
+    // infinite reload loop.
+    if (typeof window !== 'undefined' && !window.localStorage.getItem('accessToken')) {
+      setLoading(false);
+      return;
+    }
+
     const now = Date.now();
     const isCacheValid = lastFetchTime !== null && now - lastFetchTime < CACHE_TTL;
 
