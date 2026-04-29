@@ -16,6 +16,7 @@ import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { useGenerationTasks } from "@/hooks/useGenerationTasks";
+import { useUserInfo } from "@/hooks/useUserInfo";
 
 type GenStep = "saving" | "queued" | "rendering";
 
@@ -493,6 +494,10 @@ export default function CharacterDetailPage() {
   const router = useRouter();
   const projectId = params.projectId as string;
   const characterId = Number(params.characterId);
+  // Character/scene-look generation debits the V3 wallet in the Celery
+  // worker — refresh the sidebar widget when the polling hook reports
+  // settle (success or failure).
+  const { refreshCredits } = useUserInfo();
 
   const [character, setCharacter] = useState<CharacterDetail | null>(null);
   const [availableCloths, setAvailableCloths] = useState<Cloth[]>([]);
@@ -614,6 +619,8 @@ export default function CharacterDetailPage() {
       const result = await generateCharacterImage(characterId, model, provider);
       setTrackedPortraitTasks(prev => ({ ...prev, [result.task_id]: characterId }));
       setPortraitGenStep("rendering");
+      // Backend deducts up-front when the Celery task is dispatched.
+      refreshCredits();
       toast.success("Portrait rendering — will update when ready…");
     } catch (e) {
       toast.error(extractApiError(e, "Failed to generate portrait."));
@@ -652,6 +659,9 @@ export default function CharacterDetailPage() {
     taskIds: allTaskIds,
     getObjectId: (taskId) => trackedPortraitTasks[taskId] ?? trackedSceneTasks[taskId] ?? 0,
     onComplete: (taskId) => {
+      // Backend already debited credits up front; refresh on settle so the
+      // wallet reflects any worker-side refund of refunds-on-failure too.
+      refreshCredits();
       if (trackedPortraitTasks[taskId] !== undefined) {
         setTrackedPortraitTasks(prev => { const n = { ...prev }; delete n[taskId]; return n; });
         setGenerating(false);
@@ -669,15 +679,17 @@ export default function CharacterDetailPage() {
       }
     },
     onError: (taskId, objectId, error) => {
+      // Failures auto-refund — refresh.
+      refreshCredits();
       if (trackedPortraitTasks[taskId] !== undefined) {
         setTrackedPortraitTasks(prev => { const n = { ...prev }; delete n[taskId]; return n; });
         setGenerating(false);
         setPortraitGenStep(null);
-        toast.error(`Portrait failed: ${error}`);
+        toast.error("Portrait generation failed. Please try again.");
       } else {
         setTrackedSceneTasks(prev => { const n = { ...prev }; delete n[taskId]; return n; });
         setGeneratingScenes(prev => { const m = new Map(prev); m.delete(objectId); return m; });
-        toast.error(`Scene look failed: ${error}`);
+        toast.error("Scene look generation failed. Please try again.");
       }
     },
   });

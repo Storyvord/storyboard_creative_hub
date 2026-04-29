@@ -8,6 +8,7 @@ import {
   getProjectAnnouncements, createProjectAnnouncement,
   ProjectAnnouncement,
 } from "@/services/announcements";
+import { useProjectPermissions } from "@/hooks/useProjectPermissions";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -50,14 +51,14 @@ function NewAnnouncementModal({ projectId, membershipId, onCreated, onClose }: {
       const ann = await createProjectAnnouncement({ title: title.trim(), message: message.trim(), project: projectId, is_urgent: isUrgent });
       onCreated(ann);
       toast.success("Announcement posted!");
-    } catch { toast.error("Failed to post announcement."); }
+    } catch { toast.error("Couldn't post the announcement. Please try again."); }
     finally { setLoading(false); }
   };
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.5)" }} onClick={onClose} />
-      <div style={{ position: "relative", width: "min(520px, 96vw)", background: "var(--bg-primary)", borderRadius: 16, border: "1px solid var(--border)", padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="animate-scale-in" style={{ position: "relative", width: "min(520px, 96vw)", background: "var(--surface)", borderRadius: 16, border: "1px solid var(--border)", padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>New Announcement</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}><X size={18} /></button>
@@ -155,13 +156,15 @@ export default function AnnouncementsPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [filter, setFilter] = useState<"all" | "urgent">("all");
+  const { canDo } = useProjectPermissions(projectId);
+  const canPost = canDo("announcement:create") || canDo("project:update");
 
   useEffect(() => {
     if (!projectId) return;
     setLoading(true);
     getProjectAnnouncements(projectId)
       .then(setAnnouncements)
-      .catch(() => toast.error("Failed to load announcements."))
+      .catch(() => toast.error("Couldn't load announcements. Please refresh."))
       .finally(() => setLoading(false));
   }, [projectId]);
 
@@ -187,10 +190,12 @@ export default function AnnouncementsPage() {
               </span>
             )}
           </div>
-          <button onClick={() => setShowModal(true)}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, background: "var(--accent)", color: "#fff", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-            <Plus size={15} />New Announcement
-          </button>
+          {canPost && (
+            <button onClick={() => setShowModal(true)}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, background: "var(--accent)", color: "#fff", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+              <Plus size={15} />New Announcement
+            </button>
+          )}
         </div>
 
         {/* Filter tabs */}
@@ -207,11 +212,25 @@ export default function AnnouncementsPage() {
 
         {/* Content */}
         {loading ? (
-          <div style={{ display: "flex", justifyContent: "center", paddingTop: 80 }}>
-            <Loader2 size={28} className="animate-spin" style={{ color: "var(--text-muted)" }} />
+          <div className="stagger" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {[1,2,3].map((i) => (
+              <div key={i} style={{ borderRadius: 14, border: "1px solid var(--border)", padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <div className="skeleton" style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0 }} />
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div className="skeleton" style={{ height: 13, width: "40%", borderRadius: 6 }} />
+                    <div className="skeleton" style={{ height: 11, width: "20%", borderRadius: 6 }} />
+                  </div>
+                  <div className="skeleton" style={{ height: 11, width: 60, borderRadius: 6 }} />
+                </div>
+                <div className="skeleton" style={{ height: 16, width: "60%", borderRadius: 6 }} />
+                <div className="skeleton" style={{ height: 13, width: "90%", borderRadius: 6 }} />
+                <div className="skeleton" style={{ height: 13, width: "75%", borderRadius: 6 }} />
+              </div>
+            ))}
           </div>
         ) : displayed.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "80px 20px", color: "var(--text-muted)" }}>
+          <div className="animate-fade-in" style={{ textAlign: "center", padding: "80px 20px", color: "var(--text-muted)" }}>
             <Megaphone size={40} style={{ opacity: 0.2, margin: "0 auto 16px" }} />
             <p style={{ fontSize: 15, fontWeight: 500 }}>
               {filter === "urgent" ? "No urgent announcements." : "No announcements yet."}
@@ -221,7 +240,7 @@ export default function AnnouncementsPage() {
             )}
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="stagger" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {displayed.map((ann) => <AnnouncementCard key={ann.id} ann={ann} />)}
           </div>
         )}

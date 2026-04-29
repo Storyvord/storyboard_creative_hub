@@ -12,7 +12,8 @@ import { useState, useEffect } from "react";
 import { useTheme } from "@/context/ThemeContext";
 import { getProject } from "@/services/project";
 import UserWidget from "@/components/UserWidget";
-import AIAssistantWidget from "@/components/AIAssistantWidget";
+import AppTour, { AppTourTrigger, APP_TOUR_DONE_KEY } from "@/components/AppTour";
+import RequireAuth from "@/components/RequireAuth";
 
 const PROJECT_NAV = [
   { name: "Overview", href: (id: string) => `/projects/${id}/overview`, icon: LayoutDashboard },
@@ -42,6 +43,15 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
   const { theme, toggleTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [projectName, setProjectName] = useState<string>("");
+  const [tourVisible, setTourVisible] = useState(false);
+
+  // Auto-show tour on first visit to a project page (but not creative-hub pages, they have their own)
+  useEffect(() => {
+    const isCreativeHub = pathname.includes("/creative-hub");
+    if (!isCreativeHub && typeof window !== "undefined" && !localStorage.getItem(APP_TOUR_DONE_KEY)) {
+      setTourVisible(true);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -76,6 +86,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
   };
 
   return (
+    <RequireAuth>
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--background)", color: "var(--text-primary)" }}>
       {/* Sidebar */}
       <aside
@@ -129,6 +140,10 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
 
           {/* CREATIVE HUB section */}
           <div>
+            <div
+              className="mx-2 mb-3"
+              style={{ height: 1, background: "var(--border)" }}
+            />
             {!collapsed && (
               <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
                 Creative Hub
@@ -206,8 +221,19 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
         {children}
       </main>
 
-      {/* Floating AI Assistant */}
-      <AIAssistantWidget />
+      {/* AI Assistant is mounted globally via ViewfinderFrame in root layout. */}
+
+      {/* Tour trigger — shown on non-creative-hub project pages */}
+      {!pathname.includes("/creative-hub") && (
+        <div style={{ position: "fixed", bottom: 28, right: 96, zIndex: 50 }}>
+          <AppTourTrigger onClick={() => { localStorage.removeItem(APP_TOUR_DONE_KEY); setTourVisible(true); }} />
+        </div>
+      )}
+
+      {tourVisible && !pathname.includes("/creative-hub") && (
+        <AppTour onDone={() => { setTourVisible(false); localStorage.setItem(APP_TOUR_DONE_KEY, "1"); }} />
+      )}
     </div>
+    </RequireAuth>
   );
 }

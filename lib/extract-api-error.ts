@@ -21,6 +21,9 @@ export function extractApiError(
   fallback = "An unexpected error occurred. Please try again."
 ): string {
   if (axios.isAxiosError(error)) {
+    // Network / timeout errors annotated by our api.ts interceptor
+    if ((error as any).userMessage) return (error as any).userMessage;
+
     const data = error.response?.data;
 
     if (data) {

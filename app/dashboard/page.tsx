@@ -4,13 +4,12 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { getProjects } from "@/services/project";
 import { Project } from "@/types/project";
-import { logout } from "@/services/auth";
 import { getUnreadCount, getNotifications, Notification } from "@/services/notifications";
 import { getUnifiedCalendar, CalendarEvent, UnifiedCalendar } from "@/services/calendar";
 import { getConnections } from "@/services/network";
 import {
-  Loader2, LogOut, Moon, Plus, Sun, Video, Bell, BellDot,
-  Calendar, CheckSquare, Users, Briefcase, Inbox, Network,
+  Loader2, Moon, Plus, Sun, Video, Bell, BellDot,
+  Calendar, Users, Briefcase, Inbox, Network,
   ChevronRight, Clock, AlertCircle, TrendingUp, FolderOpen,
   Activity, Star,
 } from "lucide-react";
@@ -19,6 +18,9 @@ import { useTheme } from "@/context/ThemeContext";
 import CreateProjectModal from "@/components/project/CreateProjectModal";
 import StatusBadge from "@/components/project/StatusBadge";
 import UserWidget from "@/components/UserWidget";
+import AppTour, { AppTourTrigger, APP_TOUR_DONE_KEY } from "@/components/AppTour";
+import RequireAuth from "@/components/RequireAuth";
+import TiltCard from "@/components/viewfinder/TiltCard";
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -59,10 +61,35 @@ function dayLabel(dateStr: string) {
   return fmtDate(dateStr);
 }
 
+// Matches the color palette used by components/project/StatusBadge.tsx
 const STATUS_COLOR: Record<string, string> = {
-  active: "#34d399", in_progress: "#60a5fa", completed: "#a3e635",
-  pending: "#fbbf24", on_hold: "#f87171", draft: "#94a3b8",
+  PLANNING: "#60a5fa",        // blue
+  DEVELOPMENT: "#a78bfa",     // purple
+  PRE_PRODUCTION: "#fb923c",  // orange
+  IN_PROGRESS: "#fbbf24",     // yellow
+  POST_PRODUCTION: "#2dd4bf", // teal
+  COMPLETED: "#22c55e",       // green
+  PAUSED: "#94a3b8",          // gray
+  CANCELLED: "#f87171",       // red
+  RELEASED: "var(--accent)",        // emerald
 };
+
+// Statuses that represent projects "actively going on" — everything except
+// COMPLETED, PAUSED, CANCELLED, RELEASED.
+const ACTIVE_STATUSES = new Set([
+  "PLANNING",
+  "DEVELOPMENT",
+  "PRE_PRODUCTION",
+  "IN_PROGRESS",
+  "POST_PRODUCTION",
+]);
+
+function formatStatusLabel(status: string) {
+  return status
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 const PRIORITY_COLOR: Record<string, string> = {
   critical: "#f87171", high: "#fb923c", medium: "#fbbf24", low: "#94a3b8",
@@ -70,15 +97,19 @@ const PRIORITY_COLOR: Record<string, string> = {
 
 // ── sub-components ─────────────────────────────────────────────────────────────
 
+// Accepts either a hex color (legacy paths pass #34d399 etc.) or a CSS
+// variable. For hex, we append an alpha-suffix for the tint; for vars, we
+// fall back to --accent-subtle.
 function StatCard({ icon, label, value, sub, color = "#34d399", href }: {
   icon: React.ReactNode; label: string; value: string | number; sub?: string; color?: string; href?: string;
 }) {
+  const tint = color.startsWith("#") ? `${color}18` : "var(--accent-subtle)";
   const inner = (
     <div style={{
       background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 12,
       padding: "16px 18px", display: "flex", alignItems: "center", gap: 14, transition: "border-color .2s",
     }}>
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <div style={{ width: 40, height: 40, borderRadius: 10, background: tint, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <span style={{ color }}>{icon}</span>
       </div>
       <div style={{ minWidth: 0 }}>
@@ -101,7 +132,7 @@ function SectionHeader({ title, href, icon }: { title: string; href?: string; ic
         <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--text-muted)" }}>{title}</h2>
       </div>
       {href && (
-        <Link href={href} style={{ fontSize: 11, color: "#34d399", display: "flex", alignItems: "center", gap: 2, textDecoration: "none" }}>
+        <Link href={href} style={{ fontSize: 11, color: "var(--accent)", display: "flex", alignItems: "center", gap: 2, textDecoration: "none" }}>
           View all <ChevronRight size={12} />
         </Link>
       )}
@@ -119,7 +150,14 @@ export default function DashboardPage() {
   const [connectionCount, setConnectionCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [tourVisible, setTourVisible] = useState(false);
   const { theme, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && !localStorage.getItem(APP_TOUR_DONE_KEY)) {
+      setTourVisible(true);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -130,9 +168,9 @@ export default function DashboardPage() {
       getConnections(),
     ]);
     if (proj.status === "fulfilled") setProjects(proj.value);
-    if (notifs.status === "fulfilled") setNotifications(notifs.value.slice(0, 6));
+    if (notifs.status === "fulfilled") setNotifications(notifs.value.results.slice(0, 6));
     if (unread.status === "fulfilled") setUnreadCount(unread.value);
-    if (connections.status === "fulfilled") setConnectionCount((connections.value as any)?.count ?? (connections.value as any[])?.length ?? 0);
+    if (connections.status === "fulfilled") setConnectionCount(Array.isArray(connections.value) ? connections.value.length : 0);
 
     // Calendar — load for all projects in background
     getUnifiedCalendar().then((cal) => {
@@ -149,7 +187,7 @@ export default function DashboardPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const activeProjects = projects.filter(p => p.status === "active" || p.status === "in_progress");
+  const activeProjects = projects.filter(p => p.status && ACTIVE_STATUSES.has(p.status));
   const recentProjects = [...projects].sort((a, b) =>
     new Date(b.updated_at ?? b.created_at ?? 0).getTime() - new Date(a.updated_at ?? a.created_at ?? 0).getTime()
   ).slice(0, 6);
@@ -160,6 +198,7 @@ export default function DashboardPage() {
   const unreadNotifs = notifications.filter(n => !n.is_read);
 
   return (
+    <RequireAuth>
     <div style={{ minHeight: "100vh", background: "var(--background)", color: "var(--text-primary)" }}>
       {/* ── Top Bar ── */}
       <header style={{
@@ -168,7 +207,7 @@ export default function DashboardPage() {
         padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Video size={18} style={{ color: "#34d399" }} />
+          <Video size={18} style={{ color: "var(--accent)" }} />
           <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-.01em" }}>Storyvord</span>
         </div>
         <nav style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -190,11 +229,11 @@ export default function DashboardPage() {
             width: 34, height: 34, borderRadius: 8, border: "1px solid var(--border)",
             background: "var(--surface-raised)", color: "var(--text-secondary)", textDecoration: "none",
           }}>
-            {unreadCount > 0 ? <BellDot size={15} style={{ color: "#34d399" }} /> : <Bell size={15} />}
+            {unreadCount > 0 ? <BellDot size={15} style={{ color: "var(--accent)" }} /> : <Bell size={15} />}
             {unreadCount > 0 && (
               <span style={{
                 position: "absolute", top: 4, right: 4, width: 8, height: 8,
-                borderRadius: "50%", background: "#34d399", border: "2px solid var(--surface)",
+                borderRadius: "50%", background: "var(--accent)", border: "2px solid var(--surface)",
               }} />
             )}
           </Link>
@@ -206,30 +245,67 @@ export default function DashboardPage() {
           }}>
             {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
           </button>
-          <button onClick={logout} style={{
-            display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8,
-            fontSize: 12, fontWeight: 500, color: "var(--text-secondary)",
-            background: "var(--surface-raised)", border: "1px solid var(--border)", cursor: "pointer",
-          }}>
-            <LogOut size={13} />Logout
-          </button>
         </nav>
       </header>
 
       {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "calc(100vh - 56px)" }}>
-          <Loader2 className="animate-spin" size={28} style={{ color: "var(--text-muted)" }} />
-        </div>
-      ) : (
         <main style={{ maxWidth: 1280, margin: "0 auto", padding: "24px 24px 48px" }}>
+          {/* Stat cards skeleton */}
+          <div className="stagger" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 28 }}>
+            {[1,2,3,4,5].map((i) => (
+              <div key={i} style={{ borderRadius: 14, border: "1px solid var(--border)", padding: "18px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 8 }} />
+                  <div className="skeleton" style={{ width: 24, height: 24, borderRadius: 6 }} />
+                </div>
+                <div className="skeleton" style={{ height: 28, width: "60%", borderRadius: 6 }} />
+                <div className="skeleton" style={{ height: 12, width: "80%", borderRadius: 6 }} />
+              </div>
+            ))}
+          </div>
+          {/* Main content skeleton */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ borderRadius: 14, border: "1px solid var(--border)", padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="skeleton" style={{ height: 16, width: "30%", borderRadius: 6 }} />
+                {[1,2,3].map((i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 8, flexShrink: 0 }} />
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div className="skeleton" style={{ height: 13, width: "50%", borderRadius: 6 }} />
+                      <div className="skeleton" style={{ height: 11, width: "30%", borderRadius: 6 }} />
+                    </div>
+                    <div className="skeleton" style={{ width: 70, height: 22, borderRadius: 99 }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ borderRadius: 14, border: "1px solid var(--border)", padding: 20, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div className="skeleton" style={{ height: 16, width: "40%", borderRadius: 6, marginBottom: 4 }} />
+                {[1,2,3,4].map((i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, paddingBottom: 10, borderBottom: "1px solid var(--border)" }}>
+                    <div className="skeleton" style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, marginTop: 4 }} />
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
+                      <div className="skeleton" style={{ height: 13, width: "80%", borderRadius: 6 }} />
+                      <div className="skeleton" style={{ height: 11, width: "40%", borderRadius: 6 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </main>
+      ) : (
+        <main className="animate-fade-in" style={{ maxWidth: 1280, margin: "0 auto", padding: "24px 24px 48px" }}>
 
           {/* ── Stat Row ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 28 }}>
-            <StatCard icon={<FolderOpen size={18} />} label="Total Projects" value={projects.length} sub={`${activeProjects.length} active`} color="#34d399" href="/dashboard" />
+          <div data-tour="dash-stats" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 28 }}>
+            <StatCard icon={<FolderOpen size={18} />} label="Total Projects" value={projects.length} sub={`${activeProjects.length} active`} color="var(--accent)" href="/dashboard" />
             <StatCard icon={<Bell size={18} />} label="Notifications" value={unreadCount} sub="unread" color="#60a5fa" href="/notifications" />
-            <StatCard icon={<Calendar size={18} />} label="Today's Events" value={todayEvents.length} sub={events.length > 0 ? `${events.length} upcoming` : "no events"} color="#a78bfa" href="/dashboard" />
+            <StatCard icon={<Calendar size={18} />} label="Today's Events" value={todayEvents.length} sub={events.length > 0 ? `${events.length} upcoming` : "no events"} color="#a78bfa" />
             <StatCard icon={<Users size={18} />} label="Connections" value={connectionCount} sub="in network" color="#fb923c" href="/network" />
-            <StatCard icon={<TrendingUp size={18} />} label="Completed" value={projects.filter(p => p.status === "completed").length} sub="projects done" color="#a3e635" />
+            <StatCard icon={<TrendingUp size={18} />} label="Completed" value={projects.filter(p => p.status === "COMPLETED").length} sub="projects done" color="#a3e635" />
           </div>
 
           {/* ── Main 3-col grid ── */}
@@ -240,7 +316,7 @@ export default function DashboardPage() {
 
               {/* Today at a glance */}
               {todayEvents.length > 0 && (
-                <div style={{ background: "linear-gradient(135deg, #059669 0%, #0d9488 100%)", borderRadius: 14, padding: "18px 20px", color: "#fff" }}>
+                <div data-tour="dash-schedule" style={{ background: "linear-gradient(135deg, #059669 0%, #0d9488 100%)", borderRadius: 14, padding: "18px 20px", color: "#fff" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                     <Star size={15} style={{ opacity: .9 }} />
                     <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", opacity: .85 }}>Today's Schedule</span>
@@ -258,24 +334,21 @@ export default function DashboardPage() {
               )}
 
               {/* Recent Projects */}
-              <div>
-                <SectionHeader title="Recent Projects" href="/dashboard" icon={<FolderOpen size={14} />} />
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+              <div data-tour="dash-projects">
+                <SectionHeader title="Recent Projects" icon={<FolderOpen size={14} />} />
+                <div className="vf-tilt-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
                   {recentProjects.map(project => (
                     <Link key={project.project_id} href={`/projects/${project.project_id}/overview`}
                       style={{ textDecoration: "none", color: "inherit", display: "block" }}>
-                      <div style={{
+                      <TiltCard style={{
                         background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 12,
-                        padding: "14px 16px", transition: "border-color .2s, box-shadow .2s",
-                      }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#34d39940"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 12px rgba(0,0,0,.1)"; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
-                      >
+                        padding: "14px 16px",
+                      }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                           <div style={{
-                            width: 36, height: 36, borderRadius: 9, background: "#34d39918",
+                            width: 36, height: 36, borderRadius: 9, background: "var(--accent-subtle)",
                             display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 15, fontWeight: 700, color: "#34d399",
+                            fontSize: 15, fontWeight: 700, color: "var(--accent)",
                           }}>
                             {project.name.charAt(0).toUpperCase()}
                           </div>
@@ -290,7 +363,7 @@ export default function DashboardPage() {
                             Updated {fmt(project.updated_at)}
                           </p>
                         )}
-                      </div>
+                      </TiltCard>
                     </Link>
                   ))}
 
@@ -302,17 +375,17 @@ export default function DashboardPage() {
                       background: "transparent", cursor: "pointer", gap: 6, minHeight: 100,
                       transition: "border-color .2s",
                     }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#34d39966"; }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--accent-border)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}
                   >
-                    <Plus size={20} style={{ color: "#34d399" }} />
+                    <Plus size={20} style={{ color: "var(--accent)" }} />
                     <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>New Project</span>
                   </button>
                 </div>
               </div>
 
               {/* Notifications Feed */}
-              <div>
+              <div data-tour="dash-activity">
                 <SectionHeader title="Recent Activity" href="/notifications" icon={<Activity size={14} />} />
                 {notifications.length === 0 ? (
                   <div style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>No recent activity.</div>
@@ -322,15 +395,15 @@ export default function DashboardPage() {
                       <div key={n.uuid} style={{
                         display: "flex", alignItems: "flex-start", gap: 10,
                         padding: "10px 12px", borderRadius: 10,
-                        background: n.is_read ? "transparent" : "rgba(52,211,153,.04)",
-                        border: `1px solid ${n.is_read ? "transparent" : "rgba(52,211,153,.12)"}`,
+                        background: n.is_read ? "transparent" : "var(--accent-subtle)",
+                        border: `1px solid ${n.is_read ? "transparent" : "var(--accent-border)"}`,
                       }}>
                         <div style={{
                           width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-                          background: n.is_system_generated ? "#60a5fa18" : "#34d39918",
+                          background: n.is_system_generated ? "#60a5fa18" : "var(--accent-subtle)",
                           display: "flex", alignItems: "center", justifyContent: "center",
                           fontSize: 12, fontWeight: 700,
-                          color: n.is_system_generated ? "#60a5fa" : "#34d399",
+                          color: n.is_system_generated ? "#60a5fa" : "var(--accent)",
                         }}>
                           {n.is_system_generated ? "S" : (n.sender_name?.[0] ?? "?").toUpperCase()}
                         </div>
@@ -342,7 +415,7 @@ export default function DashboardPage() {
                           <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.message}</p>
                         </div>
                         {!n.is_read && (
-                          <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#34d399", flexShrink: 0, marginTop: 4 }} />
+                          <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", flexShrink: 0, marginTop: 4 }} />
                         )}
                       </div>
                     ))}
@@ -355,7 +428,7 @@ export default function DashboardPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
               {/* Upcoming Events */}
-              <div style={{ background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
+              <div data-tour="dash-upcoming" style={{ background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
                 <SectionHeader title="Upcoming Events" icon={<Calendar size={14} />} />
                 {events.length === 0 ? (
                   <div style={{ padding: "24px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>No upcoming events.</div>
@@ -365,14 +438,14 @@ export default function DashboardPage() {
                       <div key={ev.id} style={{
                         display: "flex", gap: 10, alignItems: "flex-start",
                         padding: "8px 10px", borderRadius: 9,
-                        background: isToday(ev.start) ? "rgba(52,211,153,.07)" : "var(--surface)",
-                        border: `1px solid ${isToday(ev.start) ? "rgba(52,211,153,.2)" : "var(--border)"}`,
+                        background: isToday(ev.start) ? "var(--accent-subtle)" : "var(--surface)",
+                        border: `1px solid ${isToday(ev.start) ? "var(--accent-border)" : "var(--border)"}`,
                       }}>
                         <div style={{
-                          minWidth: 38, textAlign: "center", background: isToday(ev.start) ? "#34d39920" : "var(--surface-raised)",
+                          minWidth: 38, textAlign: "center", background: isToday(ev.start) ? "var(--accent-subtle)" : "var(--surface-raised)",
                           borderRadius: 8, padding: "4px 2px",
                         }}>
-                          <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: isToday(ev.start) ? "#34d399" : "var(--text-primary)" }}>
+                          <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: isToday(ev.start) ? "var(--accent)" : "var(--text-primary)" }}>
                             {new Date(ev.start).getDate()}
                           </p>
                           <p style={{ margin: 0, fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase" }}>
@@ -382,7 +455,7 @@ export default function DashboardPage() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
                             {isToday(ev.start) && (
-                              <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 99, background: "#34d39918", color: "#34d399", fontWeight: 700 }}>TODAY</span>
+                              <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 99, background: "var(--accent-subtle)", color: "var(--accent)", fontWeight: 700 }}>TODAY</span>
                             )}
                           </div>
                           <p style={{ margin: 0, fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</p>
@@ -404,7 +477,7 @@ export default function DashboardPage() {
                     return Object.entries(groups).map(([status, count]) => (
                       <div key={status} style={{ marginBottom: 8 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, textTransform: "capitalize", color: "var(--text-secondary)" }}>{status.replace(/_/g, " ")}</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>{formatStatusLabel(status)}</span>
                           <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{count}</span>
                         </div>
                         <div style={{ height: 6, borderRadius: 99, background: "var(--border)", overflow: "hidden" }}>
@@ -421,14 +494,14 @@ export default function DashboardPage() {
               )}
 
               {/* Quick Links */}
-              <div style={{ background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
+              <div data-tour="dash-quicklinks" style={{ background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
                 <SectionHeader title="Quick Links" icon={<Star size={14} />} />
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   {[
                     { href: "/notifications", label: "Notifications", icon: <Bell size={14} />, badge: unreadCount > 0 ? unreadCount : undefined, color: "#60a5fa" },
                     { href: "/inbox", label: "Inbox", icon: <Inbox size={14} />, color: "#a78bfa" },
                     { href: "/network", label: "My Network", icon: <Network size={14} />, color: "#fb923c" },
-                    { href: "/crew-search", label: "Crew Search", icon: <Users size={14} />, color: "#34d399" },
+                    { href: "/crew-search", label: "Crew Search", icon: <Users size={14} />, color: "var(--accent)" },
                   ].map(item => (
                     <Link key={item.href} href={item.href} style={{ textDecoration: "none" }}>
                       <div style={{
@@ -442,7 +515,7 @@ export default function DashboardPage() {
                         <span style={{ color: item.color }}>{item.icon}</span>
                         <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>{item.label}</span>
                         {item.badge !== undefined && (
-                          <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 99, background: "#34d39920", color: "#34d399", fontWeight: 700 }}>{item.badge}</span>
+                          <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 99, background: "var(--accent-subtle)", color: "var(--accent)", fontWeight: 700 }}>{item.badge}</span>
                         )}
                         <ChevronRight size={12} style={{ color: "var(--text-muted)" }} />
                       </div>
@@ -453,11 +526,11 @@ export default function DashboardPage() {
 
               {/* Unread notification snippets */}
               {unreadNotifs.length > 0 && (
-                <div style={{ background: "var(--surface-raised)", border: "1px solid rgba(52,211,153,.2)", borderRadius: 14, padding: "16px 18px" }}>
-                  <SectionHeader title={`${unreadNotifs.length} Unread`} href="/notifications" icon={<AlertCircle size={14} style={{ color: "#34d399" }} />} />
+                <div style={{ background: "var(--surface-raised)", border: "1px solid var(--accent-border)", borderRadius: 14, padding: "16px 18px" }}>
+                  <SectionHeader title={`${unreadNotifs.length} Unread`} href="/notifications" icon={<AlertCircle size={14} style={{ color: "var(--accent)" }} />} />
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {unreadNotifs.slice(0, 3).map(n => (
-                      <div key={n.uuid} style={{ fontSize: 12, padding: "6px 8px", borderRadius: 8, background: "rgba(52,211,153,.05)", borderLeft: "3px solid #34d399" }}>
+                      <div key={n.uuid} style={{ fontSize: 12, padding: "6px 8px", borderRadius: 8, background: "var(--accent-subtle)", borderLeft: "3px solid var(--accent)" }}>
                         <p style={{ margin: 0, fontWeight: 600 }}>{n.title}</p>
                         <p style={{ margin: "2px 0 0", fontSize: 10, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.message}</p>
                       </div>
@@ -473,6 +546,14 @@ export default function DashboardPage() {
       {createOpen && (
         <CreateProjectModal onClose={() => setCreateOpen(false)} onCreated={load} />
       )}
+
+      {/* Tour trigger — fixed bottom-left of AI button */}
+      <div style={{ position: "fixed", bottom: 28, right: 96, zIndex: 50 }}>
+        <AppTourTrigger onClick={() => { localStorage.removeItem(APP_TOUR_DONE_KEY); setTourVisible(true); }} />
+      </div>
+
+      {tourVisible && <AppTour onDone={() => { setTourVisible(false); localStorage.setItem(APP_TOUR_DONE_KEY, "1"); }} />}
     </div>
+    </RequireAuth>
   );
 }

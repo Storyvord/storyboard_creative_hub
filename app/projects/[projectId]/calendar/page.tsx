@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus, Loader2, X, MapPin, Clock, Trash2 } from "lucide-react";
 import { toast } from "react-toastify";
 import {
-  getUnifiedCalendar, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
+  getProjectCalendar, createProjectCalendarEvent, updateProjectCalendarEvent, deleteProjectCalendarEvent,
   CalendarEvent,
 } from "@/services/calendar";
 
@@ -40,14 +40,15 @@ function EventModal({ event, onClose, onSave, onDelete }: {
   const [description, setDescription] = useState(event.description ?? "");
   const [location, setLocation] = useState(event.location ?? "");
   const [loading, setLoading] = useState(false);
-  const isNew = !event.id || typeof event.id === "string";
+  const isNew = !event.id;
 
   const submit = async () => {
     if (!title.trim()) { toast.error("Title is required."); return; }
+    if (new Date(end).getTime() <= new Date(start).getTime()) { toast.error("End time must be after start time."); return; }
     setLoading(true);
     try {
       await onSave({ title: title.trim(), start: new Date(start).toISOString(), end: new Date(end).toISOString(), description: description || undefined, location: location || undefined });
-    } catch { toast.error("Failed to save event."); }
+    } catch { toast.error("Couldn't save the event. Please try again."); }
     finally { setLoading(false); }
   };
 
@@ -55,14 +56,14 @@ function EventModal({ event, onClose, onSave, onDelete }: {
     if (!onDelete || !confirm("Delete this event?")) return;
     setLoading(true);
     try { await onDelete(); }
-    catch { toast.error("Failed to delete."); }
+    catch { toast.error("Couldn't delete the event. Please try again."); }
     finally { setLoading(false); }
   };
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.5)" }} onClick={onClose} />
-      <div style={{ position: "relative", width: "min(480px, 96vw)", background: "var(--bg-primary)", borderRadius: 16, border: "1px solid var(--border)", padding: 24, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ position: "relative", width: "min(480px, 96vw)", background: "var(--surface)", borderRadius: 16, border: "1px solid var(--border)", padding: 24, display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{isNew ? "New Event" : "Edit Event"}</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}><X size={18} /></button>
@@ -189,12 +190,17 @@ export default function CalendarPage() {
   const [modalEvent, setModalEvent] = useState<(Partial<CalendarEvent> & { start: string; end: string }) | null>(null);
 
   useEffect(() => {
+    if (!projectId) return;
     setLoading(true);
-    getUnifiedCalendar()
-      .then((cal) => setEvents(cal.user_calendar_events))
-      .catch(() => toast.error("Failed to load calendar."))
+    getProjectCalendar(projectId)
+      .then((cal: any) => {
+        // CalendarSerializer returns { id, name, project, events } — events is source='calendar_events'
+        const evts = cal?.events ?? cal?.calendar_events ?? [];
+        setEvents(evts);
+      })
+      .catch(() => toast.error("Couldn't load calendar. Please refresh."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [projectId]);
 
   const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); };
@@ -207,11 +213,11 @@ export default function CalendarPage() {
 
   const handleSave = async (data: { title: string; start: string; end: string; description?: string; location?: string }) => {
     if (modalEvent?.id && typeof modalEvent.id === "number") {
-      const updated = await updateCalendarEvent(modalEvent.id, data);
+      const updated = await updateProjectCalendarEvent(projectId, modalEvent.id, data);
       setEvents((prev) => prev.map((e) => e.id === updated.id ? updated : e));
       toast.success("Event updated.");
     } else {
-      const created = await createCalendarEvent(data);
+      const created = await createProjectCalendarEvent(projectId, data);
       setEvents((prev) => [...prev, created]);
       toast.success("Event created.");
     }
@@ -220,7 +226,7 @@ export default function CalendarPage() {
 
   const handleDelete = async () => {
     if (!modalEvent?.id || typeof modalEvent.id === "string") return;
-    await deleteCalendarEvent(modalEvent.id);
+    await deleteProjectCalendarEvent(projectId, modalEvent.id);
     setEvents((prev) => prev.filter((e) => e.id !== modalEvent.id));
     toast.success("Event deleted.");
     setModalEvent(null);

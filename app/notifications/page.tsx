@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AppTour, { AppTourTrigger, APP_TOUR_DONE_KEY } from "@/components/AppTour";
 import { Bell, BellOff, Check, CheckCheck, Loader2, Settings, X } from "lucide-react";
 import { toast } from "react-toastify";
 import {
   getNotifications, getPreference, updatePreference, markRead, markAllRead,
   Notification, NotificationPreference,
 } from "@/services/notifications";
+import RequireAuth from "@/components/RequireAuth";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -37,7 +39,7 @@ function NotifCard({ n, onRead }: { n: Notification; onRead: (uuid: string) => v
       onMouseLeave={(e) => { if (!n.is_read) e.currentTarget.style.background = "var(--surface)"; else e.currentTarget.style.background = "transparent"; }}
     >
       {/* Icon */}
-      <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+      <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--surface-raised)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
         {CATEGORY_ICON[n.category] ?? "🔔"}
       </div>
 
@@ -55,7 +57,7 @@ function NotifCard({ n, onRead }: { n: Notification; onRead: (uuid: string) => v
         </div>
         <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)", wordBreak: "break-word" }}>{n.message}</p>
         <p style={{ margin: "6px 0 0", fontSize: 11, color: "var(--text-muted)" }}>
-          {n.sender_name} · {n.time_since} ago
+          {n.sender_name} · {n.time_since}
         </p>
       </div>
     </div>
@@ -69,7 +71,7 @@ function PreferencesPanel({ onClose }: { onClose: () => void }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    getPreference().then(setPref).catch(() => toast.error("Failed to load preferences."));
+    getPreference().then(setPref).catch(() => toast.error("Couldn't load notification preferences. Please try again."));
   }, []);
 
   const toggle = (key: keyof NotificationPreference) => {
@@ -84,12 +86,13 @@ function PreferencesPanel({ onClose }: { onClose: () => void }) {
       await updatePreference(pref);
       toast.success("Preferences saved.");
       onClose();
-    } catch { toast.error("Failed to save preferences."); }
+    } catch { toast.error("Couldn't save preferences. Please try again."); }
     finally { setSaving(false); }
   };
 
   const TOGGLES: { key: keyof NotificationPreference; label: string }[] = [
     { key: "websocket_enabled", label: "Real-time (WebSocket)" },
+    { key: "webhook_enabled", label: "Webhook notifications" },
     { key: "task_notifications", label: "Task notifications" },
     { key: "project_notifications", label: "Project notifications" },
     { key: "calendar_notifications", label: "Calendar notifications" },
@@ -136,13 +139,35 @@ function PreferencesPanel({ onClose }: { onClose: () => void }) {
 export default function NotificationsPage() {
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextUrl, setNextUrl] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
   const [showPrefs, setShowPrefs] = useState(false);
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [tourVisible, setTourVisible] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    getNotifications().then(setNotifs).catch(() => toast.error("Failed to load notifications.")).finally(() => setLoading(false));
+    getNotifications()
+      .then((res) => { setNotifs(res.results); setNextUrl(res.next); setPage(1); })
+      .catch(() => toast.error("Couldn't load notifications. Please refresh."))
+      .finally(() => setLoading(false));
   }, []);
+
+  const loadMore = async () => {
+    if (!nextUrl || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await getNotifications({ page: page + 1 });
+      setNotifs((prev) => [...prev, ...res.results]);
+      setNextUrl(res.next);
+      setPage((p) => p + 1);
+    } catch {
+      toast.error("Couldn't load more notifications.");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const handleRead = async (uuid: string) => {
     await markRead(uuid).catch(() => {});
@@ -158,6 +183,7 @@ export default function NotificationsPage() {
   const unreadCount = notifs.filter((n) => !n.is_read).length;
 
   return (
+    <RequireAuth>
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
@@ -185,7 +211,7 @@ export default function NotificationsPage() {
       </div>
 
       {/* Filter tabs */}
-      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--border)", marginBottom: 0 }}>
+      <div data-tour="notif-filter" style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--border)", marginBottom: 0 }}>
         {(["all", "unread"] as const).map((f) => (
           <button key={f} onClick={() => setFilter(f)}
             style={{ padding: "8px 18px", background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: filter === f ? 600 : 400,
@@ -199,22 +225,54 @@ export default function NotificationsPage() {
       {/* List */}
       <div style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", borderTop: "none", borderRadius: "0 0 12px 12px", overflow: "hidden" }}>
         {loading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
-            <Loader2 size={24} className="animate-spin" style={{ color: "var(--text-muted)" }} />
+          <div className="stagger">
+            {[1,2,3,4,5].map((i) => (
+              <div key={i} style={{ display: "flex", gap: 12, padding: "14px 18px", borderBottom: "1px solid var(--border)" }}>
+                <div className="skeleton" style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0 }} />
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <div className="skeleton" style={{ height: 14, width: "50%", borderRadius: 6 }} />
+                    <div className="skeleton" style={{ height: 14, width: 60, borderRadius: 99 }} />
+                  </div>
+                  <div className="skeleton" style={{ height: 13, width: "80%", borderRadius: 6 }} />
+                  <div className="skeleton" style={{ height: 11, width: "30%", borderRadius: 6 }} />
+                </div>
+              </div>
+            ))}
           </div>
         ) : displayed.length === 0 ? (
-          <div style={{ padding: 60, textAlign: "center" }}>
+          <div className="animate-fade-in" style={{ padding: 60, textAlign: "center" }}>
             <BellOff size={32} style={{ color: "var(--text-muted)", margin: "0 auto 12px" }} />
             <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
               {filter === "unread" ? "No unread notifications." : "No notifications yet."}
             </p>
           </div>
         ) : (
-          displayed.map((n) => <NotifCard key={n.uuid} n={n} onRead={handleRead} />)
+          <div className="stagger">
+            {displayed.map((n) => <NotifCard key={n.uuid} n={n} onRead={handleRead} />)}
+          </div>
+        )}
+        {!loading && nextUrl && filter === "all" && (
+          <div style={{ padding: "12px 18px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "center" }}>
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-primary)", cursor: loadingMore ? "not-allowed" : "pointer", fontSize: 13 }}
+            >
+              {loadingMore ? <Loader2 size={14} className="animate-spin" /> : null}
+              {loadingMore ? "Loading…" : "Load more"}
+            </button>
+          </div>
         )}
       </div>
 
       {showPrefs && <PreferencesPanel onClose={() => setShowPrefs(false)} />}
+
+      <div style={{ position: "fixed", bottom: 28, right: 96, zIndex: 50 }}>
+        <AppTourTrigger onClick={() => { localStorage.removeItem(APP_TOUR_DONE_KEY); setTourVisible(true); }} />
+      </div>
+      {tourVisible && <AppTour onDone={() => { setTourVisible(false); localStorage.setItem(APP_TOUR_DONE_KEY, "1"); }} />}
     </div>
+    </RequireAuth>
   );
 }

@@ -22,8 +22,10 @@ export default function CreativeHubLayout({ children }: { children: React.ReactN
 
   return (
     <div className="relative flex-1 h-full">
-      {/* Tour trigger button in top-right corner */}
-      <div className="absolute top-3 right-3 z-10">
+      {children}
+
+      {/* Tour trigger — fixed bottom, to the left of the AI assistant button */}
+      <div style={{ position: "fixed", bottom: 28, right: 96, zIndex: 50 }}>
         <PlatformTourTrigger onClick={() => {
           localStorage.removeItem(PLATFORM_TOUR_DONE_KEY);
           if (!localStorage.getItem(PLATFORM_TOUR_PAGE_KEY)) {
@@ -32,8 +34,6 @@ export default function CreativeHubLayout({ children }: { children: React.ReactN
           setIsTourVisible(true);
         }} />
       </div>
-
-      {children}
 
       {isTourVisible && (
         <PlatformTour

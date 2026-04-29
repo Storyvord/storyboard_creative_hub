@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import { Loader2 } from "lucide-react";
 import {
   getConnections,
   getConnectionRequests,
@@ -12,8 +13,11 @@ import {
   Connection,
   NetworkUser,
 } from "@/services/network";
+import { useUserInfo } from "@/hooks/useUserInfo";
+import RequireAuth from "@/components/RequireAuth";
 
 type Tab = "connections" | "requests" | "discover";
+type ConnectState = "idle" | "sending" | "sent" | "error";
 
 function Avatar({ src, name, size = 44 }: { src?: string | null; name?: string | null; size?: number }) {
   const initials = (name ?? "?").charAt(0).toUpperCase();
@@ -54,6 +58,10 @@ export default function NetworkPage() {
   const [loading, setLoading] = useState(false);
   const [connectEmail, setConnectEmail] = useState("");
   const [showConnectForm, setShowConnectForm] = useState<string | null>(null); // stores email pre-fill or ""
+  const [connectStates, setConnectStates] = useState<Record<number | string, ConnectState>>({});
+  const { profile: currentUser } = useUserInfo();
+  const myId = currentUser?.id ?? 0;
+  const otherParty = (c: Connection) => (c.requester.id === myId ? c.receiver : c.requester);
 
   useEffect(() => {
     loadConnections();
@@ -66,7 +74,7 @@ export default function NetworkPage() {
       const data = await getConnections();
       setConnections(data);
     } catch {
-      toast.error("Failed to load connections");
+      toast.error("Couldn't load your connections. Please refresh.");
     }
   };
 
@@ -75,7 +83,7 @@ export default function NetworkPage() {
       const data = await getConnectionRequests();
       setRequests(data);
     } catch {
-      toast.error("Failed to load requests");
+      toast.error("Couldn't load connection requests. Please refresh.");
     }
   };
 
@@ -86,7 +94,7 @@ export default function NetworkPage() {
       const data = await profileSearch(searchQuery.trim());
       setSearchResults(Array.isArray(data) ? data : []);
     } catch {
-      toast.error("Search failed");
+      toast.error("Search is unavailable right now. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -104,18 +112,95 @@ export default function NetworkPage() {
         setShowConnectForm(null);
       }
     } catch {
-      toast.error("Failed to send connection request");
+      toast.error("Couldn't send the connection request. Please try again.");
     }
+  };
+
+  const handleConnect = async (user: NetworkUser) => {
+    const key: number | string = user.id ?? user.email;
+    const email = user.email;
+    // Guard: missing email
+    if (!email) return;
+    // Guard: self-connection
+    if (
+      (user.id != null && currentUser?.id != null && user.id === currentUser.id) ||
+      (currentUser?.email && email === currentUser.email)
+    ) {
+      return;
+    }
+    // Guard: already sending or already sent
+    const current = connectStates[key];
+    if (current === "sending" || current === "sent") return;
+
+    setConnectStates((prev) => ({ ...prev, [key]: "sending" }));
+    try {
+      const res = await sendConnectionRequest(email);
+      if (res && typeof res === "object" && "error" in res && (res as { error?: unknown }).error) {
+        const msg = String((res as { error?: unknown }).error) || "Couldn't send connection request. Try again.";
+        setConnectStates((prev) => ({ ...prev, [key]: "error" }));
+        toast.error(msg);
+        return;
+      }
+      setConnectStates((prev) => ({ ...prev, [key]: "sent" }));
+      toast.success("Connection request sent");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string; detail?: string; message?: string } } })?.response?.data?.error ||
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        "Couldn't send the connection request. Please try again.";
+      setConnectStates((prev) => ({ ...prev, [key]: "error" }));
+      toast.error(String(msg));
+    }
+  };
+
+  const renderConnectButton = (user: NetworkUser) => {
+    const key: number | string = user.id ?? user.email;
+    const state: ConnectState = connectStates[key] ?? "idle";
+    const email = user.email;
+    const isSelf =
+      (user.id != null && currentUser?.id != null && user.id === currentUser.id) ||
+      (!!currentUser?.email && !!email && email === currentUser.email);
+    if (!email || isSelf) return null;
+
+    const isSending = state === "sending";
+    const isSent = state === "sent";
+    const disabled = isSending || isSent;
+    const label = isSending ? "Sending…" : isSent ? "Pending" : "Connect";
+    return (
+      <button
+        type="button"
+        onClick={() => handleConnect(user)}
+        disabled={disabled}
+        style={{
+          fontSize: 12,
+          padding: "4px 12px",
+          borderRadius: 6,
+          border: isSent ? "1px solid var(--border)" : "none",
+          background: isSent ? "transparent" : "var(--accent)",
+          color: isSent ? "var(--text-muted)" : "#fff",
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: isSending ? 0.7 : 1,
+          fontWeight: 600,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        {isSending && <Loader2 size={12} className="animate-spin" />}
+        {label}
+      </button>
+    );
   };
 
   const handleManage = async (requesterId: number, status: "accepted" | "rejected") => {
     try {
       await manageConnection(requesterId, status);
-      toast.success(`Request ${status}`);
+      toast.success(status === "accepted" ? "Connection accepted!" : "Request declined.");
       loadRequests();
       if (status === "accepted") loadConnections();
     } catch {
-      toast.error("Action failed");
+      toast.error(status === "accepted" ? "Couldn't accept the request. Please try again." : "Couldn't decline the request. Please try again.");
     }
   };
 
@@ -137,6 +222,7 @@ export default function NetworkPage() {
   });
 
   return (
+    <RequireAuth>
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)", color: "var(--text-primary)", padding: "32px 24px" }}>
       <div style={{ maxWidth: 900, margin: "0 auto" }}>
         <h1 style={{ fontWeight: 700, fontSize: 24, marginBottom: 24 }}>Network</h1>
@@ -152,20 +238,20 @@ export default function NetworkPage() {
         {tab === "connections" && (
           <div>
             {connections.length === 0 ? (
-              <p style={{ color: "var(--text-muted)", textAlign: "center", marginTop: 40 }}>No connections yet.</p>
+              <div style={{ textAlign: "center", marginTop: 40 }}>
+                <p style={{ color: "var(--text-muted)" }}>No connections yet.</p>
+                <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 6 }}>Use the <strong>Discover</strong> tab to find and connect with crew.</p>
+              </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16 }}>
                 {connections.map((c) => (
                   <UserCard
                     key={c.id}
-                    user={c.receiver}
+                    user={otherParty(c)}
                     action={
-                      <button
-                        style={{ fontSize: 12, padding: "4px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}
-                        onClick={() => toast.info("Remove not implemented")}
-                      >
-                        Remove
-                      </button>
+                      <span style={{ fontSize: 11, color: "var(--text-muted)", padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)" }}>
+                        Connected
+                      </span>
                     }
                   />
                 ))}
@@ -268,14 +354,7 @@ export default function NetworkPage() {
                     <UserCard
                       key={u.id}
                       user={u}
-                      action={
-                        <button
-                          onClick={() => { setShowConnectForm(""); setConnectEmail(u.email); setTab("discover"); }}
-                          style={{ fontSize: 12, padding: "4px 12px", borderRadius: 6, border: "none", background: "var(--accent)", color: "#fff", cursor: "pointer" }}
-                        >
-                          Connect
-                        </button>
-                      }
+                      action={renderConnectButton(u)}
                     />
                   ))}
                 </div>
@@ -293,14 +372,7 @@ export default function NetworkPage() {
                     <UserCard
                       key={u.id}
                       user={u}
-                      action={
-                        <button
-                          onClick={() => { setShowConnectForm(""); setConnectEmail(u.email); }}
-                          style={{ fontSize: 12, padding: "4px 12px", borderRadius: 6, border: "none", background: "var(--accent)", color: "#fff", cursor: "pointer" }}
-                        >
-                          Connect
-                        </button>
-                      }
+                      action={renderConnectButton(u)}
                     />
                   ))}
                 </div>
@@ -310,5 +382,6 @@ export default function NetworkPage() {
         )}
       </div>
     </div>
+    </RequireAuth>
   );
 }

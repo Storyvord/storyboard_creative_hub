@@ -508,8 +508,15 @@ export default function ScriptPage() {
       // fires onUpdate during its initial render with slightly reformatted HTML,
       // which would set isDirty=true even before the user types anything.
       const normalize = (s: string) => s.replace(/\s+/g, " ").trim();
+      const normalizedEditor = normalize(editorContent);
+      // Guard: if the editor is effectively empty (collab seed failed, sync
+      // race, etc.) do NOT send screenplay_text — that path triggers a full
+      // re-parse on the backend and would overwrite the good draft with
+      // whatever the LLM makes of our blank input.
+      const editorIsTrivial = normalizedEditor.length < 20;
       const hasRealEdits =
-        normalize(editorContent) !== normalize(originalDraftTextRef.current);
+        !editorIsTrivial &&
+        normalizedEditor !== normalize(originalDraftTextRef.current);
 
       if (hasRealEdits) {
         // User edited the draft — send screenplay_text for LLM re-conversion
@@ -940,7 +947,11 @@ export default function ScriptPage() {
                       scriptId={script?.id}
                       onUpdate={(html: string, text: string) => {
                         setEditorContent(text);
-                        setInternalRefContent(html);
+                        // Do NOT write TipTap's HTML back into internalRefContent.
+                        // internalRefContent is the *source text* used by
+                        // generateInitialHtml; treating HTML as text would
+                        // corrupt initialHtml and make seedIfEmpty reseed with
+                        // garbage (which is why the editor appeared blank).
                         if (html !== initialHtml) setIsDirty(true);
                       }}
                       onActiveElementChange={setActiveElement}

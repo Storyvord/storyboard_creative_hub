@@ -467,14 +467,14 @@ export default function ShotDetailModal({
                                 <div>
                                     {/* Tab row — both tabs identical height; active overlaps box border via -mb-px */}
                                     {(() => {
-                                        const boxBorderColor = activeTextTab === 'description' ? 'rgba(52,211,153,0.25)' : 'rgba(168,85,247,0.35)';
+                                        const boxBorderColor = activeTextTab === 'description' ? 'var(--accent-border)' : 'rgba(168,85,247,0.35)';
                                         return (
                                         <div className="flex">
                                             {/* Description tab */}
                                             <button
                                                 onClick={() => setActiveTextTab('description')}
                                                 style={activeTextTab === 'description'
-                                                    ? { borderColor: 'rgba(52,211,153,0.4)', borderBottomColor: 'var(--surface)' }
+                                                    ? { borderColor: 'var(--accent-border)', borderBottomColor: 'var(--surface)' }
                                                     : { borderColor: boxBorderColor, borderBottomColor: boxBorderColor }}
                                                 className={`relative px-4 py-1.5 text-[10px] font-semibold rounded-t-md border transition-colors z-10 -mb-px ${
                                                     activeTextTab === 'description'
@@ -506,7 +506,7 @@ export default function ShotDetailModal({
                                     {/* Content box — fixed height, border color animates with active tab */}
                                     <motion.div
                                         animate={{
-                                            borderColor: activeTextTab === 'description' ? 'rgba(52,211,153,0.25)' : 'rgba(168,85,247,0.35)',
+                                            borderColor: activeTextTab === 'description' ? 'var(--accent-border)' : 'rgba(168,85,247,0.35)',
                                         }}
                                         transition={{ duration: 0.2 }}
                                         className="rounded-b-md rounded-tr-md border bg-[var(--surface)] relative"

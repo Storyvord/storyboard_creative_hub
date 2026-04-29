@@ -3,6 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import ToastProvider from "@/context/ToastProvider";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { ViewfinderProvider } from "@/context/ViewfinderContext";
+import ViewfinderFrame from "@/components/viewfinder/ViewfinderFrame";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -14,6 +16,15 @@ export const metadata: Metadata = {
 const themeScript = `
 (function() {
   try {
+    // Viewfinder mode default ON; only explicit 'off' disables.
+    var vfMode = localStorage.getItem('vf-mode');
+    var vfActive = vfMode !== 'off';
+    if (vfActive) {
+      document.documentElement.setAttribute('data-viewfinder', 'on');
+    }
+
+    // Theme respects the user's choice regardless of Viewfinder mode.
+    // Viewfinder has both dark and light palettes.
     var stored = localStorage.getItem('ch-theme');
     if (stored === 'light' || stored === 'dark') {
       document.documentElement.setAttribute('data-theme', stored);
@@ -22,8 +33,14 @@ const themeScript = `
     } else {
       document.documentElement.setAttribute('data-theme', 'dark');
     }
+
+    var vfGel = localStorage.getItem('vf-gel');
+    if (vfGel) {
+      document.documentElement.style.setProperty('--vf-project', vfGel);
+    }
   } catch (e) {
     document.documentElement.setAttribute('data-theme', 'dark');
+    document.documentElement.setAttribute('data-viewfinder', 'on');
   }
 })();
 `;
@@ -40,7 +57,11 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <ThemeProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ViewfinderProvider>
+            <ToastProvider>
+              <ViewfinderFrame>{children}</ViewfinderFrame>
+            </ToastProvider>
+          </ViewfinderProvider>
         </ThemeProvider>
       </body>
     </html>

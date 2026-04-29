@@ -14,6 +14,7 @@ import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import MentionTextarea, { TaggedCharacter, SceneCharacterItem, GlobalCharacterItem } from "@/components/creative-hub/MentionTextarea";
 import ShotSkeleton from "@/components/creative-hub/ShotSkeleton";
+import { useUserInfo } from "@/hooks/useUserInfo";
 
 // Shot type abbreviation map — aligned with backend shot_types choices
 const SHOT_TYPE_MAP: Record<string, string> = {
@@ -477,7 +478,7 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
               return (
                 <div key={shot.id} className="flex items-center flex-shrink-0">
                   {showDropIndicator && (
-                    <div className="flex-shrink-0 w-1 self-stretch bg-emerald-400 rounded-full mx-0.5 shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
+                    <div className="flex-shrink-0 w-1 self-stretch bg-emerald-400 rounded-full mx-0.5 shadow-[0_0_6px_var(--accent)]" />
                   )}
                   <ShotCard
                     shot={shot} onClick={() => onShotClick(shot)}
@@ -539,6 +540,10 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
 export default function StoryboardPage() {
   const params = useParams();
   const projectId = params.projectId as string;
+  // Image generation debits the V3 wallet in the Celery worker — call this
+  // when polling sees a previs task settle (completed/failed) so the sidebar
+  // widget reflects the new balance.
+  const { refreshCredits } = useUserInfo();
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [shotsMap, setShotsMap] = useState<Record<number, Shot[]>>({});
   const [loadingScenes, setLoadingScenes] = useState(true);
@@ -583,7 +588,7 @@ export default function StoryboardPage() {
     const parsedScenes: Scene[] = [];
     const parsedShotsMap: Record<number, Shot[]> = {};
     data.forEach((sceneData: any) => {
-      parsedScenes.push({ id: sceneData.id, script_id: scriptId, scene_name: sceneData.scene_name, description: sceneData.description, order: sceneData.order, location: "", set_number: "", environment: "", int_ext: "", date: "", timeline: [], scene_characters: sceneData.scene_characters || [], created_at: "", updated_at: "", storyboarding_type: sceneData.storyboarding_type ?? null, effective_storyboarding_type: sceneData.effective_storyboarding_type });
+      parsedScenes.push({ id: sceneData.id, script_id: scriptId, scene_name: sceneData.scene_name, description: sceneData.description, order: sceneData.order, location: "", environment: "", int_ext: "", date: "", timeline: [], scene_characters: sceneData.scene_characters || [], created_at: "", updated_at: "", storyboarding_type: sceneData.storyboarding_type ?? null, effective_storyboarding_type: sceneData.effective_storyboarding_type });
       const shots: Shot[] = (sceneData.shots || []).map((sd: any) => {
         let imageUrl = null;
         let activePreviz = null;
@@ -904,6 +909,10 @@ export default function StoryboardPage() {
             }
             
             if (tasksToComplete.length > 0) {
+                // V3 wallet was debited per-image in the Celery worker (and
+                // refunded if generation failed) — pull the new balance once
+                // per polling cycle, regardless of success/failure.
+                refreshCredits();
                 setTrackedTasks(prev => { const c = { ...prev }; tasksToComplete.forEach(t => delete c[t.shotId]); return c; });
                 setRetryingTasks(prev => { const c = { ...prev }; tasksToComplete.forEach(t => delete c[t.shotId]); return c; });
                 tasksToComplete.forEach(async t => {
@@ -1092,6 +1101,9 @@ export default function StoryboardPage() {
               setTrackedTasks(prev => { const c = { ...prev }; response.shot_ids.forEach((sid: number, i: number) => { c[sid] = response.task_ids[i]; }); return c; });
               setShotErrors(prev => { const c = { ...prev }; response.shot_ids.forEach((sid: number) => { delete c[sid]; }); return c; });
           }
+          // Backend deducts credits up-front when the Celery task is dispatched —
+          // refresh the wallet immediately, not just on poll-completion.
+          refreshCredits();
           toast.success("Bulk previz generation started!");
       } catch (error) { console.error(error); toast.error(extractApiError(error, "Failed to start previz generation.")); } finally { setIsBulkGenerating(false); setPendingPrevizShotIds([]); }
   };

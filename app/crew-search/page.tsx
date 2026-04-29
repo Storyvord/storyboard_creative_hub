@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { toast } from "react-toastify";
+import { Loader2 } from "lucide-react";
 import { searchCrew, CrewProfile } from "@/services/crew";
+import { sendConnectionRequest } from "@/services/network";
+import { useUserInfo } from "@/hooks/useUserInfo";
+import RequireAuth from "@/components/RequireAuth";
+
+type ConnectState = "idle" | "sending" | "sent" | "error";
 
 function Avatar({ src, name, size = 52 }: { src?: string | null; name?: string | null; size?: number }) {
   const initials = (name ?? "?").charAt(0).toUpperCase();
@@ -25,8 +31,14 @@ export default function CrewSearchPage() {
   const [results, setResults] = useState<CrewProfile[]>([]);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [connectStates, setConnectStates] = useState<Record<number | string, ConnectState>>({});
+  const { profile: currentUser } = useUserInfo();
 
   const handleSearch = async () => {
+    if (name.trim() === "" && location.trim() === "" && skillsRaw.trim() === "") {
+      toast.error("Please enter at least one filter to search.");
+      return;
+    }
     setLoading(true);
     setSearched(true);
     try {
@@ -46,7 +58,45 @@ export default function CrewSearchPage() {
 
   const displayName = (p: CrewProfile) => p.full_name ?? p.name ?? "Unknown";
 
+  const cardKey = (p: CrewProfile, i: number): number | string => p.id ?? `idx-${i}`;
+
+  const handleConnect = async (p: CrewProfile, key: number | string) => {
+    const email = p.user?.email;
+    if (!email) return;
+    // Self-connection guard
+    if (
+      (p.user?.id != null && currentUser?.id != null && p.user.id === currentUser.id) ||
+      (currentUser?.email && email === currentUser.email)
+    ) {
+      return;
+    }
+    if (connectStates[key] === "sending" || connectStates[key] === "sent") return;
+
+    setConnectStates((prev) => ({ ...prev, [key]: "sending" as ConnectState }));
+    try {
+      const res = await sendConnectionRequest(email);
+      if (res && typeof res === "object" && "error" in res && (res as { error?: unknown }).error) {
+        const msg = String((res as { error?: unknown }).error) || "Couldn't send connection request. Try again.";
+        setConnectStates((prev) => ({ ...prev, [key]: "error" as ConnectState }));
+        toast.error(msg);
+        return;
+      }
+      setConnectStates((prev) => ({ ...prev, [key]: "sent" as ConnectState }));
+      toast.success(`Connection request sent to ${displayName(p)}`);
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string; detail?: string; message?: string } } })?.response?.data?.error ||
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (err as { message?: string })?.message ||
+        "Couldn't send connection request. Try again.";
+      setConnectStates((prev) => ({ ...prev, [key]: "error" as ConnectState }));
+      toast.error(String(msg));
+    }
+  };
+
   return (
+    <RequireAuth>
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)", color: "var(--text-primary)", padding: "32px 24px" }}>
       <div style={{ maxWidth: 900, margin: "0 auto" }}>
         <h1 style={{ fontWeight: 700, fontSize: 24, marginBottom: 8 }}>Find Crew</h1>
@@ -102,32 +152,72 @@ export default function CrewSearchPage() {
 
         {results.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
-            {results.map((p, i) => (
-              <div key={p.id ?? i} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: 18, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" }}>
-                <Avatar src={p.image} name={displayName(p)} />
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 15 }}>{displayName(p)}</div>
-                  {p.job_title && <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{p.job_title}</div>}
-                  {p.location && (
-                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                      {String(p.location)}
-                    </div>
-                  )}
-                  {Array.isArray(p.skills) && p.skills.length > 0 && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "center", marginTop: 8 }}>
-                      {p.skills.slice(0, 4).map((skill, j) => (
-                        <span key={j} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: "var(--accent)" + "22", color: "var(--accent)", border: "1px solid var(--accent)" + "44" }}>
-                          {String(skill)}
-                        </span>
-                      ))}
-                    </div>
+            {results.map((p, i) => {
+              const key = cardKey(p, i);
+              const state: ConnectState = connectStates[key] ?? "idle";
+              const email = p.user?.email;
+              const isSelf =
+                (p.user?.id != null && currentUser?.id != null && p.user.id === currentUser.id) ||
+                (!!currentUser?.email && !!email && email === currentUser.email);
+              const showConnect = !!email && !isSelf;
+              const isSending = state === "sending";
+              const isSent = state === "sent";
+              const disabled = isSending || isSent;
+              const label = isSending ? "Sending…" : isSent ? "Pending" : "Connect";
+              return (
+                <div key={p.id ?? i} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: 18, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" }}>
+                  <Avatar src={p.image} name={displayName(p)} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 15 }}>{displayName(p)}</div>
+                    {p.job_title && <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{p.job_title}</div>}
+                    {p.location && (
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                        {String(p.location)}
+                      </div>
+                    )}
+                    {Array.isArray(p.skills) && p.skills.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "center", marginTop: 8 }}>
+                        {p.skills.slice(0, 4).map((skill, j) => (
+                          <span key={j} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: "var(--accent)" + "22", color: "var(--accent)", border: "1px solid var(--accent)" + "44" }}>
+                            {String(skill)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {showConnect && (
+                    <button
+                      type="button"
+                      onClick={() => handleConnect(p, key)}
+                      disabled={disabled}
+                      title="Send a connection request to connect with this crew member"
+                      style={{
+                        marginTop: 8,
+                        padding: "6px 14px",
+                        borderRadius: 8,
+                        border: isSent ? "1px solid var(--border)" : "none",
+                        background: isSent ? "transparent" : "var(--accent)",
+                        color: isSent ? "var(--text-muted)" : "#fff",
+                        fontWeight: 600,
+                        fontSize: 12,
+                        cursor: disabled ? "not-allowed" : "pointer",
+                        opacity: isSending ? 0.7 : 1,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      {isSending && <Loader2 size={12} className="animate-spin" />}
+                      {label}
+                    </button>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
     </div>
+    </RequireAuth>
   );
 }

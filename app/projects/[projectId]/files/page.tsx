@@ -335,7 +335,7 @@ export default function FilesPage() {
       const uploaded = await uploadFile(selectedFolder.id, file);
       setFiles((prev) => [...prev, uploaded]);
       toast.success(`${file.name} uploaded!`);
-    } catch { toast.error("Upload failed."); }
+    } catch { toast.error("Upload failed. Check the file size and format, then try again."); }
     finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
   };
 

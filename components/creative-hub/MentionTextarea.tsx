@@ -145,7 +145,7 @@ function buildHighlightedSegments(
 
     segments.push({
       text: raw,
-      color: isScene ? "#34d399" : "#22c55e", // emerald-400 vs green-500
+      color: isScene ? "var(--accent)" : "#22c55e", // emerald-400 vs green-500
       fontWeight: "normal",
     });
 

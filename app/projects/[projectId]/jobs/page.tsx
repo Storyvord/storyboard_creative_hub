@@ -35,23 +35,27 @@ function NewJobModal({ projectId, onCreated, onClose }: {
 
   const set = (k: string, v: unknown) => setForm((p) => ({ ...p, [k]: v }));
 
+  const todayISO = new Date().toISOString().split("T")[0];
+
   const submit = async () => {
     if (!form.description.trim() || !form.roles.trim() || !form.rates.trim() || !form.date || !form.location.trim()) {
       toast.error("Fill all required fields."); return;
     }
+    if (form.date < todayISO) { toast.error("Date must be today or in the future."); return; }
     setLoading(true);
     try {
-      const job = await createJob({ ...form, project: projectId });
+      const numericExp = Number(form.experience_required) || 0;
+      const job = await createJob({ ...form, experience_required: numericExp, project: projectId });
       onCreated(job);
       toast.success("Job posted!");
     } catch { toast.error("Failed to post job."); }
     finally { setLoading(false); }
   };
 
-  const field = (label: string, key: string, type = "text", placeholder = "") => (
+  const field = (label: string, key: string, type = "text", placeholder = "", min?: string) => (
     <div>
       <label style={{ display: "block", fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>{label}</label>
-      <input type={type} value={(form as any)[key]} onChange={(e) => set(key, e.target.value)} placeholder={placeholder}
+      <input type={type} value={(form as any)[key]} onChange={(e) => set(key, e.target.value)} placeholder={placeholder} min={min}
         style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-primary)", fontSize: 13, boxSizing: "border-box" }} />
     </div>
   );
@@ -74,7 +78,7 @@ function NewJobModal({ projectId, onCreated, onClose }: {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {field("Rate / Compensation *", "rates", "text", "e.g. $500/day")}
           {field("Location *", "location", "text", "e.g. Mumbai")}
-          {field("Date *", "date", "date")}
+          {field("Date *", "date", "date", "", todayISO)}
           {field("Experience (years)", "experience_required", "number")}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -114,7 +118,7 @@ function JobCard({ job, onDelete }: { job: ProjectJob; onDelete: (id: string) =>
   const [loadingApplicants, setLoadingApplicants] = useState(false);
 
   const toggleExpand = async () => {
-    if (!expanded && applicants.length === 0) {
+    if (!expanded) {
       setLoadingApplicants(true);
       getJobApplicants(job.id).then(setApplicants).catch(() => {}).finally(() => setLoadingApplicants(false));
     }
