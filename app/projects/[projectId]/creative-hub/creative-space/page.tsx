@@ -980,9 +980,17 @@ export default function CreativeSpacePage() {
                   value={selectedModelIdx >= 0 ? selectedModelIdx : 0}
                   onChange={handleModelChange}
                 >
-                  {imageModels.map((m, i) => (
-                    <option key={i} value={i}>{m.model_name.split("/").pop()} · {m.credits_per_image} cr</option>
-                  ))}
+                  {imageModels.map((m, i) => {
+                    const minCr = m.credits_per_image_min ?? m.credits_per_image;
+                    const maxCr = m.credits_per_image_max ?? m.credits_per_image;
+                    const label = m.has_variants && minCr !== maxCr
+                      ? `${minCr}–${maxCr} cr`
+                      : `${maxCr} cr`;
+                    const name = m.display_name || m.model_name.split("/").pop();
+                    return (
+                      <option key={i} value={i}>{name} · {label}</option>
+                    );
+                  })}
                 </select>
               )}
             </div>

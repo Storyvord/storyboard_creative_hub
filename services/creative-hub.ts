@@ -4,10 +4,27 @@ import { Script, Scene, Character, Cloth, Shot, SceneSyncDiff, TaskStatusRecord 
 export interface ImageModel {
   model_name: string;
   provider: string;
+  display_name?: string;
   credits_per_image: number;
   cost_per_image: string;
   resolution: string | null;
   aspect_ratio: string | null;
+  // Variant range (present when a model has multiple quality/resolution rows)
+  credits_per_image_min?: number;
+  credits_per_image_max?: number;
+  credits_per_image_avg?: number;
+  cost_per_image_min?: string;
+  cost_per_image_max?: string;
+  cost_per_image_avg?: string;
+  // Per-reference-image charge (gpt-image-2 charges separately per input image)
+  credits_per_input_image?: number;
+  has_variants?: boolean;
+  variant_count?: number;
+  // Capabilities + variant axes from the relational ImageModel row
+  supports_generate?: boolean;
+  supports_edit?: boolean;
+  supported_qualities?: string[];
+  supported_resolutions?: string[];
 }
 
 

@@ -2,6 +2,7 @@
 
 import React from "react";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { useViewfinder } from "@/context/ViewfinderContext";
 import { useKeyChord } from "@/hooks/useKeyChord";
 import CommandPalette from "./CommandPalette";
@@ -10,6 +11,11 @@ import ProductionHUD from "./ProductionHUD";
 import RouteTransition from "./RouteTransition";
 import SaveIndicator from "./SaveIndicator";
 import ViewfinderPill from "./ViewfinderPill";
+
+// Routes that should NOT mount any in-app widgets (AI assistant, command
+// palette, viewfinder pill, save indicator, composition guides). These are
+// public, pre-auth pages — landing + auth flows.
+const PUBLIC_ROUTES = new Set(["/", "/login", "/register", "/reset-password"]);
 
 // Mount the AI widget globally so ⌘K → "Ask the 1st AD" works on every route.
 // It was previously mounted inside /projects/[id]/layout.tsx only; we remove
@@ -28,6 +34,8 @@ export default function ViewfinderFrame({ children }: { children: React.ReactNod
     bumpTake, resetTake, toggleComposition,
   } = useViewfinder();
   const active = mode === "on";
+  const pathname = usePathname();
+  const isPublic = !!pathname && PUBLIC_ROUTES.has(pathname);
 
   useKeyChord(
     { key: "k", meta: true },
@@ -41,6 +49,12 @@ export default function ViewfinderFrame({ children }: { children: React.ReactNod
   useKeyChord({ key: "t", shift: true }, (e) => { e.preventDefault(); bumpTake(); }, active);
   useKeyChord({ key: "r", shift: true }, (e) => { e.preventDefault(); resetTake(); }, active);
   useKeyChord({ key: "g", shift: true }, (e) => { e.preventDefault(); toggleComposition(); }, active);
+
+  // Public pages render with no in-app chrome. Keeps the landing/auth flow
+  // free of the AI Coproducer, ⌘K palette, viewfinder pill, etc.
+  if (isPublic) {
+    return <RouteTransition>{children}</RouteTransition>;
+  }
 
   return (
     <>

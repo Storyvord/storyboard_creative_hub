@@ -33,7 +33,11 @@ export default function ModelSelector({
   if (!isOpen) return null;
 
   const selected = models[selectedIndex];
-  const estimatedCredits = selected ? selected.credits_per_image * itemCount : 0;
+  const selectedMin = selected?.credits_per_image_min ?? selected?.credits_per_image ?? 0;
+  const selectedMax = selected?.credits_per_image_max ?? selected?.credits_per_image ?? 0;
+  const estimatedCreditsMin = selectedMin * itemCount;
+  const estimatedCreditsMax = selectedMax * itemCount;
+  const showRange = !!selected?.has_variants && selectedMin !== selectedMax;
 
   const getProviderColor = (provider: string) => {
     switch (provider.toLowerCase()) {
@@ -90,38 +94,54 @@ export default function ModelSelector({
             ) : (
               <>
                 <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
-                  {[...models].sort((a, b) => b.credits_per_image - a.credits_per_image).map((model, idx) => (
-                    <button
-                      key={model.model_name}
-                      onClick={() => setSelectedIndex(idx)}
-                      className={`w-full text-left p-3 rounded-md border transition-all duration-150 ${
-                        idx === selectedIndex
-                          ? "bg-emerald-500/10 border-emerald-500/30 ring-1 ring-emerald-500/15"
-                          : "bg-[var(--surface)] border-[var(--border)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-raised)]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
-                              {getModelDisplayName(model.model_name)}
-                            </span>
-                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded border ${getProviderColor(model.provider)}`}>
-                              {model.provider}
-                            </span>
+                  {[...models]
+                    .sort((a, b) => (b.credits_per_image_max ?? b.credits_per_image) - (a.credits_per_image_max ?? a.credits_per_image))
+                    .map((model, idx) => {
+                      const minCr = model.credits_per_image_min ?? model.credits_per_image;
+                      const maxCr = model.credits_per_image_max ?? model.credits_per_image;
+                      const isRange = !!model.has_variants && minCr !== maxCr;
+                      return (
+                        <button
+                          key={`${model.model_name}-${model.provider}`}
+                          onClick={() => setSelectedIndex(idx)}
+                          className={`w-full text-left p-3 rounded-md border transition-all duration-150 ${
+                            idx === selectedIndex
+                              ? "bg-emerald-500/10 border-emerald-500/30 ring-1 ring-emerald-500/15"
+                              : "bg-[var(--surface)] border-[var(--border)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-raised)]"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                                  {model.display_name || getModelDisplayName(model.model_name)}
+                                </span>
+                                <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded border ${getProviderColor(model.provider)}`}>
+                                  {model.provider}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-[var(--text-muted)] font-mono">{model.model_name}</span>
+                              {(model.credits_per_input_image ?? 0) > 0 && (
+                                <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                                  + {model.credits_per_input_image} cr per reference image
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex flex-col items-end ml-3 flex-shrink-0">
+                              <div className="flex items-center gap-1">
+                                <Zap className="w-3 h-3 text-amber-400" />
+                                <span className="text-xs font-bold text-amber-400">
+                                  {isRange ? `${minCr}–${maxCr}` : maxCr}
+                                </span>
+                              </div>
+                              <span className="text-[9px] text-[var(--text-muted)]">
+                                credits{isRange ? " / image" : ""}
+                              </span>
+                            </div>
                           </div>
-                          <span className="text-[10px] text-[var(--text-muted)] font-mono">{model.model_name}</span>
-                        </div>
-                        <div className="flex flex-col items-end ml-3 flex-shrink-0">
-                          <div className="flex items-center gap-1">
-                            <Zap className="w-3 h-3 text-amber-400" />
-                            <span className="text-xs font-bold text-amber-400">{model.credits_per_image}</span>
-                          </div>
-                          <span className="text-[9px] text-[var(--text-muted)]">credits</span>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
+                        </button>
+                      );
+                    })}
                 </div>
 
                 {/* Cost Summary */}
@@ -130,17 +150,51 @@ export default function ModelSelector({
                     <div>
                       <span className="text-[10px] text-[var(--text-muted)] block">Estimated Cost</span>
                       <span className="text-xs text-[var(--text-secondary)]">
-                        {itemCount} image{itemCount > 1 ? "s" : ""} × {selected?.credits_per_image || 0} credits
+                        {itemCount} image{itemCount > 1 ? "s" : ""} ×{" "}
+                        {showRange ? `${selectedMin}–${selectedMax}` : selectedMax} credits
                       </span>
                     </div>
                     <div className="text-right">
                       <div className="flex items-center gap-1">
                         <Zap className="w-3.5 h-3.5 text-amber-400" />
-                        <span className="text-lg font-bold text-[var(--text-primary)]">{estimatedCredits}</span>
+                        <span className="text-lg font-bold text-[var(--text-primary)]">
+                          {showRange
+                            ? `${estimatedCreditsMin}–${estimatedCreditsMax}`
+                            : estimatedCreditsMax}
+                        </span>
                       </div>
-                      <span className="text-[9px] text-[var(--text-muted)]">total</span>
+                      <span className="text-[9px] text-[var(--text-muted)]">
+                        {showRange ? "range" : "total"}
+                      </span>
                     </div>
                   </div>
+                  {showRange && (
+                    <div className="mt-2 pt-2 border-t border-[var(--border)] text-[10px] text-[var(--text-muted)]">
+                      Final cost depends on quality &amp; resolution selected at generation time.
+                    </div>
+                  )}
+                  {(selected?.credits_per_input_image ?? 0) > 0 && (
+                    <div className="mt-1 text-[10px] text-[var(--text-muted)]">
+                      Reference images add {selected?.credits_per_input_image} credit
+                      {(selected?.credits_per_input_image ?? 0) > 1 ? "s" : ""} each.
+                    </div>
+                  )}
+                  {selected?.supported_qualities && selected.supported_qualities.length > 0 && (
+                    <div className="mt-1 text-[10px] text-[var(--text-muted)]">
+                      Quality options:{" "}
+                      <span className="text-[var(--text-secondary)]">
+                        {selected.supported_qualities.join(" · ")}
+                      </span>
+                    </div>
+                  )}
+                  {selected?.supported_resolutions && selected.supported_resolutions.length > 0 && (
+                    <div className="mt-1 text-[10px] text-[var(--text-muted)]">
+                      Resolutions:{" "}
+                      <span className="text-[var(--text-secondary)]">
+                        {selected.supported_resolutions.join(" · ")}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </>
             )}

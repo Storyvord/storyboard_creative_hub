@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import "./landing.css";
+import { sans, serif, mono } from "./fonts";
 import ToastProvider from "@/context/ToastProvider";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { ViewfinderProvider } from "@/context/ViewfinderContext";
@@ -9,8 +11,9 @@ import ViewfinderFrame from "@/components/viewfinder/ViewfinderFrame";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Creative Hub",
-  description: "Storyvord Creative Hub Frontend",
+  title: "Storyvord — AI Co-Producer for Modern Filmmakers",
+  description:
+    "An AI co-producer for modern filmmakers. Planning, budgeting, compliance, sustainability, scripts and storyboards — bringing human creativity and AI together in one production platform.",
 };
 
 const themeScript = `
@@ -55,7 +58,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className={inter.className}>
+      <body className={`${inter.className} ${sans.variable} ${serif.variable} ${mono.variable}`}>
         <ThemeProvider>
           <ViewfinderProvider>
             <ToastProvider>

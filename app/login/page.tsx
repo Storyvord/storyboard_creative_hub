@@ -7,10 +7,19 @@ import { requestPasswordResetEmail } from "@/services/passwordReset";
 import { toast } from "react-toastify";
 import { Loader2, Video, ArrowLeft, MailCheck } from "lucide-react";
 import type { MfaMethod } from "@/types/auth";
+import RedirectIfAuthed from "@/components/RedirectIfAuthed";
 
 type Mode = "login" | "forgot" | "forgotSent";
 
 export default function LoginPage() {
+  return (
+    <RedirectIfAuthed>
+      <LoginPageInner />
+    </RedirectIfAuthed>
+  );
+}
+
+function LoginPageInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
