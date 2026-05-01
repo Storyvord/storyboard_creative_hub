@@ -7,7 +7,7 @@ import { useViewfinder } from "@/context/ViewfinderContext";
 import { getProject } from "@/services/project";
 import { Project } from "@/types/project";
 
-const HIDE_ON = ["/login", "/register", "/reset-password", "/landing"];
+const HIDE_ON = ["/login", "/register", "/reset-password", "/"];
 
 function useClock() {
   // Start as null so SSR and first client render agree (no current time shown

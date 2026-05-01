@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { register } from "@/services/auth";
 import { toast } from "react-toastify";
 import { Loader2, Video, ArrowLeft, MailCheck } from "lucide-react";
+import RedirectIfAuthed from "@/components/RedirectIfAuthed";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -16,6 +17,14 @@ type FieldErrors = {
 };
 
 export default function RegisterPage() {
+  return (
+    <RedirectIfAuthed>
+      <RegisterPageInner />
+    </RedirectIfAuthed>
+  );
+}
+
+function RegisterPageInner() {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
