@@ -349,10 +349,12 @@ export const deleteCloth = async (clothId: number): Promise<void> => {
     await api.delete(`/api/creative_hub/cloths/${clothId}/`);
 }
 
-export const generateClothImage = async (clothId: number, model?: string, provider?: string): Promise<{ task_id: string; status: string }> => {
+export const generateClothImage = async (clothId: number, model?: string, provider?: string, quality?: string, size?: string): Promise<{ task_id: string; status: string }> => {
     const response = await api.post(`/api/creative_hub/cloths/${clothId}/generate-image/`, {
         model,
-        provider
+        provider,
+        quality,
+        size,
     });
     return response.data;
 }
