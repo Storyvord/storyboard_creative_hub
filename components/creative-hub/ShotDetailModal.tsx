@@ -1,11 +1,12 @@
 import { Shot, Scene, Character } from "@/types/creative-hub";
-import { X, Film, User, ChevronLeft, ChevronRight, Clock, AlertTriangle, Upload, Pencil, Send } from "lucide-react";
+import { X, Film, User, ChevronLeft, ChevronRight, Clock, AlertTriangle, Upload, Pencil, Send, GitCompare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 import { uploadPreviz, getShotPreviz, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails, getCameraAngles, CameraAngle, getShotTypes, ShotType } from "@/services/creative-hub";
 import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
 import PrevizReferenceStrip from "@/components/creative-hub/PrevizReferenceStrip";
+import PrevizCompareView from "@/components/creative-hub/PrevizCompareView";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
@@ -86,6 +87,12 @@ export default function ShotDetailModal({
   const [shotTypes, setShotTypes] = useState<ShotType[]>([]);
   const [activeTextTab, setActiveTextTab] = useState<'description' | 'edit'>('description');
   const [showEditModelSelector, setShowEditModelSelector] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
+
+  // Close compare view if parent modal closes, so it never lingers as a stuck overlay.
+  useEffect(() => {
+    if (!isOpen && compareOpen) setCompareOpen(false);
+  }, [isOpen, compareOpen]);
 
   useEffect(() => {
     getCameraAngles().then(setCameraAngles).catch(() => {});
@@ -727,10 +734,22 @@ export default function ShotDetailModal({
 
                             {/* Previz History */}
                             <section>
-                                <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                                     <Clock className="h-3 w-3 text-emerald-500" />
-                                     Previz History
-                                </h3>
+                                <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-1.5">
+                                         <Clock className="h-3 w-3 text-emerald-500" />
+                                         Previz History
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCompareOpen(true)}
+                                        disabled={previzHistory.length < 2}
+                                        title={previzHistory.length < 2 ? "Need at least 2 previz to compare" : "Compare previz side-by-side"}
+                                        className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 disabled:text-[var(--text-muted)] disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        <GitCompare className="w-3 h-3" />
+                                        Compare
+                                    </button>
+                                </div>
                                 {loadingHistory ? (
                                     <div className="text-[10px] text-[var(--text-muted)]">Loading...</div>
                                 ) : previzHistory.length > 0 ? (
@@ -827,6 +846,16 @@ export default function ShotDetailModal({
         </motion.div>
       </motion.div>
     </AnimatePresence>
+    {compareOpen && shot && (
+      <PrevizCompareView
+        shotId={shot.id}
+        shotOrder={shot.order}
+        previzList={previzHistory}
+        activePrevizId={shot.active_previz ?? null}
+        onClose={() => setCompareOpen(false)}
+        onSetActive={handleSetActive}
+      />
+    )}
     </>
   );
 }
