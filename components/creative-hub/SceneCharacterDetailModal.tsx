@@ -4,6 +4,7 @@ import { X, Shirt, Wand2, Save, Plus, Upload, User } from "lucide-react";
 import { Cloth, Script } from "@/types/creative-hub";
 import { getCloths, updateSceneCharacter, generateSceneCharacterImage, createCloth, updateCharacter, getBulkTaskStatus } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
+import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
 import { toast } from "react-toastify";
 import { Loader2 } from "lucide-react";
 import { extractApiError } from "@/lib/extract-api-error";
@@ -346,6 +347,17 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                                 </>
                             )}
                         </button>
+
+                        {sceneCharacter?.id && (
+                            <PrevizHistorySection
+                                kind="scene_character"
+                                subjectId={sceneCharacter.id}
+                                subjectLabel={`Scene Look: ${sceneCharacter?.character?.name ?? ""}`.trim()}
+                                activePrevizId={sceneCharacter?.active_previz ?? null}
+                                onActivePrevizChange={() => onUpdate()}
+                                refreshKey={generating ? 0 : 1}
+                            />
+                        )}
                     </div>
                 </div>
 

@@ -848,8 +848,8 @@ export default function ShotDetailModal({
     </AnimatePresence>
     {compareOpen && shot && (
       <PrevizCompareView
-        shotId={shot.id}
-        shotOrder={shot.order}
+        subjectId={shot.id}
+        subjectLabel={`Shot ${shot.order}`}
         previzList={previzHistory}
         activePrevizId={shot.active_previz ?? null}
         onClose={() => setCompareOpen(false)}

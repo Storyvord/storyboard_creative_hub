@@ -711,3 +711,105 @@ export const getShotTypes = async (): Promise<ShotType[]> => {
     if (response.data.results) return response.data.results;
     return [];
 }
+
+// ---------------------------------------------------------------------------
+// STO-1052: unified previz history (Character / SceneCharacter / Location / Shot)
+// ---------------------------------------------------------------------------
+
+export type PrevizSubjectKind = "character" | "scene_character" | "location" | "shot";
+
+export interface PrevizHistoryRow {
+    id: number;
+    subject_type: string;
+    subject_id: number;
+    subject_summary: Record<string, unknown> | null;
+    previsualization: {
+        id: number;
+        image_url?: string | null;
+        aspect_ratio?: string | null;
+        camera_angle?: string | null;
+        shot_type?: string | null;
+        description?: string | null;
+        [key: string]: unknown;
+    };
+    created_at: string;
+    added_by: { id: number; name: string; email: string } | null;
+    notes?: string | null;
+}
+
+export interface PrevizHistoryPage {
+    count: number;
+    next: string | null;
+    previous: string | null;
+    results: PrevizHistoryRow[];
+}
+
+const SUBJECT_KIND_PATH: Record<PrevizSubjectKind, string> = {
+    character: "characters",
+    scene_character: "scene-characters",
+    location: "locations",
+    shot: "shots",
+};
+
+export const getPrevizHistory = async (
+    kind: PrevizSubjectKind,
+    subjectId: number,
+    page: number = 1,
+): Promise<PrevizHistoryPage> => {
+    const path = SUBJECT_KIND_PATH[kind];
+    const response = await api.get(
+        `/api/creative_hub/${path}/${subjectId}/previz/history/?page=${page}`,
+    );
+    const data = response.data;
+    if (Array.isArray(data)) {
+        return { count: data.length, next: null, previous: null, results: data };
+    }
+    return {
+        count: data.count ?? data.results?.length ?? 0,
+        next: data.next ?? null,
+        previous: data.previous ?? null,
+        results: data.results ?? [],
+    };
+};
+
+export const setActiveSubjectPreviz = async (
+    kind: PrevizSubjectKind,
+    subjectId: number,
+    previzId: number,
+): Promise<{ active_previz: number }> => {
+    const path = SUBJECT_KIND_PATH[kind];
+    if (kind === "shot") {
+        // Shot.active_previz is set via the existing shot detail PUT.
+        const response = await api.put(`/api/creative_hub/shots/${subjectId}/detail/`, {
+            active_previz: previzId,
+        });
+        return { active_previz: previzId, ...response.data };
+    }
+    const response = await api.patch(
+        `/api/creative_hub/${path}/${subjectId}/previz/active/`,
+        { active_previz: previzId },
+    );
+    return response.data;
+};
+
+export const getScriptPrevizHistory = async (
+    scriptId: number,
+    opts?: { page?: number; subjectType?: PrevizSubjectKind },
+): Promise<PrevizHistoryPage> => {
+    const params = new URLSearchParams();
+    params.set("page", String(opts?.page ?? 1));
+    if (opts?.subjectType) params.set("subject_type", opts.subjectType);
+    const response = await api.get(
+        `/api/creative_hub/scripts/${scriptId}/previz/history/?${params.toString()}`,
+    );
+    const data = response.data;
+    if (Array.isArray(data)) {
+        return { count: data.length, next: null, previous: null, results: data };
+    }
+    return {
+        count: data.count ?? data.results?.length ?? 0,
+        next: data.next ?? null,
+        previous: data.previous ?? null,
+        results: data.results ?? [],
+    };
+};

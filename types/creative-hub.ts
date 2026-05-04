@@ -74,6 +74,7 @@ export interface Character {
   name: string;
   description?: string;
   image_url?: string;
+  active_previz?: number | null;
 }
 
 export interface Location {
@@ -83,6 +84,19 @@ export interface Location {
   description?: string;
   time?: string;
   image_url?: string;
+  active_previz?: number | null;
+}
+
+export interface SceneCharacter {
+  id: number;
+  scene?: number;
+  character?: { id: number; name: string; image_url?: string } | null;
+  character_name?: string;
+  image_url?: string;
+  active_previz?: number | null;
+  cloths?: Cloth[];
+  notes?: string;
+  [key: string]: unknown;
 }
 
 export interface Cloth {

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 import { createCharacter, updateCharacter, generateCharacterImage } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
+import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 
@@ -196,6 +197,19 @@ export default function CharacterModal({ character, scriptId, isOpen, onClose, o
                          Save & Generate
                      </button>
                  </div>
+
+                 {character && (
+                     <PrevizHistorySection
+                         kind="character"
+                         subjectId={character.id}
+                         subjectLabel={`Character: ${character.name}`}
+                         activePrevizId={character.active_previz ?? null}
+                         onActivePrevizChange={(_id, url) => {
+                             if (url) setImagePreview(url);
+                             onUpdate();
+                         }}
+                     />
+                 )}
 
                  <div className="pt-3 flex justify-end gap-2">
                       <button

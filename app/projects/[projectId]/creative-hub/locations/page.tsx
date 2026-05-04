@@ -10,6 +10,7 @@ import { useParams } from "next/navigation";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
+import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
 import { useGenerationTasks } from "@/hooks/useGenerationTasks";
 
 export default function LocationsPage() {
@@ -363,6 +364,19 @@ function LocationModal({ isOpen, onClose, location, scriptId, onUpdate, onGenera
                   Save & Generate
               </button>
           </div>
+
+          {location && (
+              <PrevizHistorySection
+                  kind="location"
+                  subjectId={location.id}
+                  subjectLabel={`Location: ${location.name}`}
+                  activePrevizId={location.active_previz ?? null}
+                  onActivePrevizChange={(_id, url) => {
+                      if (url) setImagePreview(url);
+                      onUpdate();
+                  }}
+              />
+          )}
         </div>
         <div className="p-4 border-t border-[var(--border)] flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 bg-[var(--surface-hover)] hover:bg-[var(--border)] text-white rounded-md text-sm transition-colors">Cancel</button>

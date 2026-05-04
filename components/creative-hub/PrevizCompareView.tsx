@@ -16,8 +16,8 @@ type PrevizItem = {
 };
 
 interface PrevizCompareViewProps {
-  shotId: number;
-  shotOrder?: number;
+  subjectId: number;
+  subjectLabel?: string;
   previzList: PrevizItem[];
   activePrevizId: number | null | undefined;
   onClose: () => void;
@@ -25,7 +25,7 @@ interface PrevizCompareViewProps {
 }
 
 export default function PrevizCompareView({
-  shotOrder,
+  subjectLabel,
   previzList,
   activePrevizId,
   onClose,
@@ -100,8 +100,8 @@ export default function PrevizCompareView({
           <div className="flex items-center gap-3 min-w-0">
             <GitCompare className="w-4 h-4 text-emerald-400 flex-shrink-0" />
             <h2 className="text-sm font-semibold text-[var(--text-primary)]">Compare Previz</h2>
-            {shotOrder !== undefined && (
-              <span className="text-xs text-[var(--text-muted)]">— Shot {shotOrder}</span>
+            {subjectLabel && (
+              <span className="text-xs text-[var(--text-muted)]">— {subjectLabel}</span>
             )}
             <span className="text-[10px] text-[var(--text-muted)] px-2 py-0.5 rounded-full bg-[var(--surface-raised)]">
               {selectedPreviz.length}/{MAX_SELECTED} selected
