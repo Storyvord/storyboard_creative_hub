@@ -441,6 +441,8 @@ export default function CreativeSpacePage() {
   const [imageModels,       setImageModels]       = useState<ImageModel[]>([]);
   const [selectedModelName, setSelectedModelName] = useState("");
   const [selectedProvider,  setSelectedProvider]  = useState("");
+  const [selectedQuality,   setSelectedQuality]   = useState<string | undefined>(undefined);
+  const [selectedSize,      setSelectedSize]       = useState<string | undefined>(undefined);
 
   const [characters,       setCharacters]       = useState<TaggedCharacter[]>([]);
   const [locations,        setLocations]        = useState<TaggedLocation[]>([]);
@@ -513,6 +515,9 @@ export default function CreativeSpacePage() {
           setImageModels(models);
           setSelectedModelName(models[0].model_name);
           setSelectedProvider(models[0].provider);
+          const first = models[0];
+          setSelectedQuality(first.has_variants && first.supported_qualities?.length ? first.supported_qualities[0] : undefined);
+          setSelectedSize(first.has_variants && first.supported_resolutions?.length ? first.supported_resolutions[0] : undefined);
         }
       })
       .catch(console.error);
@@ -559,9 +564,12 @@ export default function CreativeSpacePage() {
 
   const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const idx = Number(e.target.value);
-    if (imageModels[idx]) {
-      setSelectedModelName(imageModels[idx].model_name);
-      setSelectedProvider(imageModels[idx].provider);
+    const m = imageModels[idx];
+    if (m) {
+      setSelectedModelName(m.model_name);
+      setSelectedProvider(m.provider);
+      setSelectedQuality(m.has_variants && m.supported_qualities?.length ? m.supported_qualities[0] : undefined);
+      setSelectedSize(m.has_variants && m.supported_resolutions?.length ? m.supported_resolutions[0] : undefined);
     }
   };
 
@@ -613,6 +621,8 @@ export default function CreativeSpacePage() {
         generate_ai_image: true,
         model: selectedModelName || undefined,
         provider: selectedProvider || undefined,
+        quality: selectedQuality,
+        size: selectedSize,
         character_ids: charIds.length > 0 ? charIds : undefined,
         location_ids:  locIds.length > 0  ? locIds  : undefined,
       });
