@@ -2,31 +2,27 @@
 
 import { useState, useEffect, useRef } from "react";
 import { getScripts } from "@/services/creative-hub";
-import { getLocations, createLocation, updateLocation, deleteLocation, generateLocationImage, getScriptTasks } from "@/services/creative-hub";
+import { getLocations, createLocation, getScriptTasks } from "@/services/creative-hub";
 import { Script } from "@/types/creative-hub";
 import { Location } from "@/types/creative-hub";
-import { Loader2, Plus, Edit, Trash2, Wand2, MapPin, Upload, X } from "lucide-react";
-import { useParams } from "next/navigation";
+import { Loader2, Plus, MapPin, Upload, X } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
-import ModelSelector from "@/components/creative-hub/ModelSelector";
-import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
 import { useGenerationTasks } from "@/hooks/useGenerationTasks";
 
 export default function LocationsPage() {
   const params = useParams();
+  const router = useRouter();
   const projectId = params.projectId as string;
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [script, setScript] = useState<Script | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
-  // DB-backed: locId → true while generating
+  // DB-backed: locId → true while generating (driven by background tasks restored from DB)
   const [generatingLocIds, setGeneratingLocIds] = useState<Record<number, boolean>>({});
   // DB-backed: taskId → locId
   const [trackedTasks, setTrackedTasks] = useState<Record<string, number>>({});
-  const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
-  const [pendingGenerateLoc, setPendingGenerateLoc] = useState<Location | null>(null);
 
   useEffect(() => { if (projectId) fetchData(); }, [projectId]);
 
@@ -71,40 +67,12 @@ export default function LocationsPage() {
     finally { setLoading(false); }
   };
 
-  const handleEdit = (loc: Location) => { setSelectedLocation(loc); setIsModalOpen(true); };
-  const handleAdd = () => { setSelectedLocation(null); setIsModalOpen(true); };
-
-  const handleDelete = async (id: number) => {
-    if (!confirm("Delete this location?")) return;
-    try {
-      await deleteLocation(id);
-      toast.success("Location deleted");
-      fetchData();
-    } catch (error) { toast.error(extractApiError(error, "Failed to delete location.")); }
+  const handleAdd = () => { setIsModalOpen(true); };
+  const handleOpenDetail = (locId: number) => {
+    router.push(`/projects/${projectId}/creative-hub/locations/${locId}`);
   };
 
-  const handleGenerateImage = (loc: Location) => {
-    setPendingGenerateLoc(loc);
-    setIsModelSelectorOpen(true);
-  };
-
-  const handleModelConfirm = async (model: string, provider: string) => {
-    if (!pendingGenerateLoc) return;
-    setIsModelSelectorOpen(false);
-    const locId = pendingGenerateLoc.id;
-    setGeneratingLocIds(prev => ({ ...prev, [locId]: true }));
-    setPendingGenerateLoc(null);
-    try {
-      const result = await generateLocationImage(locId, model, provider);
-      setTrackedTasks(prev => ({ ...prev, [result.task_id]: locId }));
-      toast.success("Location image rendering — will update when ready…");
-    } catch (error) {
-      toast.error(extractApiError(error, "Failed to generate image."));
-      setGeneratingLocIds(prev => { const n = { ...prev }; delete n[locId]; return n; });
-    }
-  };
-
-  // ── DB-backed task polling ────────────────────────────────────────────────
+  // ── DB-backed task polling for any in-flight generation kicked off elsewhere ──
   useGenerationTasks({
     taskIds: Object.keys(trackedTasks),
     getObjectId: (taskId) => trackedTasks[taskId] ?? 0,
@@ -112,12 +80,10 @@ export default function LocationsPage() {
       setTrackedTasks(prev => { const n = { ...prev }; delete n[taskId]; return n; });
       setGeneratingLocIds(prev => { const n = { ...prev }; delete n[objectId]; return n; });
       fetchData();
-      toast.success("Location image is ready!");
     },
-    onError: (taskId, objectId, error) => {
+    onError: (taskId, objectId) => {
       setTrackedTasks(prev => { const n = { ...prev }; delete n[taskId]; return n; });
       setGeneratingLocIds(prev => { const n = { ...prev }; delete n[objectId]; return n; });
-      toast.error("Location image generation failed. Please try again.");
     },
   });
 
@@ -147,10 +113,15 @@ export default function LocationsPage() {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {locations.map((loc, idx) => (
-            <div key={loc.id} {...(idx === 0 ? { "data-tour": "location-card" } : {})} className="bg-[var(--surface)] rounded-md border border-[var(--border)] overflow-hidden group hover:border-emerald-500/30 transition-all flex flex-col">
-              <div className="aspect-video bg-[var(--background)] relative group-hover:opacity-90 transition-opacity">
+            <div
+              key={loc.id}
+              {...(idx === 0 ? { "data-tour": "location-card" } : {})}
+              onClick={() => handleOpenDetail(loc.id)}
+              className="bg-[var(--surface)] rounded-md border border-[var(--border)] overflow-hidden group hover:border-emerald-500/30 transition-all flex flex-col cursor-pointer"
+            >
+              <div className="aspect-video bg-[var(--background)] relative">
                 {loc.image_url ? (
-                  <img src={loc.image_url} alt={loc.name} className="w-full h-full object-cover" />
+                  <img src={loc.image_url} alt={loc.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
                     <MapPin className="h-8 w-8 mb-1 opacity-30" />
@@ -163,30 +134,11 @@ export default function LocationsPage() {
                     <span className="text-[10px] text-emerald-400 font-medium">Generating...</span>
                   </div>
                 )}
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  <button onClick={() => handleEdit(loc)} className="p-2 bg-white/10 hover:bg-white/20 rounded-md text-white transition-colors" title="Edit">
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleGenerateImage(loc)}
-                    disabled={!!generatingLocIds[loc.id]}
-                    className="p-2 bg-emerald-500/20 hover:bg-emerald-500/40 rounded-md text-emerald-400 transition-colors" title="Generate AI Image"
-                  >
-                    {generatingLocIds[loc.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                  </button>
-                  <button onClick={() => handleDelete(loc.id)} className="p-2 bg-red-500/20 hover:bg-red-500/40 rounded-md text-red-400 transition-colors" title="Delete">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
               </div>
               <div className="p-3 flex-1 flex flex-col">
                 <h3 className="font-bold text-sm mb-0.5 text-[var(--text-primary)]">{loc.name}</h3>
                 {loc.time && <p className="text-[10px] text-emerald-400/70 mb-1">{loc.time}</p>}
-                <p className="text-[10px] text-[var(--text-muted)] line-clamp-2 mb-3 flex-1">{loc.description || "No description."}</p>
-                <button onClick={() => handleEdit(loc)}
-                  className="w-full py-1.5 text-[10px] font-medium bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-[var(--text-secondary)] rounded-md transition-colors border border-[var(--border)]">
-                  View Details
-                </button>
+                <p className="text-[10px] text-[var(--text-muted)] line-clamp-2 flex-1">{loc.description || "No description."}</p>
               </div>
             </div>
           ))}
@@ -197,25 +149,11 @@ export default function LocationsPage() {
         <LocationModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          location={selectedLocation}
+          location={null}
           scriptId={script.id}
           onUpdate={fetchData}
-          onGenerate={(locId) => {
-              setPendingGenerateLoc({ id: locId } as Location);
-              setIsModelSelectorOpen(true);
-          }}
         />
       )}
-
-      {/* Model selector for AI image generation — placed outside LocationModal to avoid z-index conflicts */}
-      <ModelSelector
-        isOpen={isModelSelectorOpen}
-        onClose={() => { setIsModelSelectorOpen(false); setPendingGenerateLoc(null); }}
-        onConfirm={handleModelConfirm}
-        itemCount={1}
-        title="Select Model for Location Image"
-        confirmLabel="Generate Image"
-      />
     </div>
   );
 }
@@ -226,10 +164,12 @@ interface LocationModalProps {
   location: Location | null;
   scriptId: number;
   onUpdate: () => void;
-  onGenerate?: (locId: number) => void;
 }
 
-function LocationModal({ isOpen, onClose, location, scriptId, onUpdate, onGenerate }: LocationModalProps) {
+function LocationModal({ isOpen, onClose, scriptId, onUpdate }: LocationModalProps) {
+  const router = useRouter();
+  const params = useParams();
+  const projectId = params.projectId as string;
   const [form, setForm] = useState({ name: "", description: "", time: "" });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -237,15 +177,12 @@ function LocationModal({ isOpen, onClose, location, scriptId, onUpdate, onGenera
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (location) {
-      setForm({ name: location.name || "", description: location.description || "", time: location.time || "" });
-      setImagePreview(location.image_url || null);
-    } else {
+    if (isOpen) {
       setForm({ name: "", description: "", time: "" });
       setImagePreview(null);
+      setImageFile(null);
     }
-    setImageFile(null);
-  }, [location, isOpen]);
+  }, [isOpen]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -254,38 +191,16 @@ function LocationModal({ isOpen, onClose, location, scriptId, onUpdate, onGenera
     setImagePreview(URL.createObjectURL(file));
   };
 
-  const handleSave = async () => {
+  const handleCreate = async () => {
     if (!form.name.trim()) { toast.error("Name is required"); return; }
     setSaving(true);
     try {
-      if (location) {
-        await updateLocation(location.id, { ...form, ...(imageFile ? { image_url: imageFile } : {}) });
-        toast.success("Location updated");
-      } else {
-        await createLocation(scriptId, { ...form, ...(imageFile ? { image_url: imageFile } : {}) });
-        toast.success("Location created");
-      }
+      const newLoc = await createLocation(scriptId, { ...form, ...(imageFile ? { image_url: imageFile } : {}) });
+      toast.success("Location created");
       onUpdate();
       onClose();
-    } catch (error) { toast.error(extractApiError(error, "Failed to save location.")); }
-    finally { setSaving(false); }
-  };
-
-  const handleSaveAndGenerate = async () => {
-    if (!form.name.trim()) { toast.error("Name is required before generating."); return; }
-    setSaving(true);
-    try {
-      let locId = location?.id;
-      if (locId) {
-        await updateLocation(locId, { ...form, ...(imageFile ? { image_url: imageFile } : {}) });
-      } else {
-        const newLoc = await createLocation(scriptId, { ...form, ...(imageFile ? { image_url: imageFile } : {}) });
-        locId = newLoc.id;
-      }
-      onUpdate();
-      onClose();
-      if (onGenerate && locId) onGenerate(locId);
-    } catch (error) { toast.error(extractApiError(error, "Failed to save & generate.")); }
+      if (newLoc?.id) router.push(`/projects/${projectId}/creative-hub/locations/${newLoc.id}`);
+    } catch (error) { toast.error(extractApiError(error, "Failed to create location.")); }
     finally { setSaving(false); }
   };
 
@@ -295,11 +210,10 @@ function LocationModal({ isOpen, onClose, location, scriptId, onUpdate, onGenera
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-md w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="p-5 border-b border-[var(--border)] flex justify-between items-center">
-          <h2 className="text-base font-bold text-[var(--text-primary)]">{location ? "Edit Location" : "Add Location"}</h2>
+          <h2 className="text-base font-bold text-[var(--text-primary)]">Add Location</h2>
           <button onClick={onClose} className="p-1 hover:bg-[var(--surface-hover)] rounded-md text-[var(--text-secondary)]"><X className="h-4 w-4" /></button>
         </div>
         <div className="p-5 space-y-4">
-          {/* Image */}
           <div
             className="aspect-video bg-[var(--background)] rounded-md border border-[var(--border)] overflow-hidden relative cursor-pointer group"
             onClick={() => fileRef.current?.click()}
@@ -309,80 +223,37 @@ function LocationModal({ isOpen, onClose, location, scriptId, onUpdate, onGenera
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
                 <Upload className="h-6 w-6 mb-1 opacity-50" />
-                <span className="text-[10px]">Click to upload image</span>
+                <span className="text-[10px]">Click to upload image (optional)</span>
               </div>
             )}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <Upload className="h-5 w-5 text-white" />
-            </div>
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
           </div>
 
           <div>
             <label className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest block mb-1">Name *</label>
-            <input
-              type="text"
-              value={form.name}
-              onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+            <input type="text" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
               className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-[var(--text-primary)] text-sm focus:outline-none focus:border-emerald-500/50"
-              placeholder="e.g. Downtown Alley"
-            />
+              placeholder="e.g. Downtown Alley" />
           </div>
           <div>
             <label className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest block mb-1">Time of Day</label>
-            <input
-              type="text"
-              value={form.time}
-              onChange={e => setForm(p => ({ ...p, time: e.target.value }))}
+            <input type="text" value={form.time} onChange={e => setForm(p => ({ ...p, time: e.target.value }))}
               className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-[var(--text-primary)] text-sm focus:outline-none focus:border-emerald-500/50"
-              placeholder="e.g. Night, Golden Hour"
-            />
+              placeholder="e.g. Night, Golden Hour" />
           </div>
           <div>
             <label className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest block mb-1">Description</label>
-            <textarea
-              value={form.description}
-              onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
-              rows={3}
+            <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={3}
               className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-[var(--text-primary)] text-sm focus:outline-none focus:border-emerald-500/50 resize-none"
-              placeholder="Describe the location..."
-            />
+              placeholder="Describe the location..." />
           </div>
-
-          <div className="bg-[var(--surface)] p-3 rounded-md border border-[var(--border)] flex items-center justify-between mt-4">
-              <div>
-                  <span className="text-xs text-[var(--text-secondary)] font-medium block">AI Location Generation</span>
-                  <span className="text-[10px] text-[var(--text-muted)]">Instantly saves details and generates an image</span>
-              </div>
-              <button
-                  type="button"
-                  onClick={handleSaveAndGenerate}
-                  disabled={saving}
-                  className="px-3 py-1.5 text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-md transition-colors flex items-center gap-1.5 font-medium"
-              >
-                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
-                  Save & Generate
-              </button>
-          </div>
-
-          {location && (
-              <PrevizHistorySection
-                  kind="location"
-                  subjectId={location.id}
-                  subjectLabel={`Location: ${location.name}`}
-                  activePrevizId={location.active_previz ?? null}
-                  onActivePrevizChange={(_id, url) => {
-                      if (url) setImagePreview(url);
-                      onUpdate();
-                  }}
-              />
-          )}
+          <p className="text-[10px] text-[var(--text-muted)]">After creation you&apos;ll be taken to the location&apos;s detail page where you can generate AI images and manage history.</p>
         </div>
         <div className="p-4 border-t border-[var(--border)] flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 bg-[var(--surface-hover)] hover:bg-[var(--border)] text-white rounded-md text-sm transition-colors">Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm transition-colors flex items-center gap-2 disabled:opacity-50">
+          <button onClick={handleCreate} disabled={saving} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm transition-colors flex items-center gap-2 disabled:opacity-50">
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {location ? "Save Changes" : "Create Location"}
+            Create Location
           </button>
         </div>
       </div>
