@@ -7,7 +7,10 @@ import { useViewfinder } from "@/context/ViewfinderContext";
 import { getProject } from "@/services/project";
 import { Project } from "@/types/project";
 
-const HIDE_ON = ["/login", "/register", "/reset-password", "/"];
+// Exact-match routes (matched with ===) where the HUD must not render.
+// "/" is the landing page, so we cannot use startsWith there.
+const HIDE_ON_PREFIX = ["/login", "/register", "/reset-password"];
+const HIDE_ON_EXACT = new Set(["/"]);
 
 function useClock() {
   // Start as null so SSR and first client render agree (no current time shown
@@ -44,7 +47,7 @@ function daysBetween(a: Date, b: Date) {
 }
 
 export default function ProductionHUD() {
-  const { mode, hudVisible, scene, setScene, take, setTake, bumpTake, resetTake, gel } = useViewfinder();
+  const { hudVisible, scene, setScene, take, setTake, bumpTake, resetTake, gel } = useViewfinder();
   const pathname = usePathname();
   const params = useParams();
   const projectId = typeof params?.projectId === "string" ? params.projectId : undefined;
@@ -69,10 +72,13 @@ export default function ProductionHUD() {
     return daysBetween(new Date(project.created_at), new Date());
   }, [project?.created_at]);
 
+  // The HUD is part of the main app chrome — show it independent of
+  // Viewfinder mode. `hudVisible` still lets the user hide it if they want
+  // to declutter, and we still skip it on the public landing/auth routes.
   const hidden =
-    mode !== "on" ||
     !hudVisible ||
-    HIDE_ON.some((p) => pathname.startsWith(p));
+    HIDE_ON_EXACT.has(pathname) ||
+    HIDE_ON_PREFIX.some((p) => pathname.startsWith(p));
   if (hidden) return null;
 
   const projectLabel = project?.name?.toUpperCase() || "STORYVORD · CREATIVE HUB";
