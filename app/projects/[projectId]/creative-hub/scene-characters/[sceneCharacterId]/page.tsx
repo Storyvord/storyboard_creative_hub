@@ -9,6 +9,7 @@ import {
     generateSceneCharacterImage,
     getBulkTaskStatus,
     getCloths,
+    setActiveSubjectPreviz,
 } from "@/services/creative-hub";
 import { Cloth } from "@/types/creative-hub";
 import {
@@ -441,7 +442,34 @@ export default function SceneCharacterDetailPage() {
                                 subjectId={sc.character.id}
                                 subjectLabel={`Character: ${baseName}`}
                                 activePrevizId={sc.character.active_previz ?? null}
-                                onActivePrevizChange={() => fetchScene()}
+                                refreshKey={historyRefreshKey}
+                                onActivePrevizChange={() => {
+                                    fetchScene();
+                                    setHistoryRefreshKey((k) => k + 1);
+                                }}
+                                secondaryAction={{
+                                    label: "Use for this scene",
+                                    title: "Make this image the active look for the current scene character",
+                                    onClick: async (previzId) => {
+                                        try {
+                                            await setActiveSubjectPreviz(
+                                                "scene_character",
+                                                sceneCharacterId,
+                                                previzId,
+                                            );
+                                            toast.success("Linked to this scene");
+                                            await fetchScene();
+                                            setHistoryRefreshKey((k) => k + 1);
+                                        } catch (err) {
+                                            toast.error(
+                                                extractApiError(
+                                                    err,
+                                                    "Failed to link to this scene.",
+                                                ),
+                                            );
+                                        }
+                                    },
+                                }}
                             />
                         ) : (
                             <p className="text-[10px] text-[var(--text-muted)] italic">
