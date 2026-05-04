@@ -281,6 +281,11 @@ export const createLocation = async (scriptId: number, data: { name: string; des
     return response.data;
 }
 
+export const getLocation = async (locationId: number): Promise<any> => {
+    const response = await api.get(`/api/creative_hub/locations/${locationId}/`);
+    return response.data;
+}
+
 export const updateLocation = async (locationId: number, data: { name?: string; description?: string; time?: string; image_url?: File | null }): Promise<any> => {
     const hasFile = data.image_url instanceof File;
     if (hasFile) {
@@ -567,15 +572,31 @@ export const getSceneStoryboardData = async (sceneId: number): Promise<any> => {
 }
 
 export const getShotPreviz = async (shotId: number): Promise<any[]> => {
-    // Try V1 list endpoint filtered by shot to get history
+    // Backward-compatible: returns the full first page as a flat array.
+    const { results } = await getShotPrevizPage(shotId, 1);
+    return results;
+}
+
+export const getShotPrevizPage = async (
+    shotId: number,
+    page: number = 1,
+    pageSize: number = 12,
+): Promise<{ results: any[]; next: string | null; count: number }> => {
     try {
-         const response = await api.get(`/api/creative_hub/previsualization/list/?shot_id=${shotId}`);
-         if (Array.isArray(response.data)) return response.data;
-         if (response.data.results) return response.data.results;
+         const response = await api.get(
+            `/api/creative_hub/previsualization/list/?shot_id=${shotId}&page=${page}&page_size=${pageSize}`,
+         );
+         const data = response.data;
+         if (Array.isArray(data)) return { results: data, next: null, count: data.length };
+         return {
+            results: data.results ?? [],
+            next: data.next ?? null,
+            count: data.count ?? data.results?.length ?? 0,
+         };
     } catch (e) {
         console.warn("Failed to fetch previz via list endpoint", e);
+        return { results: [], next: null, count: 0 };
     }
-    return [];
 }
 
 export const regeneratePreviz = async (previzId: number, editPrompt?: string, model?: string, provider?: string, quality?: string, size?: string): Promise<any> => {
@@ -755,10 +776,11 @@ export const getPrevizHistory = async (
     kind: PrevizSubjectKind,
     subjectId: number,
     page: number = 1,
+    pageSize: number = 12,
 ): Promise<PrevizHistoryPage> => {
     const path = SUBJECT_KIND_PATH[kind];
     const response = await api.get(
-        `/api/creative_hub/${path}/${subjectId}/previz/history/?page=${page}`,
+        `/api/creative_hub/${path}/${subjectId}/previz/history/?page=${page}&page_size=${pageSize}`,
     );
     const data = response.data;
     if (Array.isArray(data)) {

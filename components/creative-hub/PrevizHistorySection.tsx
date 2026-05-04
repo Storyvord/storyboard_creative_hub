@@ -40,6 +40,20 @@ const flatten = (rows: PrevizHistoryRow[]): FlatPreviz[] =>
         notes: row.notes ?? null,
     }));
 
+// Prefer the user's display name; if the backend fell back to the email
+// (no first/last name set on the account), surface only the username portion
+// rather than the raw email so the UI reads cleaner.
+const displayAuthor = (
+    addedBy: { name?: string | null; email?: string | null } | null | undefined,
+): string | null => {
+    if (!addedBy) return null;
+    const name = addedBy.name?.trim();
+    const email = addedBy.email?.trim();
+    if (name && name !== email) return name;
+    if (email) return email.split("@")[0];
+    return null;
+};
+
 export default function PrevizHistorySection({
     kind,
     subjectId,
@@ -48,18 +62,25 @@ export default function PrevizHistorySection({
     onActivePrevizChange,
     refreshKey = 0,
 }: PrevizHistorySectionProps) {
+    const PAGE_SIZE = 12;
     const [history, setHistory] = useState<FlatPreviz[]>([]);
     const [loading, setLoading] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [settingActiveId, setSettingActiveId] = useState<number | null>(null);
     const [compareOpen, setCompareOpen] = useState(false);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
         const load = async () => {
             setLoading(true);
             try {
-                const page = await getPrevizHistory(kind, subjectId);
-                if (!cancelled) setHistory(flatten(page.results));
+                const result = await getPrevizHistory(kind, subjectId, 1, PAGE_SIZE);
+                if (cancelled) return;
+                setHistory(flatten(result.results));
+                setPage(1);
+                setHasMore(!!result.next);
             } catch (err) {
                 if (!cancelled) {
                     console.error("Failed to fetch previz history", err);
@@ -73,6 +94,26 @@ export default function PrevizHistorySection({
             cancelled = true;
         };
     }, [kind, subjectId, refreshKey]);
+
+    const loadMore = async () => {
+        if (loadingMore || !hasMore) return;
+        setLoadingMore(true);
+        try {
+            const next = page + 1;
+            const result = await getPrevizHistory(kind, subjectId, next, PAGE_SIZE);
+            // Dedupe in case the active set has shifted between fetches.
+            const seen = new Set(history.map((p) => p.id));
+            const incoming = flatten(result.results).filter((p) => !seen.has(p.id));
+            setHistory((prev) => [...prev, ...incoming]);
+            setPage(next);
+            setHasMore(!!result.next);
+        } catch (err) {
+            console.error("Failed to load more history", err);
+            toast.error(extractApiError(err, "Failed to load more."));
+        } finally {
+            setLoadingMore(false);
+        }
+    };
 
     const handleSetActive = async (previzId: number) => {
         setSettingActiveId(previzId);
@@ -119,7 +160,7 @@ export default function PrevizHistorySection({
                     {history.map((previz) => {
                         const isActive = previz.id === activePrevizId;
                         const isSetting = settingActiveId === previz.id;
-                        const author = previz.added_by?.name || previz.added_by?.email;
+                        const author = displayAuthor(previz.added_by);
                         return (
                             <div
                                 key={previz.id}
@@ -134,6 +175,8 @@ export default function PrevizHistorySection({
                                         <img
                                             src={previz.image_url}
                                             alt={`Generation ${previz.id}`}
+                                            loading="lazy"
+                                            decoding="async"
                                             className="w-full h-full object-cover"
                                         />
                                     ) : (
@@ -141,41 +184,63 @@ export default function PrevizHistorySection({
                                             <ImageOff className="w-4 h-4 opacity-50" />
                                         </div>
                                     )}
-                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-2 gap-2">
-                                        <button
-                                            disabled={isActive || isSetting}
-                                            onClick={() => handleSetActive(previz.id)}
-                                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-3 py-1.5 rounded disabled:opacity-50 disabled:bg-[var(--surface-raised)]"
-                                        >
-                                            {isActive
-                                                ? "Active"
-                                                : isSetting
-                                                ? "Setting..."
-                                                : "Set Active"}
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="p-2 border-t border-[var(--border)] flex flex-col gap-1">
-                                    {author ? (
-                                        <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
-                                            <User className="w-3 h-3 text-emerald-500/80" />
-                                            <span className="text-[9px] truncate" title={author}>
-                                                {author}
-                                            </span>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-1.5 text-[var(--text-muted)]">
-                                            <User className="w-3 h-3" />
-                                            <span className="text-[9px]">API Generated</span>
-                                        </div>
+                                    {isActive && (
+                                        <span className="absolute top-1 left-1 text-[8px] font-bold uppercase bg-emerald-500 text-black px-1.5 py-0.5 rounded shadow">
+                                            Active
+                                        </span>
                                     )}
-                                    <div className="text-[8px] text-[var(--text-muted)]">
-                                        {new Date(previz.created_at).toLocaleDateString()}
+                                </div>
+                                <div className="p-2 border-t border-[var(--border)] flex flex-col gap-2">
+                                    <button
+                                        type="button"
+                                        disabled={isActive || isSetting}
+                                        onClick={() => handleSetActive(previz.id)}
+                                        className={`w-full text-[10px] px-2 py-1.5 rounded font-medium transition-colors flex items-center justify-center gap-1 ${
+                                            isActive
+                                                ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 cursor-default"
+                                                : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                                        } disabled:opacity-70`}
+                                    >
+                                        {isSetting && (
+                                            <span className="inline-block w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        )}
+                                        {isActive ? "Active" : isSetting ? "Setting..." : "Set as Active"}
+                                    </button>
+                                    <div className="flex items-center justify-between gap-1">
+                                        {author ? (
+                                            <div className="flex items-center gap-1.5 text-[var(--text-secondary)] min-w-0">
+                                                <User className="w-3 h-3 text-emerald-500/80 flex-shrink-0" />
+                                                <span className="text-[9px] truncate" title={author}>
+                                                    {author}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-1.5 text-[var(--text-muted)]">
+                                                <User className="w-3 h-3" />
+                                                <span className="text-[9px]">API Generated</span>
+                                            </div>
+                                        )}
+                                        <span className="text-[8px] text-[var(--text-muted)] flex-shrink-0">
+                                            {new Date(previz.created_at).toLocaleDateString()}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
                         );
                     })}
+                    {hasMore && (
+                        <button
+                            type="button"
+                            onClick={loadMore}
+                            disabled={loadingMore}
+                            className="col-span-2 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 disabled:text-[var(--text-muted)] disabled:cursor-not-allowed py-2 border border-dashed border-[var(--border)] rounded-md transition-colors flex items-center justify-center gap-1.5"
+                        >
+                            {loadingMore && (
+                                <span className="inline-block w-2.5 h-2.5 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
+                            )}
+                            {loadingMore ? "Loading…" : "Load more"}
+                        </button>
+                    )}
                 </div>
             ) : (
                 <p className="text-[10px] text-[var(--text-muted)]">No history yet.</p>

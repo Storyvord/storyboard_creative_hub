@@ -15,6 +15,7 @@ import {
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
+import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
 import { useGenerationTasks } from "@/hooks/useGenerationTasks";
 import { useUserInfo } from "@/hooks/useUserInfo";
 
@@ -522,6 +523,7 @@ export default function CharacterDetailPage() {
   // DB-backed task tracking: taskId → objectId (characterId or sceneCharacterId)
   const [trackedPortraitTasks, setTrackedPortraitTasks] = useState<Record<string, number>>({});
   const [trackedSceneTasks, setTrackedSceneTasks] = useState<Record<string, number>>({});
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   const fetchCharacter = useCallback(async (): Promise<CharacterDetail> => {
     const data = await getCharacter(characterId) as CharacterDetail;
@@ -669,6 +671,7 @@ export default function CharacterDetailPage() {
         fetchCharacter().then(data => {
           if (data?.image_url) setImagePreview(data.image_url);
         });
+        setHistoryRefreshKey(k => k + 1);
         toast.success("Portrait is ready!");
       } else {
         const objectId = trackedSceneTasks[taskId];
@@ -951,6 +954,21 @@ export default function CharacterDetailPage() {
                 </div>
               </>
             )}
+          </div>
+
+          {/* Portrait history */}
+          <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-4">
+            <PrevizHistorySection
+              kind="character"
+              subjectId={characterId}
+              subjectLabel={`Character: ${character.name}`}
+              activePrevizId={(character as Character).active_previz ?? null}
+              refreshKey={historyRefreshKey}
+              onActivePrevizChange={(_id, url) => {
+                if (url) setImagePreview(url);
+                fetchCharacter();
+              }}
+            />
           </div>
         </div>
 

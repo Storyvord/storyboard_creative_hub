@@ -2,7 +2,7 @@ import { Shot, Scene, Character } from "@/types/creative-hub";
 import { X, Film, User, ChevronLeft, ChevronRight, Clock, AlertTriangle, Upload, Pencil, Send, GitCompare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
-import { uploadPreviz, getShotPreviz, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails, getCameraAngles, CameraAngle, getShotTypes, ShotType } from "@/services/creative-hub";
+import { uploadPreviz, getShotPreviz, getShotPrevizPage, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails, getCameraAngles, CameraAngle, getShotTypes, ShotType } from "@/services/creative-hub";
 import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
 import PrevizReferenceStrip from "@/components/creative-hub/PrevizReferenceStrip";
@@ -70,6 +70,9 @@ export default function ShotDetailModal({
   const [previzHistory, setPrevizHistory] = useState<any[]>([]);
   const [scriptPreviz, setScriptPreviz] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [settingActive, setSettingActive] = useState(false);
     const [savingDetails, setSavingDetails] = useState(false);
@@ -142,23 +145,45 @@ export default function ShotDetailModal({
     prevIsGenerating.current = !!isGenerating;
   }, [isGenerating]);
 
+  const sortByRecency = (rows: any[]) => [...rows].sort((a: any, b: any) => {
+      const aTime = a?.assignment_date || a?.created_at || 0;
+      const bTime = b?.assignment_date || b?.created_at || 0;
+      const aDate = aTime ? new Date(aTime).getTime() : 0;
+      const bDate = bTime ? new Date(bTime).getTime() : 0;
+      if (aDate !== bDate) return bDate - aDate;
+      return (b?.id || 0) - (a?.id || 0);
+  });
+
   const fetchPrevizHistory = async () => {
       if (!shot) return;
       setLoadingHistory(true);
       try {
-          const history = await getShotPreviz(shot.id);
-          const sortedHistory = [...history].sort((a: any, b: any) => {
-              const aTime = a?.assignment_date || a?.created_at || 0;
-              const bTime = b?.assignment_date || b?.created_at || 0;
-              const aDate = aTime ? new Date(aTime).getTime() : 0;
-              const bDate = bTime ? new Date(bTime).getTime() : 0;
-              if (aDate !== bDate) return bDate - aDate;
-              return (b?.id || 0) - (a?.id || 0);
-          });
-          setPrevizHistory(sortedHistory);
+          const { results, next } = await getShotPrevizPage(shot.id, 1);
+          setPrevizHistory(sortByRecency(results));
+          setHistoryPage(1);
+          setHasMoreHistory(!!next);
       }
       catch (error) { console.error("Failed to fetch previz history", error); }
       finally { setLoadingHistory(false); }
+  };
+
+  const loadMoreHistory = async () => {
+      if (!shot || loadingMoreHistory || !hasMoreHistory) return;
+      setLoadingMoreHistory(true);
+      try {
+          const next = historyPage + 1;
+          const { results, next: nextLink } = await getShotPrevizPage(shot.id, next);
+          const seen = new Set(previzHistory.map((p: any) => p.id));
+          const incoming = results.filter((p: any) => !seen.has(p.id));
+          setPrevizHistory(sortByRecency([...previzHistory, ...incoming]));
+          setHistoryPage(next);
+          setHasMoreHistory(!!nextLink);
+      } catch (error) {
+          console.error("Failed to load more previz history", error);
+          toast.error(extractApiError(error, "Failed to load more."));
+      } finally {
+          setLoadingMoreHistory(false);
+      }
   };
 
   const fetchScriptPreviz = async () => {
@@ -788,6 +813,19 @@ export default function ShotDetailModal({
                                                 </div>
                                             </div>
                                         ))}
+                                        {hasMoreHistory && (
+                                            <button
+                                                type="button"
+                                                onClick={loadMoreHistory}
+                                                disabled={loadingMoreHistory}
+                                                className="col-span-2 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 disabled:text-[var(--text-muted)] disabled:cursor-not-allowed py-2 border border-dashed border-[var(--border)] rounded-md transition-colors flex items-center justify-center gap-1.5"
+                                            >
+                                                {loadingMoreHistory && (
+                                                    <span className="inline-block w-2.5 h-2.5 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
+                                                )}
+                                                {loadingMoreHistory ? "Loading…" : "Load more"}
+                                            </button>
+                                        )}
                                     </div>
                                 ) : (
                                     <p className="text-[10px] text-[var(--text-muted)]">No history available.</p>
