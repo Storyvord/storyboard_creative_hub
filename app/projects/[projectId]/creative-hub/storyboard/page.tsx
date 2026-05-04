@@ -1064,6 +1064,8 @@ export default function StoryboardPage() {
           const res = await bulkGenerateShots(Array.from(selectedSceneIds));
           if (res?.task_ids) { const newTasks: Record<number, string> = {}; Array.from(selectedSceneIds).forEach((sceneId, idx) => { if (res.task_ids[idx]) newTasks[sceneId] = res.task_ids[idx]; setLoadingShotsMap(prev => ({ ...prev, [sceneId]: true })); }); setTrackedShotTasks(prev => ({ ...prev, ...newTasks })); }
           toast.success("Bulk shot generation started!");
+          setSelectedSceneIds(new Set());
+          setSelectedShotIds(new Set());
       } catch (error) { console.error(error); toast.error(extractApiError(error, "Failed to generate shots.")); } finally { setIsBulkGenerating(false); }
   };
 
@@ -1105,6 +1107,8 @@ export default function StoryboardPage() {
           // refresh the wallet immediately, not just on poll-completion.
           refreshCredits();
           toast.success("Bulk previz generation started!");
+          setSelectedSceneIds(new Set());
+          setSelectedShotIds(new Set());
       } catch (error) { console.error(error); toast.error(extractApiError(error, "Failed to start previz generation.")); } finally { setIsBulkGenerating(false); setPendingPrevizShotIds([]); }
   };
 

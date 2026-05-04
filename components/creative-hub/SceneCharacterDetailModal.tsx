@@ -4,6 +4,7 @@ import { X, Shirt, Wand2, Save, Plus, Upload, User } from "lucide-react";
 import { Cloth, Script } from "@/types/creative-hub";
 import { getCloths, updateSceneCharacter, generateSceneCharacterImage, createCloth, updateCharacter, getBulkTaskStatus } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
+import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
 import { toast } from "react-toastify";
 import { Loader2 } from "lucide-react";
 import { extractApiError } from "@/lib/extract-api-error";
@@ -35,6 +36,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
   const [generating, setGenerating] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [editPrompt, setEditPrompt] = useState("");
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -89,6 +91,7 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
 
                   if (activeTask.status === 'success' || activeTask.status === 'completed') {
                       onUpdate(); // refresh data
+                      setHistoryRefreshKey(k => k + 1);
                   } else if (activeTask.status === 'failed' || activeTask.status === 'failure') {
                       toast.error(activeTask.error || "Generation failed. Please try again.");
                   }
@@ -346,6 +349,17 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                                 </>
                             )}
                         </button>
+
+                        {sceneCharacter?.id && (
+                            <PrevizHistorySection
+                                kind="scene_character"
+                                subjectId={sceneCharacter.id}
+                                subjectLabel={`Scene Look: ${sceneCharacter?.character?.name ?? ""}`.trim()}
+                                activePrevizId={sceneCharacter?.active_previz ?? null}
+                                onActivePrevizChange={() => onUpdate()}
+                                refreshKey={historyRefreshKey}
+                            />
+                        )}
                     </div>
                 </div>
 

@@ -15,9 +15,20 @@ type PrevizItem = {
   [key: string]: unknown;
 };
 
+const displayAuthor = (
+  addedBy: { name?: string | null; email?: string | null } | null | undefined,
+): string | null => {
+  if (!addedBy) return null;
+  const name = addedBy.name?.trim();
+  const email = addedBy.email?.trim();
+  if (name && name !== email) return name;
+  if (email) return email.split("@")[0];
+  return null;
+};
+
 interface PrevizCompareViewProps {
-  shotId: number;
-  shotOrder?: number;
+  subjectId: number;
+  subjectLabel?: string;
   previzList: PrevizItem[];
   activePrevizId: number | null | undefined;
   onClose: () => void;
@@ -25,7 +36,7 @@ interface PrevizCompareViewProps {
 }
 
 export default function PrevizCompareView({
-  shotOrder,
+  subjectLabel,
   previzList,
   activePrevizId,
   onClose,
@@ -49,14 +60,16 @@ export default function PrevizCompareView({
     .filter(Boolean);
 
   const toggleSelect = (id: number) => {
+    const willReplaceOldest =
+      !selectedIds.includes(id) && selectedIds.length >= MAX_SELECTED;
     setSelectedIds((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= MAX_SELECTED) {
-        toast.info(`Compare limit is ${MAX_SELECTED} — replaced oldest selection`);
-        return [...prev.slice(1), id];
-      }
+      if (prev.length >= MAX_SELECTED) return [...prev.slice(1), id];
       return [...prev, id];
     });
+    if (willReplaceOldest) {
+      toast.info(`Compare limit is ${MAX_SELECTED} — replaced oldest selection`);
+    }
   };
 
   const handleSetActive = async (previzId: number) => {
@@ -100,8 +113,8 @@ export default function PrevizCompareView({
           <div className="flex items-center gap-3 min-w-0">
             <GitCompare className="w-4 h-4 text-emerald-400 flex-shrink-0" />
             <h2 className="text-sm font-semibold text-[var(--text-primary)]">Compare Previz</h2>
-            {shotOrder !== undefined && (
-              <span className="text-xs text-[var(--text-muted)]">— Shot {shotOrder}</span>
+            {subjectLabel && (
+              <span className="text-xs text-[var(--text-muted)]">— {subjectLabel}</span>
             )}
             <span className="text-[10px] text-[var(--text-muted)] px-2 py-0.5 rounded-full bg-[var(--surface-raised)]">
               {selectedPreviz.length}/{MAX_SELECTED} selected
@@ -142,6 +155,8 @@ export default function PrevizCompareView({
                       <img
                         src={previz.image_url}
                         alt={`Previz ${previz.id}`}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -193,7 +208,7 @@ export default function PrevizCompareView({
                   const isActive = previz.id === activePrevizId;
                   const isSettingActive = settingActiveId === previz.id;
                   const dateRaw = previz.assignment_date || previz.created_at;
-                  const author = previz.added_by?.name || previz.added_by?.email;
+                  const author = displayAuthor(previz.added_by);
                   return (
                     <div
                       key={previz.id}
