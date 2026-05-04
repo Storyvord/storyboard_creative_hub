@@ -5,6 +5,7 @@ import { Cloth, Script } from "@/types/creative-hub";
 import { getCloths, updateSceneCharacter, generateSceneCharacterImage, createCloth, updateCharacter, getBulkTaskStatus } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
+import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import { Loader2 } from "lucide-react";
 import { extractApiError } from "@/lib/extract-api-error";
@@ -28,6 +29,9 @@ const CLOTH_SLOTS = [
 ];
 
 export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, onClose, onUpdate }: SceneCharacterDetailModalProps) {
+  const router = useRouter();
+  const routeParams = useParams();
+  const projectIdParam = (routeParams?.projectId as string) || "";
   const [activeSlot, setActiveSlot] = useState<string>("torso");
   const [availableCloths, setAvailableCloths] = useState<Cloth[]>([]);
   const [selectedCloths, setSelectedCloths] = useState<Record<string, Cloth | null>>({});
@@ -256,12 +260,29 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                     </h3>
                     <p className="text-sm text-gray-400 mt-1">Customize appearance for this scene</p>
                 </div>
-                <button
-                onClick={onClose}
-                className="rounded-md p-2 text-gray-400 hover:bg-[var(--surface-hover)] hover:text-white transition-colors"
-                >
-                <X className="h-5 w-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                    {sceneCharacter?.id && projectIdParam && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onClose();
+                                router.push(
+                                    `/projects/${projectIdParam}/creative-hub/scene-characters/${sceneCharacter.id}`,
+                                );
+                            }}
+                            className="text-[10px] font-medium text-emerald-400 hover:text-emerald-300 px-2 py-1 rounded-md transition-colors"
+                            title="Open dedicated detail page"
+                        >
+                            Open detail page →
+                        </button>
+                    )}
+                    <button
+                        onClick={onClose}
+                        className="rounded-md p-2 text-gray-400 hover:bg-[var(--surface-hover)] hover:text-white transition-colors"
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
             </div>
 
             {/* Content */}
