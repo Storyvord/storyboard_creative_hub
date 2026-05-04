@@ -35,15 +35,8 @@ export default function ViewfinderFrame({ children }: { children: React.ReactNod
   } = useViewfinder();
   const active = mode === "on";
   const pathname = usePathname();
-<<<<<<< Updated upstream
   const isPublic = !!pathname && PUBLIC_ROUTES.has(pathname);
-=======
-  const cinematic = pathname?.startsWith("/cinematic");
-
-  if (cinematic) {
-    return <>{children}</>;
-  }
->>>>>>> Stashed changes
+  const cinematic = !!pathname && pathname.startsWith("/cinematic");
 
   useKeyChord(
     { key: "k", meta: true },
@@ -57,6 +50,11 @@ export default function ViewfinderFrame({ children }: { children: React.ReactNod
   useKeyChord({ key: "t", shift: true }, (e) => { e.preventDefault(); bumpTake(); }, active);
   useKeyChord({ key: "r", shift: true }, (e) => { e.preventDefault(); resetTake(); }, active);
   useKeyChord({ key: "g", shift: true }, (e) => { e.preventDefault(); toggleComposition(); }, active);
+
+  // Cinematic routes own their full-bleed chrome — bypass the global frame.
+  if (cinematic) {
+    return <>{children}</>;
+  }
 
   // Public pages render with no in-app chrome. Keeps the landing/auth flow
   // free of the AI Coproducer, ⌘K palette, viewfinder pill, etc.
