@@ -19,6 +19,14 @@ interface PrevizHistorySectionProps {
     onActivePrevizChange?: (previzId: number, imageUrl: string | null) => void;
     /** Bumping this triggers a refetch (e.g., after a generation completes). */
     refreshKey?: number;
+    /** Optional secondary per-row action (e.g. "Use for this scene" when the
+     * panel is rendering a parent's history but the user wants to apply a
+     * row to a different subject). Renders below the primary Set-as-Active. */
+    secondaryAction?: {
+        label: string;
+        title?: string;
+        onClick: (previzId: number) => Promise<void> | void;
+    };
 }
 
 type FlatPreviz = {
@@ -61,7 +69,18 @@ export default function PrevizHistorySection({
     activePrevizId,
     onActivePrevizChange,
     refreshKey = 0,
+    secondaryAction,
 }: PrevizHistorySectionProps) {
+    const [secondaryRunningId, setSecondaryRunningId] = useState<number | null>(null);
+    const handleSecondary = async (previzId: number) => {
+        if (!secondaryAction) return;
+        setSecondaryRunningId(previzId);
+        try {
+            await secondaryAction.onClick(previzId);
+        } finally {
+            setSecondaryRunningId(null);
+        }
+    };
     const PAGE_SIZE = 12;
     const [history, setHistory] = useState<FlatPreviz[]>([]);
     const [loading, setLoading] = useState(false);
@@ -206,6 +225,20 @@ export default function PrevizHistorySection({
                                         )}
                                         {isActive ? "Active" : isSetting ? "Setting..." : "Set as Active"}
                                     </button>
+                                    {secondaryAction && (
+                                        <button
+                                            type="button"
+                                            disabled={secondaryRunningId === previz.id}
+                                            onClick={() => handleSecondary(previz.id)}
+                                            title={secondaryAction.title}
+                                            className="w-full text-[10px] px-2 py-1.5 rounded font-medium transition-colors flex items-center justify-center gap-1 bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-emerald-400 border border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {secondaryRunningId === previz.id && (
+                                                <span className="inline-block w-2.5 h-2.5 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
+                                            )}
+                                            {secondaryRunningId === previz.id ? "Linking…" : secondaryAction.label}
+                                        </button>
+                                    )}
                                     <div className="flex items-center justify-between gap-1">
                                         {author ? (
                                             <div className="flex items-center gap-1.5 text-[var(--text-secondary)] min-w-0">
