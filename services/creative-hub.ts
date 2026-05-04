@@ -167,11 +167,13 @@ export const updateSceneCharacter = async (sceneCharacterId: number, data: any):
     return response.data;
 }
 
-export const generateSceneCharacterImage = async (sceneCharacterId: number, editPrompt?: string, model?: string, provider?: string): Promise<any> => {
+export const generateSceneCharacterImage = async (sceneCharacterId: number, editPrompt?: string, model?: string, provider?: string, quality?: string, size?: string): Promise<any> => {
     const response = await api.post(`/api/creative_hub/scene-characters/${sceneCharacterId}/generate-image/`, {
         edit_prompt: editPrompt,
         model,
-        provider
+        provider,
+        quality,
+        size,
     });
     return response.data; // Returns task_id
 }
@@ -238,10 +240,12 @@ export const deleteCharacter = async (characterId: number): Promise<void> => {
     await api.delete(`/api/creative_hub/characters/${characterId}/`);
 }
 
-export const generateCharacterImage = async (characterId: number, model?: string, provider?: string): Promise<{ task_id: string; status: string }> => {
+export const generateCharacterImage = async (characterId: number, model?: string, provider?: string, quality?: string, size?: string): Promise<{ task_id: string; status: string }> => {
     const response = await api.post(`/api/creative_hub/characters/${characterId}/generate-image/`, {
         model,
-        provider
+        provider,
+        quality,
+        size,
     });
     return response.data;
 }
@@ -384,12 +388,14 @@ export const generateShots = async (sceneId: number): Promise<void> => {
     await api.post(`/api/creative_hub/scenes/${sceneId}/shots/`);
 }
 
-export const generateShotImage = async (shotId: number, model?: string, provider?: string, characterIds?: number[]): Promise<any> => {
+export const generateShotImage = async (shotId: number, model?: string, provider?: string, characterIds?: number[], quality?: string, size?: string): Promise<any> => {
     // Reuse the bulk endpoint for single generation as it handles async properly
     const body: Record<string, any> = {
         shots: [{ shot_id: shotId, scene_character_ids: characterIds && characterIds.length > 0 ? characterIds : undefined }],
         model,
-        provider
+        provider,
+        quality,
+        size,
     };
     const response = await api.post(`/api/creative_hub/previsualization/bulk-generate/`, body);
     return response.data;
@@ -422,13 +428,17 @@ export const bulkGeneratePreviz = async (
     shots: BulkGenerateShotConfig[],
     model?: string,
     provider?: string,
-    storyboarding_type?: string
+    storyboarding_type?: string,
+    quality?: string,
+    size?: string,
 ): Promise<any> => {
     const body: Record<string, any> = {
         shots,
         model,
         provider,
         ...(storyboarding_type ? { storyboarding_type } : {}),
+        quality,
+        size,
     };
     const response = await api.post(`/api/creative_hub/previsualization/bulk-generate/`, body);
     return response.data;
@@ -461,6 +471,8 @@ export const createScriptPrevisualization = async (data: {
   generate_ai_image: boolean;
   model?: string;
   provider?: string;
+  quality?: string;
+  size?: string;
   character_ids?: number[];
   location_ids?: number[];
 }): Promise<any> => {
@@ -564,11 +576,13 @@ export const getShotPreviz = async (shotId: number): Promise<any[]> => {
     return [];
 }
 
-export const regeneratePreviz = async (previzId: number, editPrompt?: string, model?: string, provider?: string): Promise<any> => {
+export const regeneratePreviz = async (previzId: number, editPrompt?: string, model?: string, provider?: string, quality?: string, size?: string): Promise<any> => {
     const response = await api.post(`/api/creative_hub/previsualization/${previzId}/regenerate/`, {
         edit_prompt: editPrompt,
         model,
-        provider
+        provider,
+        quality,
+        size,
     });
     return response.data;
 }
@@ -589,7 +603,9 @@ export const editPrevizWithPrompt = async (
     sceneId?: number,
     scriptId?: number,
     model?: string,
-    provider?: string
+    provider?: string,
+    quality?: string,
+    size?: string,
 ): Promise<any> => {
     // Step 1: Download the active previz image
     const imageResponse = await fetch(activePrevizImageUrl);
@@ -612,7 +628,7 @@ export const editPrevizWithPrompt = async (
     const newPreviz = createRes.data;
 
     // Step 3: Regenerate the new previz with the edit prompt (image-to-image)
-    const regeneratedPreviz = await regeneratePreviz(newPreviz.id, editPrompt, model, provider);
+    const regeneratedPreviz = await regeneratePreviz(newPreviz.id, editPrompt, model, provider, quality, size);
 
     // Step 4: Only after successful regeneration, set it as active for the shot
     await setActivePreviz(shotId, newPreviz.id);
