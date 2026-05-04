@@ -140,6 +140,15 @@ export const getSceneCharacters = async (sceneId: number): Promise<any[]> => {
     return [];
 }
 
+export const getSceneCharacter = async (sceneCharacterId: number): Promise<any> => {
+    const response = await api.get(`/api/creative_hub/scene-characters/${sceneCharacterId}/`);
+    return response.data;
+}
+
+export const deleteSceneCharacter = async (sceneCharacterId: number): Promise<void> => {
+    await api.delete(`/api/creative_hub/scene-characters/${sceneCharacterId}/`);
+}
+
 export const updateSceneCharacter = async (sceneCharacterId: number, data: any): Promise<any> => {
     let payload = data;
     let config = {};
