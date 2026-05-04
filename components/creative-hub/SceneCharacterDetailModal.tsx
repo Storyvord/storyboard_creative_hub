@@ -211,11 +211,11 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
     setIsModelSelectorOpen(true);
   };
 
-  const handleModelConfirm = async (model: string, provider: string) => {
+  const handleModelConfirm = async (model: string, provider: string, quality?: string, size?: string) => {
     setIsModelSelectorOpen(false);
     setGenerating(true);
     try {
-      const res = await generateSceneCharacterImage(sceneCharacter.id, editPrompt, model, provider);
+      const res = await generateSceneCharacterImage(sceneCharacter.id, editPrompt, model, provider, quality, size);
       toast.success("Image generation started. It will update shortly.");
       if (res && res.task_id) {
         setActiveTaskId(res.task_id);

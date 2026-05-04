@@ -92,7 +92,7 @@ export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpda
     }
   };
 
-  const handleModelConfirm = async (model: string, provider: string) => {
+  const handleModelConfirm = async (model: string, provider: string, quality?: string, size?: string) => {
     if (!cloth) return;
     setIsModelSelectorOpen(false);
     setGenerating(true);

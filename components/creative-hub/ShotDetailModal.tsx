@@ -225,7 +225,7 @@ export default function ShotDetailModal({
       finally { setUploading(false); e.target.value = ''; }
   };
 
-  const handleEditPromptSubmit = async (model?: string, provider?: string) => {
+  const handleEditPromptSubmit = async (model?: string, provider?: string, quality?: string, size?: string) => {
       if (!shot || !editPrompt.trim() || !shot.image_url) return;
       setIsEditingPreviz(true);
       try {
@@ -237,6 +237,8 @@ export default function ShotDetailModal({
               (scene?.script_id || scene?.script) as number | undefined,
               model,
               provider,
+              quality,
+              size,
           );
 
           // Immediately reflect new active previz in parent state
@@ -336,13 +338,14 @@ export default function ShotDetailModal({
     <ModelSelector
       isOpen={showEditModelSelector}
       onClose={() => setShowEditModelSelector(false)}
-      onConfirm={(model, provider) => {
+      onConfirm={(model, provider, quality, size) => {
         setShowEditModelSelector(false);
-        handleEditPromptSubmit(model, provider);
+        handleEditPromptSubmit(model, provider, quality, size);
       }}
       itemCount={1}
       title="Select Model for Edit"
       confirmLabel="Apply Edit"
+      mode="edit"
     />
     <AnimatePresence>
       <motion.div
