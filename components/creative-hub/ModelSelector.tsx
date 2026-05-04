@@ -6,19 +6,23 @@ import { motion, AnimatePresence } from "framer-motion";
 interface ModelSelectorProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (model: string, provider: string) => void;
+  onConfirm: (model: string, provider: string, quality?: string, size?: string) => void;
   itemCount: number;
   title?: string;
   confirmLabel?: string;
+  mode?: "generate" | "edit";
 }
 
 export default function ModelSelector({
   isOpen, onClose, onConfirm, itemCount,
   title = "Select AI Model", confirmLabel = "Generate",
+  mode = "generate",
 }: ModelSelectorProps) {
   const [models, setModels] = useState<ImageModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedQuality, setSelectedQuality] = useState<string | undefined>(undefined);
+  const [selectedSize, setSelectedSize] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (isOpen) {
@@ -30,9 +34,29 @@ export default function ModelSelector({
     }
   }, [isOpen]);
 
+  const visibleModels = models.filter((m) =>
+    mode === "edit" ? m.supports_edit !== false : m.supports_generate !== false
+  );
+
+  useEffect(() => {
+    const sel = visibleModels[selectedIndex];
+    if (sel?.has_variants && sel.supported_qualities?.length) {
+      setSelectedQuality(sel.supported_qualities[0]);
+    } else {
+      setSelectedQuality(undefined);
+    }
+    if (sel?.has_variants && sel.supported_resolutions?.length) {
+      setSelectedSize(sel.supported_resolutions[0]);
+    } else {
+      setSelectedSize(undefined);
+    }
+  // visibleModels is derived from models+mode; including selectedIndex is sufficient
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIndex, models, mode]);
+
   if (!isOpen) return null;
 
-  const selected = models[selectedIndex];
+  const selected = visibleModels[selectedIndex];
   const selectedMin = selected?.credits_per_image_min ?? selected?.credits_per_image ?? 0;
   const selectedMax = selected?.credits_per_image_max ?? selected?.credits_per_image ?? 0;
   const estimatedCreditsMin = selectedMin * itemCount;
@@ -89,12 +113,14 @@ export default function ModelSelector({
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-5 h-5 animate-spin text-[var(--text-muted)]" />
               </div>
-            ) : models.length === 0 ? (
-              <p className="text-center text-[var(--text-muted)] py-4 text-xs">No models available</p>
+            ) : visibleModels.length === 0 ? (
+              <p className="text-center text-[var(--text-muted)] py-4 text-xs">
+                {models.length === 0 ? "No models available" : "No models available for this action"}
+              </p>
             ) : (
               <>
                 <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
-                  {[...models]
+                  {[...visibleModels]
                     .sort((a, b) => (b.credits_per_image_max ?? b.credits_per_image) - (a.credits_per_image_max ?? a.credits_per_image))
                     .map((model, idx) => {
                       const minCr = model.credits_per_image_min ?? model.credits_per_image;
@@ -144,6 +170,40 @@ export default function ModelSelector({
                     })}
                 </div>
 
+                {/* Quality / Resolution selects */}
+                {selected?.has_variants && (
+                  <div className="flex gap-3">
+                    {selected.supported_qualities && selected.supported_qualities.length > 0 && (
+                      <div className="flex-1">
+                        <label className="block text-[9px] text-[var(--text-muted)] uppercase tracking-widest font-semibold mb-1">Quality</label>
+                        <select
+                          value={selectedQuality ?? ""}
+                          onChange={(e) => setSelectedQuality(e.target.value)}
+                          className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-primary)] px-2 py-1.5 outline-none focus:border-emerald-500/40 transition-colors"
+                        >
+                          {selected.supported_qualities.map((q) => (
+                            <option key={q} value={q}>{q}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {selected.supported_resolutions && selected.supported_resolutions.length > 0 && (
+                      <div className="flex-1">
+                        <label className="block text-[9px] text-[var(--text-muted)] uppercase tracking-widest font-semibold mb-1">Resolution</label>
+                        <select
+                          value={selectedSize ?? ""}
+                          onChange={(e) => setSelectedSize(e.target.value)}
+                          className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-primary)] px-2 py-1.5 outline-none focus:border-emerald-500/40 transition-colors"
+                        >
+                          {selected.supported_resolutions.map((r) => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Cost Summary */}
                 <div className="bg-[var(--surface)] rounded-md p-3 border border-[var(--border)]">
                   <div className="flex justify-between items-center">
@@ -179,22 +239,6 @@ export default function ModelSelector({
                       {(selected?.credits_per_input_image ?? 0) > 1 ? "s" : ""} each.
                     </div>
                   )}
-                  {selected?.supported_qualities && selected.supported_qualities.length > 0 && (
-                    <div className="mt-1 text-[10px] text-[var(--text-muted)]">
-                      Quality options:{" "}
-                      <span className="text-[var(--text-secondary)]">
-                        {selected.supported_qualities.join(" · ")}
-                      </span>
-                    </div>
-                  )}
-                  {selected?.supported_resolutions && selected.supported_resolutions.length > 0 && (
-                    <div className="mt-1 text-[10px] text-[var(--text-muted)]">
-                      Resolutions:{" "}
-                      <span className="text-[var(--text-secondary)]">
-                        {selected.supported_resolutions.join(" · ")}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </>
             )}
@@ -206,8 +250,10 @@ export default function ModelSelector({
               Cancel
             </button>
             <button
-              onClick={() => { if (selected) onConfirm(selected.model_name, selected.provider); }}
-              disabled={loading || models.length === 0}
+              onClick={() => {
+                if (selected) onConfirm(selected.model_name, selected.provider, selectedQuality, selectedSize);
+              }}
+              disabled={loading || visibleModels.length === 0}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-xs font-medium transition-all disabled:opacity-30 flex items-center gap-1.5"
             >
               <Sparkles className="w-3.5 h-3.5" />
