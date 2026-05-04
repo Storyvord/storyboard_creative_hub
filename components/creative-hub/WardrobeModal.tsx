@@ -92,12 +92,12 @@ export default function WardrobeModal({ cloth, scriptId, isOpen, onClose, onUpda
     }
   };
 
-  const handleModelConfirm = async (model: string, provider: string) => {
+  const handleModelConfirm = async (model: string, provider: string, quality?: string, size?: string) => {
     if (!cloth) return;
     setIsModelSelectorOpen(false);
     setGenerating(true);
     try {
-      const result = await generateClothImage(cloth.id, model, provider);
+      const result = await generateClothImage(cloth.id, model, provider, quality, size);
       toast.success("Cloth image rendering — will update when ready…");
       onGenerationStarted?.(result.task_id, cloth.id);
     } catch (error) {

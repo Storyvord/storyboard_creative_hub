@@ -35,7 +35,15 @@ export default function ViewfinderFrame({ children }: { children: React.ReactNod
   } = useViewfinder();
   const active = mode === "on";
   const pathname = usePathname();
+<<<<<<< Updated upstream
   const isPublic = !!pathname && PUBLIC_ROUTES.has(pathname);
+=======
+  const cinematic = pathname?.startsWith("/cinematic");
+
+  if (cinematic) {
+    return <>{children}</>;
+  }
+>>>>>>> Stashed changes
 
   useKeyChord(
     { key: "k", meta: true },

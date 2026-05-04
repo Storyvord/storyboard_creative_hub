@@ -76,21 +76,21 @@ export default function CharacterModal({ character, scriptId, isOpen, onClose, o
       setIsModelSelectorOpen(true);
   }
 
-  const handleModelConfirm = async (model: string, provider: string) => {
+  const handleModelConfirm = async (model: string, provider: string, quality?: string, size?: string) => {
       setIsModelSelectorOpen(false);
       setGenerating(true);
       try {
           let charId = character?.id;
           const payload = { name, description, ...(imageFile ? { image_url: imageFile } : {}) };
-          
+
           if (charId) {
               await updateCharacter(charId, payload);
           } else {
               const newChar = await createCharacter(scriptId, payload);
               charId = newChar.id;
           }
-          
-          await generateCharacterImage(charId, model, provider);
+
+          await generateCharacterImage(charId, model, provider, quality, size);
           toast.success("Character saved and image generation started");
           if (onGenerate) onGenerate(charId);
           setTimeout(onUpdate, 3000);
