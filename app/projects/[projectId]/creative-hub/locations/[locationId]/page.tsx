@@ -38,6 +38,10 @@ import {
     AlertTriangle,
     CheckCircle2,
     Users,
+    UserCog,
+    Clapperboard,
+    Mic2,
+    Shirt,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
@@ -48,6 +52,39 @@ import { useGenerationTasks } from "@/hooks/useGenerationTasks";
 
 type GenStep = "saving" | "queued" | "rendering";
 type LocationTab = "overview" | "logistics" | "production" | "library";
+type Persona = "producer" | "director" | "cast" | "wardrobe" | "logistics";
+
+// Persona → which tab opens by default. Loop 2 cross-persona resolution:
+// each role lands on the surface that matters most to them, instead of
+// everyone fighting over what Overview should lead with.
+const PERSONA_DEFAULT_TAB: Record<Persona, LocationTab> = {
+    producer: "production",
+    director: "overview",
+    cast: "overview",
+    wardrobe: "overview",
+    logistics: "logistics",
+};
+
+// Overview-card ordering per persona. Cards not listed render after this
+// preferred slice in their original order. Keys must match the `key`
+// supplied to each `OverviewCard` block below.
+type OverviewCardKey =
+    | "shotList"
+    | "timeOfDay"
+    | "moodRefs"
+    | "altAngles"
+    | "envCues"
+    | "castNotes";
+
+const PERSONA_OVERVIEW_ORDER: Record<Persona, OverviewCardKey[]> = {
+    producer: ["shotList", "timeOfDay", "moodRefs", "altAngles", "envCues", "castNotes"],
+    director: ["moodRefs", "shotList", "timeOfDay", "altAngles", "envCues", "castNotes"],
+    cast: ["castNotes", "timeOfDay", "shotList", "moodRefs", "envCues", "altAngles"],
+    wardrobe: ["envCues", "timeOfDay", "shotList", "moodRefs", "castNotes", "altAngles"],
+    logistics: ["altAngles", "timeOfDay", "shotList", "moodRefs", "envCues", "castNotes"],
+};
+
+const PERSONA_STORAGE_KEY = "loc-detail-persona";
 
 // ─── Demo-data pill ────────────────────────────────────────────────────
 // Used to clearly mark every region whose contents are placeholder copy
@@ -138,7 +175,45 @@ export default function LocationDetailPage() {
     const [isModelOpen, setIsModelOpen] = useState(false);
     const [trackedTasks, setTrackedTasks] = useState<Record<string, number>>({});
     const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
-    const [activeTab, setActiveTab] = useState<LocationTab>("overview");
+
+    // Persona lens — determines (a) which tab is the default landing, and
+    // (b) the ordering of cards inside Overview. Hydrated from localStorage
+    // on mount; until then we render the producer default to avoid SSR
+    // hydration mismatches and a card-reshuffle flash.
+    const [persona, setPersona] = useState<Persona>("producer");
+    const [activeTab, setActiveTab] = useState<LocationTab>("production");
+
+    // Hydrate persona once on mount. We also sync the active tab to the
+    // hydrated persona's default landing tab so the user lands where their
+    // role expects, rather than where the previous session left them.
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            const stored = window.localStorage.getItem(PERSONA_STORAGE_KEY);
+            if (
+                stored === "producer" ||
+                stored === "director" ||
+                stored === "cast" ||
+                stored === "wardrobe" ||
+                stored === "logistics"
+            ) {
+                setPersona(stored);
+                setActiveTab(PERSONA_DEFAULT_TAB[stored]);
+            }
+        } catch {
+            /* localStorage unavailable — keep producer default */
+        }
+    }, []);
+
+    const handlePersonaChange = useCallback((next: Persona) => {
+        setPersona(next);
+        setActiveTab(PERSONA_DEFAULT_TAB[next]);
+        try {
+            window.localStorage.setItem(PERSONA_STORAGE_KEY, next);
+        } catch {
+            /* non-blocking */
+        }
+    }, []);
 
     const fileRef = useRef<HTMLInputElement>(null);
 
@@ -609,6 +684,49 @@ export default function LocationDetailPage() {
 
                 {/* Right: tabbed pane serving the five personas */}
                 <div className="min-w-0">
+                    {/* Persona quick-switcher — sets the lens for the page.
+                         Selecting a persona (a) switches to that role's
+                         preferred default tab and (b) reorders the Overview
+                         cards so the role's most-needed card is first.
+                         Choice persists in `localStorage`. This is the Loop 2
+                         resolution to "Overview tries to serve everyone and
+                         serves no one first" — the user picks their lens once
+                         and the page reshapes around it. */}
+                    <div
+                        className="mb-3 bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-1.5 flex items-center gap-1 overflow-x-auto"
+                        role="tablist"
+                        aria-label="Persona lens"
+                    >
+                        {(
+                            [
+                                { key: "producer", label: "Producer", icon: ShieldCheck },
+                                { key: "director", label: "Director", icon: Clapperboard },
+                                { key: "cast", label: "Cast", icon: Mic2 },
+                                { key: "wardrobe", label: "Wardrobe", icon: Shirt },
+                                { key: "logistics", label: "Logistics", icon: UserCog },
+                            ] as const
+                        ).map((p) => {
+                            const Icon = p.icon;
+                            const active = persona === p.key;
+                            return (
+                                <button
+                                    key={p.key}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={active}
+                                    onClick={() => handlePersonaChange(p.key)}
+                                    className={`flex-1 min-w-fit flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-widest transition-colors ${
+                                        active
+                                            ? "bg-emerald-600 text-white shadow-sm"
+                                            : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
+                                    }`}
+                                >
+                                    <Icon className="h-3 w-3" />
+                                    {p.label}
+                                </button>
+                            );
+                        })}
+                    </div>
                     <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] overflow-hidden">
                         {/* Tab bar — 4 tabs:
                              Overview (Director, Cast) — visual + scene + mood
@@ -648,125 +766,148 @@ export default function LocationDetailPage() {
                              Director + Cast + Wardrobe view: scene-shot list,
                              time-of-day, mood/description, weather, alternate
                              angles, environmental notes for costume. */}
-                        {activeTab === "overview" && (
-                            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <InfoCard title="Scene shot list" icon={Film} demo>
-                                    <ul className="space-y-1.5 text-[11px]">
-                                        {[
-                                            { id: "SC 04", note: "Day · Wide establishing" },
-                                            { id: "SC 07", note: "Day · Dialogue, two-shot" },
-                                            { id: "SC 12", note: "Dusk · Pickup / inserts" },
-                                            { id: "SC 18", note: "Night · Chase exterior" },
-                                        ].map((s) => (
-                                            <li
-                                                key={s.id}
-                                                className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-[var(--surface-raised)] border border-[var(--border)]"
-                                            >
-                                                <span className="font-mono text-emerald-400 text-[10px]">
-                                                    {s.id}
-                                                </span>
-                                                <span className="text-[var(--text-secondary)] truncate flex-1 text-right">
-                                                    {s.note}
-                                                </span>
+                        {activeTab === "overview" && (() => {
+                            // Build the Overview cards as a keyed map so we
+                            // can reorder them per persona without duplicating
+                            // markup. Order is taken from
+                            // `PERSONA_OVERVIEW_ORDER[persona]`; cards not
+                            // listed for the active persona render at the
+                            // tail in their default order.
+                            const cards: Record<OverviewCardKey, React.ReactNode> = {
+                                shotList: (
+                                    <InfoCard title="Scene shot list" icon={Film} demo>
+                                        <ul className="space-y-1.5 text-[11px]">
+                                            {[
+                                                { id: "SC 04", note: "Day · Wide establishing" },
+                                                { id: "SC 07", note: "Day · Dialogue, two-shot" },
+                                                { id: "SC 12", note: "Dusk · Pickup / inserts" },
+                                                { id: "SC 18", note: "Night · Chase exterior" },
+                                            ].map((s) => (
+                                                <li
+                                                    key={s.id}
+                                                    className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-[var(--surface-raised)] border border-[var(--border)]"
+                                                >
+                                                    <span className="font-mono text-emerald-400 text-[10px]">
+                                                        {s.id}
+                                                    </span>
+                                                    <span className="text-[var(--text-secondary)] truncate flex-1 text-right">
+                                                        {s.note}
+                                                    </span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </InfoCard>
+                                ),
+                                timeOfDay: (
+                                    <InfoCard title="Time of day & lighting" icon={Sun} demo>
+                                        <InfoRow
+                                            icon={Sun}
+                                            label="Sunrise / sunset"
+                                            value="06:42 / 19:18 — golden hour ~18:30"
+                                        />
+                                        <InfoRow
+                                            icon={Cloud}
+                                            label="Forecast (shoot day)"
+                                            value="Partly cloudy · 24°C · 12% rain · light breeze"
+                                        />
+                                        <InfoRow
+                                            icon={Sun}
+                                            label="Practical notes"
+                                            value="South-facing wall lit till 16:00; bring 4×4 silks for backlight"
+                                        />
+                                    </InfoCard>
+                                ),
+                                moodRefs: (
+                                    <InfoCard title="Mood & references" icon={ImageIcon} demo>
+                                        <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+                                            Mood: muted earth tones, low-contrast haze, doorway as
+                                            framing device. Reference boards: Roma (2018), The Lighthouse
+                                            opening, dusty streetscape stills.
+                                        </p>
+                                        <div className="grid grid-cols-3 gap-1.5 mt-2">
+                                            {[1, 2, 3].map((i) => (
+                                                <div
+                                                    key={i}
+                                                    className="aspect-video rounded bg-[var(--surface-raised)] border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)]"
+                                                >
+                                                    <ImageIcon className="h-4 w-4 opacity-40" />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </InfoCard>
+                                ),
+                                altAngles: (
+                                    <InfoCard title="Alternate angles / sub-locations" icon={MapPin} demo>
+                                        <ul className="space-y-1.5 text-[11px] text-[var(--text-secondary)]">
+                                            <li className="flex items-start gap-1.5">
+                                                <span className="text-emerald-500 mt-0.5">•</span>
+                                                <span>Front entrance — wide, hero approach</span>
                                             </li>
-                                        ))}
-                                    </ul>
-                                </InfoCard>
-
-                                <InfoCard title="Time of day & lighting" icon={Sun} demo>
-                                    <InfoRow
-                                        icon={Sun}
-                                        label="Sunrise / sunset"
-                                        value="06:42 / 19:18 — golden hour ~18:30"
-                                    />
-                                    <InfoRow
-                                        icon={Cloud}
-                                        label="Forecast (shoot day)"
-                                        value="Partly cloudy · 24°C · 12% rain · light breeze"
-                                    />
-                                    <InfoRow
-                                        icon={Sun}
-                                        label="Practical notes"
-                                        value="South-facing wall lit till 16:00; bring 4×4 silks for backlight"
-                                    />
-                                </InfoCard>
-
-                                <InfoCard title="Mood & references" icon={ImageIcon} demo>
-                                    <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
-                                        Mood: muted earth tones, low-contrast haze, doorway as
-                                        framing device. Reference boards: Roma (2018), The Lighthouse
-                                        opening, dusty streetscape stills.
-                                    </p>
-                                    <div className="grid grid-cols-3 gap-1.5 mt-2">
-                                        {[1, 2, 3].map((i) => (
-                                            <div
-                                                key={i}
-                                                className="aspect-video rounded bg-[var(--surface-raised)] border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)]"
-                                            >
-                                                <ImageIcon className="h-4 w-4 opacity-40" />
-                                            </div>
-                                        ))}
-                                    </div>
-                                </InfoCard>
-
-                                <InfoCard title="Alternate angles / sub-locations" icon={MapPin} demo>
-                                    <ul className="space-y-1.5 text-[11px] text-[var(--text-secondary)]">
-                                        <li className="flex items-start gap-1.5">
-                                            <span className="text-emerald-500 mt-0.5">•</span>
-                                            <span>Front entrance — wide, hero approach</span>
-                                        </li>
-                                        <li className="flex items-start gap-1.5">
-                                            <span className="text-emerald-500 mt-0.5">•</span>
-                                            <span>Side alley — tight, follow / over-shoulder</span>
-                                        </li>
-                                        <li className="flex items-start gap-1.5">
-                                            <span className="text-emerald-500 mt-0.5">•</span>
-                                            <span>Rooftop — establishing drone (permit needed)</span>
-                                        </li>
-                                        <li className="flex items-start gap-1.5">
-                                            <span className="text-emerald-500 mt-0.5">•</span>
-                                            <span>Interior lobby — backup if rain</span>
-                                        </li>
-                                    </ul>
-                                </InfoCard>
-
-                                <InfoCard title="Environmental cues (wardrobe)" icon={AlertTriangle} demo>
-                                    <InfoRow
-                                        icon={AlertTriangle}
-                                        label="Surface"
-                                        value="Dusty street — light fabrics will pick up grime; pack lint rollers"
-                                    />
-                                    <InfoRow
-                                        icon={Droplet}
-                                        label="Water exposure"
-                                        value="Low — but morning dew till ~09:00; avoid suede on early calls"
-                                    />
-                                    <InfoRow
-                                        icon={Sun}
-                                        label="Lighting impact on costume"
-                                        value="Hard mid-day sun till 14:00; whites will blow out — favour bone/cream"
-                                    />
-                                </InfoCard>
-
-                                <InfoCard title="Cast notes" icon={Users} demo>
-                                    <InfoRow
-                                        icon={MapPin}
-                                        label="Dressing / rest area"
-                                        value="Cabana A behind craft services (12-min walk to set)"
-                                    />
-                                    <InfoRow
-                                        icon={ParkingCircle}
-                                        label="Cast parking"
-                                        value="Lot B — 6 reserved spaces, 8-min shuttle to base camp"
-                                    />
-                                    <InfoRow
-                                        icon={Cloud}
-                                        label="Weather hold plan"
-                                        value="Cover set: interior lobby (above). Hold pages: SC 07 only."
-                                    />
-                                </InfoCard>
-                            </div>
-                        )}
+                                            <li className="flex items-start gap-1.5">
+                                                <span className="text-emerald-500 mt-0.5">•</span>
+                                                <span>Side alley — tight, follow / over-shoulder</span>
+                                            </li>
+                                            <li className="flex items-start gap-1.5">
+                                                <span className="text-emerald-500 mt-0.5">•</span>
+                                                <span>Rooftop — establishing drone (permit needed)</span>
+                                            </li>
+                                            <li className="flex items-start gap-1.5">
+                                                <span className="text-emerald-500 mt-0.5">•</span>
+                                                <span>Interior lobby — backup if rain</span>
+                                            </li>
+                                        </ul>
+                                    </InfoCard>
+                                ),
+                                envCues: (
+                                    <InfoCard title="Environmental cues (wardrobe)" icon={AlertTriangle} demo>
+                                        <InfoRow
+                                            icon={AlertTriangle}
+                                            label="Surface"
+                                            value="Dusty street — light fabrics will pick up grime; pack lint rollers"
+                                        />
+                                        <InfoRow
+                                            icon={Droplet}
+                                            label="Water exposure"
+                                            value="Low — but morning dew till ~09:00; avoid suede on early calls"
+                                        />
+                                        <InfoRow
+                                            icon={Sun}
+                                            label="Lighting impact on costume"
+                                            value="Hard mid-day sun till 14:00; whites will blow out — favour bone/cream"
+                                        />
+                                    </InfoCard>
+                                ),
+                                castNotes: (
+                                    <InfoCard title="Cast notes" icon={Users} demo>
+                                        <InfoRow
+                                            icon={MapPin}
+                                            label="Dressing / rest area"
+                                            value="Cabana A behind craft services (12-min walk to set)"
+                                        />
+                                        <InfoRow
+                                            icon={ParkingCircle}
+                                            label="Cast parking"
+                                            value="Lot B — 6 reserved spaces, 8-min shuttle to base camp"
+                                        />
+                                        <InfoRow
+                                            icon={Cloud}
+                                            label="Weather hold plan"
+                                            value="Cover set: interior lobby (above). Hold pages: SC 07 only."
+                                        />
+                                    </InfoCard>
+                                ),
+                            };
+                            const order = PERSONA_OVERVIEW_ORDER[persona];
+                            return (
+                                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {order.map((key) => (
+                                        <div key={key} className="contents">
+                                            {cards[key]}
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })()}
 
                         {/* ── Logistics tab ──────────────────────────────────
                              Location Manager view: power, parking, water,
