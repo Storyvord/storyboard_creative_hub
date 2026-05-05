@@ -539,14 +539,20 @@ export default function LocationDetailPage() {
                     Delete
                 </button>
                 <div className="md:hidden relative">
+                    {/* Loop 3 (Priya): icon-only kebab on mobile read as
+                         decoration — testers tapped headers and tabs
+                         before realising actions lived here. A small
+                         visible "Actions" label removes the guesswork
+                         while still keeping the row compact. */}
                     <button
                         type="button"
                         onClick={() => setKebabOpen((v) => !v)}
-                        className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+                        className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-widest text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
                         aria-label="Actions"
                         aria-expanded={kebabOpen}
                     >
                         <MoreVertical className="h-4 w-4" />
+                        <span>Actions</span>
                     </button>
                     {kebabOpen && (
                         <>
@@ -1287,6 +1293,13 @@ export default function LocationDetailPage() {
                                                     { label: "Mud risk · low", severity: "info" },
                                                     { label: "Formality · casual", severity: "info" },
                                                     { label: "Whites blow out", severity: "warn" },
+                                                    // Loop 3 (Reza): pull a dressing-area
+                                                    // signal up to the wardrobe-impacting
+                                                    // strip — walk distance from cabana to
+                                                    // set is a wardrobe-prep variable
+                                                    // (touch-ups, last-mile changes), not
+                                                    // just a generic logistics fact.
+                                                    { label: "Dressing · 12-min walk", severity: "info" },
                                                 ] as const
                                             ).map((p) => (
                                                 <span
@@ -1492,6 +1505,17 @@ export default function LocationDetailPage() {
                                         label="LOI signed"
                                         value="Yes — countersigned 2026-04-12"
                                     />
+                                    {/* Loop 3 (Maya): when paperwork lives on
+                                         Logistics but the producer is here,
+                                         a one-line bridge keeps them from
+                                         hunting for the detail card. */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab("logistics")}
+                                        className="mt-1 text-[10px] text-emerald-400 hover:text-emerald-300 hover:underline transition-colors"
+                                    >
+                                        Permit &amp; paperwork detail on Logistics &rarr;
+                                    </button>
                                 </InfoCard>
 
                                 {/* Permit & paperwork card was here in Loop 1
@@ -1644,14 +1668,18 @@ export default function LocationDetailPage() {
 
             {/* Mobile FAB — same payload, behind a single tap. Only renders
                  below sm so the desktop bar doesn't compete with it. */}
+            {/* Loop 3 (logistics persona): the sheet payload is permit
+                 status + hold + on-site phone — not a "logistics" catch-all.
+                 Renamed to "On-site" so the FAB reflects what tapping it
+                 actually surfaces. */}
             <button
                 type="button"
                 onClick={() => setLogisticsSheetOpen(true)}
                 className="sm:hidden fixed bottom-4 right-4 z-30 flex items-center gap-1.5 px-3 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-semibold uppercase tracking-widest shadow-lg"
-                aria-label="Open logistics summary"
+                aria-label="Open on-site summary"
             >
                 <ShieldCheck className="h-3.5 w-3.5" />
-                Logistics
+                On-site
             </button>
 
             {logisticsSheetOpen && (
@@ -1665,7 +1693,7 @@ export default function LocationDetailPage() {
                     >
                         <div className="flex items-center justify-between">
                             <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest">
-                                Logistics summary
+                                On-site summary
                             </h3>
                             <DemoPill />
                         </div>
