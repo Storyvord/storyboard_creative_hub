@@ -926,8 +926,21 @@ export default function LocationDetailPage() {
                                             framing device. Reference boards: Roma (2018), The Lighthouse
                                             opening, dusty streetscape stills.
                                         </p>
-                                        <div className="grid grid-cols-3 gap-1.5 mt-2">
-                                            {[1, 2, 3].map((i) => (
+                                        {/* Director persona gets a wider 6-tile
+                                             reference strip (col-span-2 below);
+                                             other personas keep 3 tiles to stay
+                                             compact. */}
+                                        <div
+                                            className={`grid gap-1.5 mt-2 ${
+                                                persona === "director"
+                                                    ? "grid-cols-6"
+                                                    : "grid-cols-3"
+                                            }`}
+                                        >
+                                            {(persona === "director"
+                                                ? [1, 2, 3, 4, 5, 6]
+                                                : [1, 2, 3]
+                                            ).map((i) => (
                                                 <div
                                                     key={i}
                                                     className="aspect-video rounded bg-[var(--surface-raised)] border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)]"
@@ -1000,10 +1013,24 @@ export default function LocationDetailPage() {
                                 ),
                             };
                             const order = PERSONA_OVERVIEW_ORDER[persona];
+                            // Director: mood becomes the hero of Overview —
+                            // it gets col-span-2 (full row on the md grid).
+                            // Aria's note: references should LEAD a director's
+                            // page, not sit as one tile in six.
+                            const wideKeys = new Set<OverviewCardKey>(
+                                persona === "director" ? ["moodRefs"] : [],
+                            );
                             return (
                                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                                     {order.map((key) => (
-                                        <div key={key} className="contents">
+                                        <div
+                                            key={key}
+                                            className={
+                                                wideKeys.has(key)
+                                                    ? "md:col-span-2"
+                                                    : undefined
+                                            }
+                                        >
                                             {cards[key]}
                                         </div>
                                     ))}
