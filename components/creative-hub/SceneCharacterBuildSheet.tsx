@@ -115,11 +115,27 @@ export default function SceneCharacterBuildSheet({
     const setField = (k: FieldKey, v: string) =>
         setState((prev) => ({ ...prev, [k]: v }));
 
-    const appendPreset = (k: FieldKey, preset: string) =>
+    // True when `preset` is already present as its own comma-delimited token
+    // in the current field. We split on commas (the same delimiter we insert
+    // when appending) and trim — substring matching would false-positive on
+    // things like "wet" vs "sweat-glazed".
+    const presetActive = (k: FieldKey, preset: string) => {
+        const tokens = state[k].split(",").map((t) => t.trim().toLowerCase());
+        return tokens.includes(preset.toLowerCase());
+    };
+
+    const togglePreset = (k: FieldKey, preset: string) =>
         setState((prev) => {
             const cur = prev[k].trim();
-            const next = cur ? `${cur}, ${preset}` : preset;
-            return { ...prev, [k]: next };
+            const tokens = cur ? cur.split(",").map((t) => t.trim()) : [];
+            const lower = preset.toLowerCase();
+            const idx = tokens.findIndex((t) => t.toLowerCase() === lower);
+            if (idx >= 0) {
+                tokens.splice(idx, 1);
+            } else {
+                tokens.push(preset);
+            }
+            return { ...prev, [k]: tokens.filter(Boolean).join(", ") };
         });
 
     const handleSubmit = async () => {
@@ -175,14 +191,23 @@ export default function SceneCharacterBuildSheet({
                 </div>
             </div>
 
-            <div className="divide-y divide-[var(--border)]">
+            {/* Stylist-sheet 2-column layout — pair related fields so the
+                 artist can scan the look at a glance instead of scrolling
+                 through a single long stack. OTHER spans both columns. */}
+            <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                 {FIELD_KEYS.map((key) => {
                     const meta = META[key];
                     const Icon = meta.icon;
                     const presets = PRESETS[key];
                     const value = state[key];
+                    const isOther = key === "OTHER";
                     return (
-                        <div key={key} className="p-4 space-y-2">
+                        <div
+                            key={key}
+                            className={`bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 space-y-2 ${
+                                isOther ? "md:col-span-2" : ""
+                            }`}
+                        >
                             <div className="flex items-center gap-2">
                                 <Icon className="h-3.5 w-3.5 text-emerald-500" />
                                 <label className="text-[10px] font-bold text-[var(--text-primary)] uppercase tracking-widest">
@@ -193,22 +218,34 @@ export default function SceneCharacterBuildSheet({
                                 value={value}
                                 onChange={(e) => setField(key, e.target.value)}
                                 placeholder={meta.placeholder}
-                                rows={key === "OTHER" ? 3 : 2}
-                                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-xs text-[var(--text-secondary)] leading-relaxed focus:outline-none focus:border-emerald-500/40 transition-colors resize-none placeholder:text-[var(--text-muted)]"
+                                rows={isOther ? 3 : 2}
+                                className="w-full bg-[var(--surface-raised)] border border-[var(--border)] rounded-md px-3 py-2 text-xs text-[var(--text-secondary)] leading-relaxed focus:outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20 transition-colors resize-none placeholder:text-[var(--text-muted)]"
                             />
                             {presets.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5">
-                                    {presets.map((preset) => (
-                                        <button
-                                            key={preset}
-                                            type="button"
-                                            onClick={() => appendPreset(key, preset)}
-                                            title={`Append "${preset}"`}
-                                            className="text-[9px] px-2 py-0.5 rounded-full bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-emerald-400 border border-[var(--border)] hover:border-emerald-500/40 transition-colors"
-                                        >
-                                            + {preset}
-                                        </button>
-                                    ))}
+                                    {presets.map((preset) => {
+                                        const active = presetActive(key, preset);
+                                        return (
+                                            <button
+                                                key={preset}
+                                                type="button"
+                                                onClick={() => togglePreset(key, preset)}
+                                                title={
+                                                    active
+                                                        ? `Remove "${preset}"`
+                                                        : `Add "${preset}"`
+                                                }
+                                                aria-pressed={active}
+                                                className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/30 ${
+                                                    active
+                                                        ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/50 hover:bg-emerald-500/25"
+                                                        : "bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-emerald-400 border-[var(--border)] hover:border-emerald-500/40"
+                                                }`}
+                                            >
+                                                {active ? "✓" : "+"} {preset}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
