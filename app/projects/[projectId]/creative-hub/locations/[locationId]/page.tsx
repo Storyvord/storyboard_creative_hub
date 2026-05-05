@@ -213,6 +213,11 @@ export default function LocationDetailPage() {
     // so the rail's tall buttons don't dominate Cast's primary surface.
     const [kebabOpen, setKebabOpen] = useState(false);
 
+    // Director-mode time-of-day filter — clicking a Day/Dusk/Night chip
+    // on the Scene shot list card filters the adjacent Time-of-day card.
+    // Null = no filter (all rows visible). Local state, no backend.
+    const [timeFilter, setTimeFilter] = useState<"day" | "dusk" | "night" | null>(null);
+
     const handlePersonaChange = useCallback((next: Persona) => {
         setPersona(next);
         setActiveTab(PERSONA_DEFAULT_TAB[next]);
@@ -880,45 +885,133 @@ export default function LocationDetailPage() {
                                     <InfoCard title="Scene shot list" icon={Film} demo>
                                         <ul className="space-y-1.5 text-[11px]">
                                             {[
-                                                { id: "SC 04", note: "Day · Wide establishing" },
-                                                { id: "SC 07", note: "Day · Dialogue, two-shot" },
-                                                { id: "SC 12", note: "Dusk · Pickup / inserts" },
-                                                { id: "SC 18", note: "Night · Chase exterior" },
-                                            ].map((s) => (
-                                                <li
-                                                    key={s.id}
-                                                    className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-[var(--surface-raised)] border border-[var(--border)]"
-                                                >
-                                                    <span className="font-mono text-emerald-400 text-[10px]">
-                                                        {s.id}
-                                                    </span>
-                                                    <span className="text-[var(--text-secondary)] truncate flex-1 text-right">
-                                                        {s.note}
-                                                    </span>
-                                                </li>
-                                            ))}
+                                                { id: "SC 04", tod: "day" as const, note: "Wide establishing" },
+                                                { id: "SC 07", tod: "day" as const, note: "Dialogue, two-shot" },
+                                                { id: "SC 12", tod: "dusk" as const, note: "Pickup / inserts" },
+                                                { id: "SC 18", tod: "night" as const, note: "Chase exterior" },
+                                            ].map((s) => {
+                                                const todLabel = s.tod === "day"
+                                                    ? "Day"
+                                                    : s.tod === "dusk"
+                                                    ? "Dusk"
+                                                    : "Night";
+                                                const chipActive = timeFilter === s.tod;
+                                                return (
+                                                    <li
+                                                        key={s.id}
+                                                        className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-[var(--surface-raised)] border border-[var(--border)]"
+                                                    >
+                                                        <span className="font-mono text-emerald-400 text-[10px]">
+                                                            {s.id}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setTimeFilter((cur) =>
+                                                                    cur === s.tod ? null : s.tod,
+                                                                )
+                                                            }
+                                                            className={`px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wider border transition-colors ${
+                                                                chipActive
+                                                                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                                                                    : "bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:text-[var(--text-primary)] hover:border-emerald-500/30"
+                                                            }`}
+                                                            title={`Filter time-of-day card by ${todLabel}`}
+                                                        >
+                                                            {todLabel}
+                                                        </button>
+                                                        <span className="text-[var(--text-secondary)] truncate flex-1 text-right">
+                                                            {s.note}
+                                                        </span>
+                                                    </li>
+                                                );
+                                            })}
                                         </ul>
                                     </InfoCard>
                                 ),
-                                timeOfDay: (
-                                    <InfoCard title="Time of day & lighting" icon={Sun} demo>
-                                        <InfoRow
-                                            icon={Sun}
-                                            label="Sunrise / sunset"
-                                            value="06:42 / 19:18 — golden hour ~18:30"
-                                        />
-                                        <InfoRow
-                                            icon={Cloud}
-                                            label="Forecast (shoot day)"
-                                            value="Partly cloudy · 24°C · 12% rain · light breeze"
-                                        />
-                                        <InfoRow
-                                            icon={Sun}
-                                            label="Practical notes"
-                                            value="South-facing wall lit till 16:00; bring 4×4 silks for backlight"
-                                        />
-                                    </InfoCard>
-                                ),
+                                timeOfDay: (() => {
+                                    // Time-of-day rows tagged with the chip
+                                    // they belong to. When a chip on the Scene
+                                    // shot list is selected, rows from the
+                                    // other times dim to ~30% opacity so the
+                                    // director can scan only what's relevant
+                                    // without losing situational context.
+                                    const rows: Array<{
+                                        tod: "day" | "dusk" | "night" | "all";
+                                        icon: React.ComponentType<{ className?: string }>;
+                                        label: string;
+                                        value: string;
+                                    }> = [
+                                        {
+                                            tod: "all",
+                                            icon: Sun,
+                                            label: "Sunrise / sunset",
+                                            value: "06:42 / 19:18 — golden hour ~18:30",
+                                        },
+                                        {
+                                            tod: "day",
+                                            icon: Sun,
+                                            label: "Day · light direction",
+                                            value: "South-facing wall lit till 16:00; whites blow out 11:00–14:00",
+                                        },
+                                        {
+                                            tod: "day",
+                                            icon: Cloud,
+                                            label: "Day · forecast",
+                                            value: "Partly cloudy · 24°C · 12% rain · light breeze",
+                                        },
+                                        {
+                                            tod: "dusk",
+                                            icon: Sun,
+                                            label: "Dusk · golden window",
+                                            value: "18:10–18:35 magic hour; warm key fades fast at 19:00",
+                                        },
+                                        {
+                                            tod: "night",
+                                            icon: Cloud,
+                                            label: "Night · ambient",
+                                            value: "Streetlamps tungsten 3200K; subway rumble every 7 min",
+                                        },
+                                    ];
+                                    return (
+                                        <InfoCard title="Time of day & lighting" icon={Sun} demo>
+                                            {timeFilter && (
+                                                <div className="flex items-center justify-between mb-1.5 -mt-1">
+                                                    <span className="text-[9px] uppercase tracking-widest text-emerald-400">
+                                                        Filtered: {timeFilter}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTimeFilter(null)}
+                                                        className="text-[9px] uppercase tracking-widest text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                </div>
+                                            )}
+                                            {rows.map((r, i) => {
+                                                const dim =
+                                                    timeFilter !== null &&
+                                                    r.tod !== "all" &&
+                                                    r.tod !== timeFilter;
+                                                return (
+                                                    <div
+                                                        key={i}
+                                                        className={
+                                                            dim ? "opacity-30 transition-opacity" : "transition-opacity"
+                                                        }
+                                                    >
+                                                        <InfoRow
+                                                            icon={r.icon}
+                                                            label={r.label}
+                                                            value={r.value}
+                                                        />
+                                                    </div>
+                                                );
+                                            })}
+                                        </InfoCard>
+                                    );
+                                })(),
                                 moodRefs: (
                                     <InfoCard title="Mood & references" icon={ImageIcon} demo>
                                         <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
