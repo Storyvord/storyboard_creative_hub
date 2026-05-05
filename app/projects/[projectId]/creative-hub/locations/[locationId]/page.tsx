@@ -1114,19 +1114,55 @@ export default function LocationDetailPage() {
                                 persona === "director" ? ["moodRefs"] : [],
                             );
                             return (
-                                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {order.map((key) => (
-                                        <div
-                                            key={key}
-                                            className={
-                                                wideKeys.has(key)
-                                                    ? "md:col-span-2"
-                                                    : undefined
-                                            }
-                                        >
-                                            {cards[key]}
+                                <div className="p-4 space-y-3">
+                                    {/* Wardrobe persona: a top-of-overview
+                                         pill strip with the hard wardrobe-
+                                         impacting facts pulled out of the
+                                         Environmental cues card. Reza's note —
+                                         these are scan-in-3-seconds facts and
+                                         shouldn't be buried in a row of
+                                         InfoRows. The card itself still
+                                         renders below in card form for
+                                         drill-down. */}
+                                    {persona === "wardrobe" && (
+                                        <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-2.5 flex items-center gap-2 flex-wrap">
+                                            <span className="text-[9px] font-bold text-amber-400 uppercase tracking-widest flex items-center gap-1">
+                                                <Shirt className="h-3 w-3" />
+                                                Wardrobe-impacting
+                                            </span>
+                                            {[
+                                                "Sun blow-out 11–14h",
+                                                "Surface dust",
+                                                "Mud risk · low",
+                                                "Formality · casual",
+                                                "Whites blow out",
+                                            ].map((label) => (
+                                                <span
+                                                    key={label}
+                                                    className="px-1.5 py-0.5 rounded text-[10px] bg-[var(--surface)] text-[var(--text-secondary)] border border-[var(--border)] font-medium"
+                                                >
+                                                    {label}
+                                                </span>
+                                            ))}
+                                            <span className="ml-auto">
+                                                <DemoPill />
+                                            </span>
                                         </div>
-                                    ))}
+                                    )}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {order.map((key) => (
+                                            <div
+                                                key={key}
+                                                className={
+                                                    wideKeys.has(key)
+                                                        ? "md:col-span-2"
+                                                        : undefined
+                                                }
+                                            >
+                                                {cards[key]}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             );
                         })()}
