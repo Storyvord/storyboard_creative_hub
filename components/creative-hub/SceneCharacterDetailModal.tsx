@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Shirt, Wand2, Save, Plus, Upload, User } from "lucide-react";
 import { Cloth, Script } from "@/types/creative-hub";
-import { getCloths, updateSceneCharacter, generateSceneCharacterImage, createCloth, updateCharacter, getBulkTaskStatus } from "@/services/creative-hub";
+import { getCloths, updateSceneCharacter, generateSceneCharacterImage, createCloth, updateCharacter, getBulkTaskStatus, setActiveSubjectPreviz } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
 import { useParams, useRouter } from "next/navigation";
@@ -380,6 +380,53 @@ export default function SceneCharacterDetailModal({ sceneCharacter, scriptId, on
                                 onActivePrevizChange={() => onUpdate()}
                                 refreshKey={historyRefreshKey}
                             />
+                        )}
+
+                        {/* Pick from parent Character's history pool — every previz
+                             generated for any scene look (and the parent's own
+                             portraits) shows up here, so users can swap a sibling
+                             scene's look or a base portrait into the current scene
+                             without re-generating. */}
+                        {sceneCharacter?.character?.id && (
+                            <div className="pt-2 border-t border-[var(--border)]">
+                                <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">
+                                    Pick from {sceneCharacter.character.name}&apos;s library
+                                </p>
+                                <PrevizHistorySection
+                                    kind="character"
+                                    subjectId={sceneCharacter.character.id}
+                                    subjectLabel={`Character: ${sceneCharacter.character.name}`}
+                                    activePrevizId={sceneCharacter?.character?.active_previz ?? null}
+                                    refreshKey={historyRefreshKey}
+                                    onActivePrevizChange={() => {
+                                        onUpdate();
+                                        setHistoryRefreshKey((k) => k + 1);
+                                    }}
+                                    secondaryAction={{
+                                        label: "Use for this scene",
+                                        title: "Set this image as the active look for the current scene character",
+                                        onClick: async (previzId) => {
+                                            try {
+                                                await setActiveSubjectPreviz(
+                                                    "scene_character",
+                                                    sceneCharacter.id,
+                                                    previzId,
+                                                );
+                                                toast.success("Linked to this scene");
+                                                onUpdate();
+                                                setHistoryRefreshKey((k) => k + 1);
+                                            } catch (err) {
+                                                toast.error(
+                                                    extractApiError(
+                                                        err,
+                                                        "Failed to link to this scene.",
+                                                    ),
+                                                );
+                                            }
+                                        },
+                                    }}
+                                />
+                            </div>
                         )}
                     </div>
                 </div>
