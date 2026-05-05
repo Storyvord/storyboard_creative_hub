@@ -291,7 +291,35 @@ export default function SceneCharacterDetailPage() {
         }
     };
 
-    const handleGenerate = () => setIsModelOpen(true);
+    // Holds the prompt to send when the model dialog confirms. When the
+    // generate flow originates from the Build Sheet, this is the composed
+    // prompt (auto-saved); when it originates from the legacy page-level
+    // button, this falls back to the persisted `notes`.
+    const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+
+    const handleGenerate = () => {
+        setPendingPrompt(null);
+        setIsModelOpen(true);
+    };
+
+    const handleBuildSheetGenerate = async (composed: string) => {
+        // Auto-save the composed prompt so the artist can never trigger a
+        // generation against a stale `notes` blob.
+        setSaving(true);
+        try {
+            await updateSceneCharacter(sceneCharacterId, { notes: composed });
+            setNotes(composed);
+            await fetchScene();
+        } catch (err) {
+            toast.error(extractApiError(err, "Failed to save build sheet"));
+            setSaving(false);
+            return;
+        } finally {
+            setSaving(false);
+        }
+        setPendingPrompt(composed);
+        setIsModelOpen(true);
+    };
 
     const handleModelConfirm = async (
         model: string,
@@ -299,13 +327,15 @@ export default function SceneCharacterDetailPage() {
         quality?: string,
         size?: string,
     ) => {
+        const promptForGen = pendingPrompt ?? notes;
         setIsModelOpen(false);
+        setPendingPrompt(null);
         setGenerating(true);
         setGenStep("queued");
         try {
             const res = await generateSceneCharacterImage(
                 sceneCharacterId,
-                notes,
+                promptForGen,
                 model,
                 provider,
                 quality,
@@ -590,6 +620,7 @@ export default function SceneCharacterDetailPage() {
                             <SceneCharacterBuildSheet
                                 initialNotes={sc.notes}
                                 saving={saving}
+                                generating={generating}
                                 onSave={async (composed) => {
                                     setSaving(true);
                                     try {
@@ -603,6 +634,7 @@ export default function SceneCharacterDetailPage() {
                                         setSaving(false);
                                     }
                                 }}
+                                onGenerate={handleBuildSheetGenerate}
                             />
                         )}
 

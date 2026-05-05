@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Scissors, Palette, Eye, Droplet, Heart, Sparkles, FileText, Save, Loader2 } from "lucide-react";
+import { Scissors, Palette, Eye, Droplet, Heart, Sparkles, FileText, Save, Loader2, Wand2 } from "lucide-react";
 
 /**
  * Structured "build sheet" form for the Character Artist's workflow.
@@ -82,13 +82,23 @@ export function composeBuildSheet(state: BuildSheetState): string {
 interface SceneCharacterBuildSheetProps {
     initialNotes: string | null | undefined;
     onSave: (composedNotes: string) => Promise<void>;
+    /**
+     * Optional "Save & Generate" handler. When provided, the sheet renders a
+     * second action that auto-saves the current composed prompt and kicks off
+     * generation atomically — eliminating the stale-notes risk where the artist
+     * tweaks the sheet, forgets to save, then hits Generate from outside.
+     */
+    onGenerate?: (composedNotes: string) => void | Promise<void>;
     saving?: boolean;
+    generating?: boolean;
 }
 
 export default function SceneCharacterBuildSheet({
     initialNotes,
     onSave,
+    onGenerate,
     saving = false,
+    generating = false,
 }: SceneCharacterBuildSheetProps) {
     const initial = useMemo(() => parseBuildSheet(initialNotes), [initialNotes]);
     const [state, setState] = useState<BuildSheetState>(initial);
@@ -116,6 +126,11 @@ export default function SceneCharacterBuildSheet({
         await onSave(composed);
     };
 
+    const handleSaveAndGenerate = async () => {
+        if (!onGenerate) return;
+        await onGenerate(composed);
+    };
+
     return (
         <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] overflow-hidden">
             <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
@@ -127,19 +142,37 @@ export default function SceneCharacterBuildSheet({
                         Specify the scene-specific look. Each line drives the AI prompt.
                     </p>
                 </div>
-                <button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={!dirty || saving}
-                    className="text-[10px] font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                    {saving ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                        <Save className="h-3 w-3" />
+                <div className="flex items-center gap-1.5">
+                    <button
+                        type="button"
+                        onClick={handleSubmit}
+                        disabled={!dirty || saving || generating}
+                        className="text-[10px] font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] border border-[var(--border)] disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        {saving ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                            <Save className="h-3 w-3" />
+                        )}
+                        Save sheet
+                    </button>
+                    {onGenerate && (
+                        <button
+                            type="button"
+                            onClick={handleSaveAndGenerate}
+                            disabled={saving || generating}
+                            title="Save the sheet and run AI generation in one step — uses the composed prompt above"
+                            className="text-[10px] font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            {generating ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                                <Wand2 className="h-3 w-3" />
+                            )}
+                            Save & Generate
+                        </button>
                     )}
-                    Save sheet
-                </button>
+                </div>
             </div>
 
             <div className="divide-y divide-[var(--border)]">
