@@ -42,6 +42,7 @@ import {
     Clapperboard,
     Mic2,
     Shirt,
+    MoreVertical,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
@@ -207,6 +208,10 @@ export default function LocationDetailPage() {
 
     // Sticky logistics footer — open/closed sheet on mobile.
     const [logisticsSheetOpen, setLogisticsSheetOpen] = useState(false);
+
+    // Mobile kebab — Generate / Edit / Delete collapse here below md
+    // so the rail's tall buttons don't dominate Cast's primary surface.
+    const [kebabOpen, setKebabOpen] = useState(false);
 
     const handlePersonaChange = useCallback((next: Persona) => {
         setPersona(next);
@@ -446,13 +451,73 @@ export default function LocationDetailPage() {
                     <ArrowLeft className="h-3 w-3" />
                     Back to Locations
                 </button>
+                {/* Desktop: inline Delete. Mobile / tablet: kebab that
+                     also swallows Generate and Edit. Loop 2 fix —
+                     destructive + AI actions shouldn't dominate Cast's
+                     phone view. */}
                 <button
                     onClick={handleDelete}
-                    className="flex items-center gap-1.5 text-[10px] font-medium text-red-400 hover:text-red-300 transition-colors"
+                    className="hidden md:flex items-center gap-1.5 text-[10px] font-medium text-red-400 hover:text-red-300 transition-colors"
                 >
                     <Trash2 className="h-3 w-3" />
                     Delete
                 </button>
+                <div className="md:hidden relative">
+                    <button
+                        type="button"
+                        onClick={() => setKebabOpen((v) => !v)}
+                        className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+                        aria-label="Actions"
+                        aria-expanded={kebabOpen}
+                    >
+                        <MoreVertical className="h-4 w-4" />
+                    </button>
+                    {kebabOpen && (
+                        <>
+                            <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => setKebabOpen(false)}
+                                aria-hidden
+                            />
+                            <div className="absolute right-0 mt-1 w-44 z-50 bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg shadow-xl overflow-hidden">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setKebabOpen(false);
+                                        handleGenerate();
+                                    }}
+                                    disabled={generating || saving}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-[var(--text-primary)] hover:bg-[var(--surface-hover)] disabled:opacity-50 transition-colors"
+                                >
+                                    <Wand2 className="h-3.5 w-3.5 text-emerald-500" />
+                                    AI Generate
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setKebabOpen(false);
+                                        setEditingInfo(true);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+                                >
+                                    <Pencil className="h-3.5 w-3.5 text-emerald-500" />
+                                    Edit details
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setKebabOpen(false);
+                                        handleDelete();
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-red-400 hover:bg-red-500/10 transition-colors border-t border-[var(--border)]"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    Delete
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
 
             {/* Title bar — full width above the working grid. Mirrors the
@@ -489,11 +554,16 @@ export default function LocationDetailPage() {
 
             {/* Two-column working grid — fixed 280px rail + tabbed pane.
                  Matches `lg:grid-cols-[280px_1fr]` from the SceneCharacter page
-                 so the user navigating between Locations and SceneCharacters
-                 lives in the same layout shell. */}
+                 on desktop. Below lg the rail moves BELOW the tabbed pane
+                 (Loop 2: Cast / Wardrobe land on a phone and want the cards
+                 first, not a 600px tall hero rail preamble). The rail still
+                 carries the hero, generate, and recent strip — they just
+                 read as a footer-style toolbox on small viewports. */}
             <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
-                {/* Left rail: hero + generate + name/desc card + compact history */}
-                <div className="space-y-4">
+                {/* Left rail: hero + generate + name/desc card + compact history.
+                     `order-2 lg:order-1` puts it BELOW the tabbed pane on
+                     mobile / tablet so the persona-relevant cards lead. */}
+                <div className="space-y-4 order-2 lg:order-1">
                     {/* Hero — `aspect-[3/4]` portrait. Locations photograph
                          well as portraits when establishing (entrance, vista,
                          doorway), and matching the rail's vertical rhythm
@@ -545,11 +615,11 @@ export default function LocationDetailPage() {
                         />
                     </div>
 
-                    {/* Generate */}
+                    {/* Generate — hidden below md (covered by kebab). */}
                     <button
                         onClick={handleGenerate}
                         disabled={generating || saving}
-                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="hidden md:flex w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-medium transition-all items-center justify-center gap-2 disabled:opacity-50"
                     >
                         {generating ? (
                             <>
@@ -576,7 +646,7 @@ export default function LocationDetailPage() {
                             </h2>
                             <button
                                 onClick={() => setEditingInfo((v) => !v)}
-                                className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+                                className="hidden md:block p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
                                 title={editingInfo ? "Cancel edit" : "Edit details"}
                             >
                                 <Pencil className="h-3.5 w-3.5" />
@@ -685,8 +755,10 @@ export default function LocationDetailPage() {
                     </div>
                 </div>
 
-                {/* Right: tabbed pane serving the five personas */}
-                <div className="min-w-0">
+                {/* Right: tabbed pane serving the five personas. `order-1
+                     lg:order-2` keeps it first on mobile so the persona-
+                     relevant cards are the first thing on the page. */}
+                <div className="min-w-0 order-1 lg:order-2">
                     {/* Persona quick-switcher — sets the lens for the page.
                          Selecting a persona (a) switches to that role's
                          preferred default tab and (b) reorders the Overview
