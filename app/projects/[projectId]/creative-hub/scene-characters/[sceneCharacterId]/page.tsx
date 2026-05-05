@@ -639,13 +639,6 @@ export default function SceneCharacterDetailPage() {
                                     setHistoryRefreshKey((k) => k + 1);
                                 }}
                             />
-                            <button
-                                type="button"
-                                onClick={() => setActiveTab("library")}
-                                className="mt-2 w-full text-[9px] font-medium text-emerald-400 hover:text-emerald-300 py-1.5 border border-dashed border-[var(--border)] rounded transition-colors"
-                            >
-                                View full library →
-                            </button>
                         </div>
                     )}
                 </div>
