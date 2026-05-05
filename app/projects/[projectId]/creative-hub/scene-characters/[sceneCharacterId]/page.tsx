@@ -42,6 +42,7 @@ import { extractApiError } from "@/lib/extract-api-error";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
 import SceneCharacterBuildSheet from "@/components/creative-hub/SceneCharacterBuildSheet";
+import CompactHistoryStrip from "@/components/creative-hub/CompactHistoryStrip";
 
 type GenStep = "saving" | "queued" | "rendering";
 
@@ -75,6 +76,7 @@ export default function SceneCharacterDetailPage() {
     const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
     const [isModelOpen, setIsModelOpen] = useState(false);
     const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+    const [activeTab, setActiveTab] = useState<"build" | "wardrobe" | "library">("build");
 
     // Wardrobe state — ported from the deprecated SceneCharacterDetailModal so
     // the dedicated detail page is feature-complete and the modal can retire.
@@ -360,27 +362,44 @@ export default function SceneCharacterDetailPage() {
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left: image + info + scene-look history */}
-                <div className="lg:col-span-2 space-y-4">
-                    {/* Title bar */}
-                    <div>
-                        <h1 className="text-lg font-black text-[var(--text-primary)] tracking-tight">
-                            Scene Look — <span className="text-emerald-400">{baseName}</span>
-                        </h1>
-                        <div className="flex items-center gap-3 mt-1">
-                            {sc.scene !== undefined && (
-                                <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
-                                    <Film className="h-3 w-3 text-emerald-500" /> Scene #{sc.scene}
-                                </span>
-                            )}
+            {/* Title bar — full width above the working grid */}
+            <div className="flex items-end justify-between flex-wrap gap-3">
+                <div>
+                    <h1 className="text-lg font-black text-[var(--text-primary)] tracking-tight">
+                        Scene Look — <span className="text-emerald-400">{baseName}</span>
+                    </h1>
+                    <div className="flex items-center gap-3 mt-1">
+                        {sc.scene !== undefined && (
                             <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
-                                <Shirt className="h-3 w-3 text-indigo-400" />
-                                {outfitCount} item{outfitCount === 1 ? "" : "s"} in outfit
+                                <Film className="h-3 w-3 text-emerald-500" /> Scene #{sc.scene}
                             </span>
-                        </div>
+                        )}
+                        <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
+                            <Shirt className="h-3 w-3 text-indigo-400" />
+                            {outfitCount} item{outfitCount === 1 ? "" : "s"} in outfit
+                        </span>
+                        {sc.character?.id && (
+                            <button
+                                onClick={() =>
+                                    router.push(
+                                        `/projects/${projectId}/creative-hub/characters/${sc.character?.id}`,
+                                    )
+                                }
+                                className="text-[10px] text-emerald-400 hover:text-emerald-300 underline-offset-2 hover:underline flex items-center gap-1"
+                            >
+                                <UserIcon className="h-3 w-3" /> Open {baseName}&apos;s page →
+                            </button>
+                        )}
                     </div>
+                </div>
+            </div>
 
+            {/* Two-column working grid: hero rail (1/3) + stylist tools (2/3).
+                 Mirrors the Character page proportions so artists working on
+                 either page have a consistent layout. */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left rail: hero + generate + compact history */}
+                <div className="space-y-4">
                     {/* Image */}
                     <div
                         className="aspect-video bg-[var(--background)] rounded-xl border border-[var(--border)] overflow-hidden relative cursor-pointer group"
@@ -457,233 +476,258 @@ export default function SceneCharacterDetailPage() {
                         )}
                     </button>
 
-                    {/* Build Sheet — structured Character-Artist form. The
-                         composed string is what feeds the AI's appearance_notes
-                         placeholder, so the prompt stays human-readable. */}
-                    <SceneCharacterBuildSheet
-                        initialNotes={sc.notes}
-                        saving={saving}
-                        onSave={async (composed) => {
-                            setSaving(true);
-                            try {
-                                await updateSceneCharacter(sceneCharacterId, { notes: composed });
-                                setNotes(composed);
-                                toast.success("Build sheet saved");
-                                await fetchScene();
-                            } catch (err) {
-                                toast.error(extractApiError(err, "Failed to save build sheet"));
-                            } finally {
-                                setSaving(false);
-                            }
-                        }}
-                    />
-
-                    {/* Scene-look history */}
-                    <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-4">
-                        <PrevizHistorySection
-                            kind="scene_character"
-                            subjectId={sceneCharacterId}
-                            subjectLabel={`Scene Look: ${baseName}`}
-                            activePrevizId={sc.active_previz ?? null}
-                            refreshKey={historyRefreshKey}
-                            onActivePrevizChange={(_id, url) => {
-                                if (url) setImagePreview(url);
-                                fetchScene();
-                            }}
-                        />
-                    </div>
-                </div>
-
-                {/* Right: parent Character history */}
-                <div>
-                    <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-4 sticky top-4">
-                        <div className="mb-3 flex items-center gap-2">
-                            <UserIcon className="h-3.5 w-3.5 text-emerald-500" />
-                            <div className="flex-1 min-w-0">
-                                <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest">
-                                    Parent Character
-                                </h3>
-                                <p className="text-sm font-bold text-[var(--text-primary)] truncate">
-                                    {baseName}
-                                </p>
-                            </div>
-                            {sc.character?.id && (
-                                <button
-                                    onClick={() =>
-                                        router.push(
-                                            `/projects/${projectId}/creative-hub/characters/${sc.character?.id}`,
-                                        )
-                                    }
-                                    className="text-[9px] text-emerald-400 hover:text-emerald-300 underline-offset-2 hover:underline"
-                                >
-                                    Open page →
-                                </button>
-                            )}
-                        </div>
-                        {sc.character?.id ? (
-                            <PrevizHistorySection
+                    {/* Compact history — drawn from the parent character pool
+                         so it includes both base portraits and every sibling
+                         scene-look. Click a thumbnail to apply it as the
+                         active look for THIS scene. */}
+                    {sc.character?.id && (
+                        <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-3">
+                            <CompactHistoryStrip
                                 kind="character"
                                 subjectId={sc.character.id}
-                                subjectLabel={`Character: ${baseName}`}
-                                activePrevizId={sc.character.active_previz ?? null}
+                                activePrevizId={sc.active_previz ?? null}
                                 refreshKey={historyRefreshKey}
-                                onActivePrevizChange={() => {
-                                    fetchScene();
+                                onApply={async (previzId) => {
+                                    await setActiveSubjectPreviz(
+                                        "scene_character",
+                                        sceneCharacterId,
+                                        previzId,
+                                    );
+                                    toast.success("Applied to this scene");
+                                    await fetchScene();
                                     setHistoryRefreshKey((k) => k + 1);
                                 }}
-                                secondaryAction={{
-                                    label: "Use for this scene",
-                                    title: "Make this image the active look for the current scene character",
-                                    onClick: async (previzId) => {
-                                        try {
-                                            await setActiveSubjectPreviz(
-                                                "scene_character",
-                                                sceneCharacterId,
-                                                previzId,
-                                            );
-                                            toast.success("Linked to this scene");
-                                            await fetchScene();
-                                            setHistoryRefreshKey((k) => k + 1);
-                                        } catch (err) {
-                                            toast.error(
-                                                extractApiError(
-                                                    err,
-                                                    "Failed to link to this scene.",
-                                                ),
-                                            );
-                                        }
-                                    },
-                                }}
                             />
-                        ) : (
-                            <p className="text-[10px] text-[var(--text-muted)] italic">
-                                This scene character is not linked to a global character.
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Wardrobe / Fitting Room — ported from the deprecated
-                         SceneCharacterDetailModal so the dedicated page is
-                         feature-complete. Slot tabs along the top, cloth
-                         thumbnails for the active slot below. */}
-                    <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] mt-4 overflow-hidden">
-                        <div className="p-3 border-b border-[var(--border)]">
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-1.5">
-                                    <Shirt className="h-3 w-3 text-indigo-400" />
-                                    Wardrobe
-                                </h3>
-                                <span className="text-[9px] text-[var(--text-muted)]">
-                                    <span className="text-[var(--text-primary)] font-bold">{selectedCount}</span>{" "}
-                                    selected
-                                </span>
-                            </div>
-                            <div className="flex flex-wrap gap-1">
-                                {CLOTH_SLOTS.map((slot) => (
-                                    <button
-                                        key={slot.id}
-                                        type="button"
-                                        onClick={() => setActiveSlot(slot.id)}
-                                        className={`px-2.5 py-1 rounded text-[10px] font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
-                                            activeSlot === slot.id
-                                                ? "bg-emerald-600 text-white"
-                                                : "bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
-                                        }`}
-                                    >
-                                        {slot.label}
-                                        {selectedCloths[slot.id] && (
-                                            <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="p-3">
-                            <input
-                                ref={clothFileRef}
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={handleClothUpload}
-                            />
-                            {loadingCloths ? (
-                                <div className="text-[10px] text-[var(--text-muted)] py-4 text-center">
-                                    Loading wardrobe…
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-3 gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => clothFileRef.current?.click()}
-                                        disabled={uploadingCloth}
-                                        className="aspect-square rounded-md border-2 border-dashed border-[var(--border)] hover:border-emerald-500 hover:bg-[var(--surface-hover)] transition-all cursor-pointer flex flex-col items-center justify-center text-[var(--text-muted)] hover:text-emerald-400 gap-1 group"
-                                    >
-                                        {uploadingCloth ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                            <>
-                                                <Plus className="h-4 w-4" />
-                                                <span className="text-[8px] uppercase tracking-wider">Add</span>
-                                            </>
-                                        )}
-                                    </button>
-                                    {filteredCloths.map((cloth) => {
-                                        const isSelected = selectedCloths[activeSlot]?.id === cloth.id;
-                                        return (
-                                            <button
-                                                key={cloth.id}
-                                                type="button"
-                                                onClick={() => handleClothSelect(cloth)}
-                                                className={`group relative aspect-square rounded-md overflow-hidden border-2 cursor-pointer transition-all ${
-                                                    isSelected
-                                                        ? "border-emerald-500 ring-2 ring-emerald-500/30"
-                                                        : "border-[var(--border)] hover:border-[var(--border-hover)]"
-                                                }`}
-                                            >
-                                                {cloth.image_url ? (
-                                                    <img
-                                                        src={cloth.image_url}
-                                                        alt={cloth.name}
-                                                        loading="lazy"
-                                                        decoding="async"
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center bg-[var(--surface)] text-[var(--text-muted)]">
-                                                        <Shirt className="h-5 w-5" />
-                                                    </div>
-                                                )}
-                                                <div className="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-sm px-1 py-0.5">
-                                                    <p className="text-[8px] text-white font-medium truncate">
-                                                        {cloth.name}
-                                                    </p>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                            {!loadingCloths && filteredCloths.length === 0 && (
-                                <p className="text-[9px] text-[var(--text-muted)] italic mt-2 text-center">
-                                    No items for {CLOTH_SLOTS.find((s) => s.id === activeSlot)?.label} yet.
-                                </p>
-                            )}
-                        </div>
-                        <div className="p-3 border-t border-[var(--border)]">
                             <button
                                 type="button"
-                                onClick={handleSaveOutfit}
-                                disabled={savingOutfit}
-                                className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-medium transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                onClick={() => setActiveTab("library")}
+                                className="mt-2 w-full text-[9px] font-medium text-emerald-400 hover:text-emerald-300 py-1.5 border border-dashed border-[var(--border)] rounded transition-colors"
                             >
-                                {savingOutfit ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                    <Save className="h-3 w-3" />
-                                )}
-                                Save outfit
+                                View full library →
                             </button>
                         </div>
+                    )}
+                </div>
+
+                {/* Right: stylist tools tabbed area */}
+                <div className="lg:col-span-2">
+                    <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] overflow-hidden">
+                        {/* Tab bar */}
+                        <div className="flex border-b border-[var(--border)] bg-[var(--surface)]">
+                            {(
+                                [
+                                    { key: "build", label: "Build Sheet", icon: Wand2 },
+                                    { key: "wardrobe", label: "Wardrobe", icon: Shirt },
+                                    { key: "library", label: "Library", icon: UserIcon },
+                                ] as const
+                            ).map((t) => {
+                                const Icon = t.icon;
+                                const active = activeTab === t.key;
+                                return (
+                                    <button
+                                        key={t.key}
+                                        type="button"
+                                        onClick={() => setActiveTab(t.key)}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-medium uppercase tracking-widest transition-colors border-b-2 -mb-px ${
+                                            active
+                                                ? "border-emerald-500 text-emerald-400 bg-[var(--surface-raised)]"
+                                                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                                        }`}
+                                    >
+                                        <Icon className="h-3 w-3" />
+                                        {t.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Tab content */}
+                        {activeTab === "build" && (
+                            <SceneCharacterBuildSheet
+                                initialNotes={sc.notes}
+                                saving={saving}
+                                onSave={async (composed) => {
+                                    setSaving(true);
+                                    try {
+                                        await updateSceneCharacter(sceneCharacterId, { notes: composed });
+                                        setNotes(composed);
+                                        toast.success("Build sheet saved");
+                                        await fetchScene();
+                                    } catch (err) {
+                                        toast.error(extractApiError(err, "Failed to save build sheet"));
+                                    } finally {
+                                        setSaving(false);
+                                    }
+                                }}
+                            />
+                        )}
+
+                        {activeTab === "wardrobe" && (
+                            <div className="overflow-hidden">
+                                <div className="p-4 border-b border-[var(--border)]">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-1.5">
+                                            <Shirt className="h-3 w-3 text-indigo-400" />
+                                            Outfit slots
+                                        </h3>
+                                        <span className="text-[9px] text-[var(--text-muted)]">
+                                            <span className="text-[var(--text-primary)] font-bold">{selectedCount}</span>{" "}
+                                            selected
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {CLOTH_SLOTS.map((slot) => (
+                                            <button
+                                                key={slot.id}
+                                                type="button"
+                                                onClick={() => setActiveSlot(slot.id)}
+                                                className={`px-3 py-1.5 rounded text-[10px] font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
+                                                    activeSlot === slot.id
+                                                        ? "bg-emerald-600 text-white"
+                                                        : "bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
+                                                }`}
+                                            >
+                                                {slot.label}
+                                                {selectedCloths[slot.id] && (
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="p-4">
+                                    <input
+                                        ref={clothFileRef}
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={handleClothUpload}
+                                    />
+                                    {loadingCloths ? (
+                                        <div className="text-[10px] text-[var(--text-muted)] py-6 text-center">
+                                            Loading wardrobe…
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => clothFileRef.current?.click()}
+                                                disabled={uploadingCloth}
+                                                className="aspect-square rounded-md border-2 border-dashed border-[var(--border)] hover:border-emerald-500 hover:bg-[var(--surface-hover)] transition-all cursor-pointer flex flex-col items-center justify-center text-[var(--text-muted)] hover:text-emerald-400 gap-1"
+                                            >
+                                                {uploadingCloth ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <>
+                                                        <Plus className="h-4 w-4" />
+                                                        <span className="text-[8px] uppercase tracking-wider">Add</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                            {filteredCloths.map((cloth) => {
+                                                const isSelected = selectedCloths[activeSlot]?.id === cloth.id;
+                                                return (
+                                                    <button
+                                                        key={cloth.id}
+                                                        type="button"
+                                                        onClick={() => handleClothSelect(cloth)}
+                                                        className={`group relative aspect-square rounded-md overflow-hidden border-2 cursor-pointer transition-all ${
+                                                            isSelected
+                                                                ? "border-emerald-500 ring-2 ring-emerald-500/30"
+                                                                : "border-[var(--border)] hover:border-[var(--border-hover)]"
+                                                        }`}
+                                                    >
+                                                        {cloth.image_url ? (
+                                                            <img
+                                                                src={cloth.image_url}
+                                                                alt={cloth.name}
+                                                                loading="lazy"
+                                                                decoding="async"
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center bg-[var(--surface)] text-[var(--text-muted)]">
+                                                                <Shirt className="h-5 w-5" />
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-sm px-1 py-0.5">
+                                                            <p className="text-[8px] text-white font-medium truncate">
+                                                                {cloth.name}
+                                                            </p>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    {!loadingCloths && filteredCloths.length === 0 && (
+                                        <p className="text-[9px] text-[var(--text-muted)] italic mt-3 text-center">
+                                            No items for {CLOTH_SLOTS.find((s) => s.id === activeSlot)?.label} yet.
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="p-4 border-t border-[var(--border)]">
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveOutfit}
+                                        disabled={savingOutfit}
+                                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-medium transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                    >
+                                        {savingOutfit ? (
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                        ) : (
+                                            <Save className="h-3 w-3" />
+                                        )}
+                                        Save outfit
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === "library" && (
+                            <div className="p-4">
+                                {sc.character?.id ? (
+                                    <PrevizHistorySection
+                                        kind="character"
+                                        subjectId={sc.character.id}
+                                        subjectLabel={`Library — ${baseName}`}
+                                        activePrevizId={sc.character.active_previz ?? null}
+                                        refreshKey={historyRefreshKey}
+                                        onActivePrevizChange={() => {
+                                            fetchScene();
+                                            setHistoryRefreshKey((k) => k + 1);
+                                        }}
+                                        secondaryAction={{
+                                            label: "Use for this scene",
+                                            title: "Apply this image to the current scene character",
+                                            onClick: async (previzId) => {
+                                                try {
+                                                    await setActiveSubjectPreviz(
+                                                        "scene_character",
+                                                        sceneCharacterId,
+                                                        previzId,
+                                                    );
+                                                    toast.success("Applied to this scene");
+                                                    await fetchScene();
+                                                    setHistoryRefreshKey((k) => k + 1);
+                                                } catch (err) {
+                                                    toast.error(
+                                                        extractApiError(
+                                                            err,
+                                                            "Failed to apply.",
+                                                        ),
+                                                    );
+                                                }
+                                            },
+                                        }}
+                                    />
+                                ) : (
+                                    <p className="text-[10px] text-[var(--text-muted)] italic py-4 text-center">
+                                        This scene character is not linked to a global character — no shared library.
+                                    </p>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
