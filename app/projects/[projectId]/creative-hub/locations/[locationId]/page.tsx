@@ -43,6 +43,8 @@ import {
     Mic2,
     Shirt,
     MoreVertical,
+    RectangleHorizontal,
+    RectangleVertical,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
@@ -217,6 +219,11 @@ export default function LocationDetailPage() {
     // on the Scene shot list card filters the adjacent Time-of-day card.
     // Null = no filter (all rows visible). Local state, no backend.
     const [timeFilter, setTimeFilter] = useState<"day" | "dusk" | "night" | null>(null);
+
+    // Hero aspect ratio — portrait (3/4) is the default for establishing
+    // shots; landscape (16/9) is better for wide vistas / panoramic
+    // references. Local state, no persistence (Aria's note).
+    const [heroLandscape, setHeroLandscape] = useState(false);
 
     const handlePersonaChange = useCallback((next: Persona) => {
         setPersona(next);
@@ -602,9 +609,36 @@ export default function LocationDetailPage() {
                          keeps the visual weight balanced with the SceneChar
                          page next door. */}
                     <div
-                        className="aspect-[3/4] bg-[var(--background)] rounded-xl border border-[var(--border)] overflow-hidden relative cursor-pointer group"
+                        className={`${
+                            heroLandscape ? "aspect-video" : "aspect-[3/4]"
+                        } bg-[var(--background)] rounded-xl border border-[var(--border)] overflow-hidden relative cursor-pointer group transition-[aspect-ratio]`}
                         onClick={() => fileRef.current?.click()}
                     >
+                        {/* Aspect toggle — top-right. Stops click propagation
+                             so flipping the ratio doesn't also open the file
+                             picker on the parent. Aria's note: a director
+                             needs both portrait (doorways, hero approach)
+                             and landscape (vistas) without leaving the page. */}
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setHeroLandscape((v) => !v);
+                            }}
+                            className="absolute top-2 right-2 z-10 p-1.5 rounded-md bg-black/50 backdrop-blur-sm text-white/80 hover:text-white hover:bg-black/70 transition-colors"
+                            aria-label={
+                                heroLandscape ? "Switch to portrait" : "Switch to landscape"
+                            }
+                            title={
+                                heroLandscape ? "Switch to portrait" : "Switch to landscape"
+                            }
+                        >
+                            {heroLandscape ? (
+                                <RectangleVertical className="h-3.5 w-3.5" />
+                            ) : (
+                                <RectangleHorizontal className="h-3.5 w-3.5" />
+                            )}
+                        </button>
                         {imagePreview ? (
                             <img
                                 src={imagePreview}
