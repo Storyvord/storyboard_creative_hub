@@ -566,10 +566,20 @@ export default function LocationDetailPage() {
                                 {time}
                             </span>
                         )}
-                        <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase font-mono px-1.5 py-0.5 rounded tracking-wider flex items-center gap-1">
-                            <ShieldCheck className="h-2.5 w-2.5" />
-                            Permit pending
-                        </span>
+                        {/* Permit-pending chip — Loop 3: producer already
+                             owns this status in the sticky footer (with
+                             hold-expires + on-site phone), so showing it
+                             twice in their lens is noise. Other personas
+                             still need a permit signal in the title row
+                             since the footer is sm+ only and the chip is
+                             their primary "is this location secured?"
+                             affordance above the fold. */}
+                        {persona !== "producer" && (
+                            <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase font-mono px-1.5 py-0.5 rounded tracking-wider flex items-center gap-1">
+                                <ShieldCheck className="h-2.5 w-2.5" />
+                                Permit pending
+                            </span>
+                        )}
                         {persona === "producer" && (
                             <>
                                 <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase font-mono px-1.5 py-0.5 rounded tracking-wider flex items-center gap-1">
