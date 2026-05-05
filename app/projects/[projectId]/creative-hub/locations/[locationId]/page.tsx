@@ -205,6 +205,9 @@ export default function LocationDetailPage() {
         }
     }, []);
 
+    // Sticky logistics footer — open/closed sheet on mobile.
+    const [logisticsSheetOpen, setLogisticsSheetOpen] = useState(false);
+
     const handlePersonaChange = useCallback((next: Persona) => {
         setPersona(next);
         setActiveTab(PERSONA_DEFAULT_TAB[next]);
@@ -1169,6 +1172,98 @@ export default function LocationDetailPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Sticky logistics footer — Loop 2 fix for "on-site contact is
+                 buried in Logistics tab and the secured / hold-expires status
+                 only lives in Production tab". This bar pins the three things
+                 a producer or location manager looks up most often to the
+                 bottom of the page main area on every tab. Desktop renders
+                 inline; mobile shows a floating action button that opens a
+                 sheet with the same content (avoids hiding scrollable content
+                 on small viewports). All values are still placeholder until
+                 the backend ships secured-status / hold-expires / on-site
+                 contact fields. */}
+            <div className="sticky bottom-0 z-20 -mx-6 mt-2 hidden sm:flex items-center gap-3 px-4 py-2 bg-[var(--surface-raised)]/95 backdrop-blur border-t border-[var(--border)] text-[10px]">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 font-mono uppercase tracking-wider">
+                    <ShieldCheck className="h-3 w-3" />
+                    Permit pending
+                </span>
+                <span className="text-[var(--text-muted)] hidden md:inline">·</span>
+                <span className="text-[var(--text-secondary)] flex items-center gap-1">
+                    <Calendar className="h-3 w-3 text-emerald-500" />
+                    Hold expires <span className="font-mono">2026-05-20</span>
+                </span>
+                <span className="text-[var(--text-muted)] hidden md:inline">·</span>
+                <a
+                    href="tel:+15550104422"
+                    className="text-[var(--text-secondary)] hover:text-emerald-400 transition-colors flex items-center gap-1 font-mono"
+                >
+                    <Phone className="h-3 w-3 text-emerald-500" />
+                    +1 (555) 010-4422
+                </a>
+                <span className="ml-auto">
+                    <DemoPill />
+                </span>
+            </div>
+
+            {/* Mobile FAB — same payload, behind a single tap. Only renders
+                 below sm so the desktop bar doesn't compete with it. */}
+            <button
+                type="button"
+                onClick={() => setLogisticsSheetOpen(true)}
+                className="sm:hidden fixed bottom-4 right-4 z-30 flex items-center gap-1.5 px-3 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-semibold uppercase tracking-widest shadow-lg"
+                aria-label="Open logistics summary"
+            >
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Logistics
+            </button>
+
+            {logisticsSheetOpen && (
+                <div
+                    className="sm:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-end"
+                    onClick={() => setLogisticsSheetOpen(false)}
+                >
+                    <div
+                        className="w-full bg-[var(--surface-raised)] rounded-t-xl border-t border-[var(--border)] p-4 space-y-3"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest">
+                                Logistics summary
+                            </h3>
+                            <DemoPill />
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 font-mono uppercase tracking-wider">
+                                <ShieldCheck className="h-3 w-3" />
+                                Permit pending
+                            </span>
+                        </div>
+                        <InfoRow
+                            icon={Calendar}
+                            label="Hold expires"
+                            value="2026-05-20"
+                        />
+                        <a
+                            href="tel:+15550104422"
+                            className="block hover:bg-[var(--surface-hover)] rounded transition-colors -mx-1 px-1"
+                        >
+                            <InfoRow
+                                icon={Phone}
+                                label="On-site contact"
+                                value="+1 (555) 010-4422 · Priya Mehta"
+                            />
+                        </a>
+                        <button
+                            type="button"
+                            onClick={() => setLogisticsSheetOpen(false)}
+                            className="w-full py-2 mt-2 rounded-md bg-[var(--surface)] border border-[var(--border)] text-[10px] uppercase tracking-widest text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <ModelSelector
                 isOpen={isModelOpen}
