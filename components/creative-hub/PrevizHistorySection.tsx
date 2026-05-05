@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Clock, GitCompare, User, ImageOff } from "lucide-react";
 import { toast } from "react-toastify";
 import {
@@ -27,6 +27,20 @@ interface PrevizHistorySectionProps {
         title?: string;
         onClick: (previzId: number) => Promise<void> | void;
     };
+    /** When true, the Load-More button is replaced by an IntersectionObserver
+     * sentinel and the grid is wrapped in a height-bounded scroll container.
+     * Use this when the section lives inside a tab panel that should NOT
+     * extend the page scroll (e.g. the Library tab). */
+    infiniteScroll?: boolean;
+    /** Thumbnail aspect ratio. Defaults to "video" (16:9) so existing call
+     * sites keep their current look. Use "portrait" (3:4) for character
+     * libraries where wide cards waste space and "square" (1:1) when the
+     * subject doesn't have a strong vertical or horizontal bias. */
+    thumbnailAspect?: "video" | "portrait" | "square";
+    /** Grid column count. Defaults to 2 for backward compat. Use 4 in
+     * wide panels (e.g. the Library tab on the SceneCharacter page) so
+     * full-body character looks aren't cropped at top/bottom. */
+    gridCols?: 2 | 3 | 4;
 }
 
 type FlatPreviz = {
@@ -70,7 +84,22 @@ export default function PrevizHistorySection({
     onActivePrevizChange,
     refreshKey = 0,
     secondaryAction,
+    infiniteScroll = false,
+    thumbnailAspect = "video",
+    gridCols = 2,
 }: PrevizHistorySectionProps) {
+    const aspectClass =
+        thumbnailAspect === "portrait"
+            ? "aspect-[3/4]"
+            : thumbnailAspect === "square"
+              ? "aspect-square"
+              : "aspect-video";
+    // Tailwind only sees class names that appear literally in source — switch
+    // statement keeps every value in plain text so the JIT doesn't drop them.
+    const gridColsClass =
+        gridCols === 4 ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
+        : gridCols === 3 ? "grid-cols-2 lg:grid-cols-3"
+        : "grid-cols-2";
     const [secondaryRunningId, setSecondaryRunningId] = useState<number | null>(null);
     const handleSecondary = async (previzId: number) => {
         if (!secondaryAction) return;
@@ -89,6 +118,13 @@ export default function PrevizHistorySection({
     const [compareOpen, setCompareOpen] = useState(false);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
+
+    // Refs that mirror the paging state so the IntersectionObserver
+    // callback (closure-captured at observer-creation time) always sees
+    // the latest values without us having to tear down and rebuild the
+    // observer on every page tick.
+    const loadMoreRef = useRef<() => void>(() => {});
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -134,6 +170,31 @@ export default function PrevizHistorySection({
         }
     };
 
+    // Keep the ref pointing at the freshest closure so the observer
+    // (which we create once when the sentinel mounts) always invokes
+    // the up-to-date paging logic.
+    loadMoreRef.current = loadMore;
+
+    // Wire the IntersectionObserver only when infinite-scroll mode is on
+    // AND there's a sentinel present (i.e. there's more to load).
+    useEffect(() => {
+        if (!infiniteScroll) return;
+        const el = sentinelRef.current;
+        if (!el) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting) {
+                        loadMoreRef.current();
+                    }
+                }
+            },
+            { rootMargin: "200px 0px" },
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [infiniteScroll, hasMore, history.length]);
+
     const handleSetActive = async (previzId: number) => {
         setSettingActiveId(previzId);
         try {
@@ -173,9 +234,20 @@ export default function PrevizHistorySection({
             </div>
 
             {loading ? (
-                <div className="text-[10px] text-[var(--text-muted)]">Loading...</div>
+                <div className="flex items-center justify-center gap-1 py-6 text-[10px] text-[var(--text-muted)]">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce [animation-delay:-0.3s]" />
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce [animation-delay:-0.15s]" />
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce" />
+                </div>
             ) : history.length > 0 ? (
-                <div className="grid grid-cols-2 gap-3">
+                <div
+                    className={
+                        infiniteScroll
+                            ? "max-h-[60vh] overflow-y-auto pr-1"
+                            : ""
+                    }
+                >
+                <div className={`grid ${gridColsClass} gap-3`}>
                     {history.map((previz) => {
                         const isActive = previz.id === activePrevizId;
                         const isSetting = settingActiveId === previz.id;
@@ -189,7 +261,7 @@ export default function PrevizHistorySection({
                                         : "border-[var(--border)]"
                                 } group relative flex flex-col`}
                             >
-                                <div className="aspect-video relative">
+                                <div className={`${aspectClass} relative`}>
                                     {previz.image_url ? (
                                         <img
                                             src={previz.image_url}
@@ -261,7 +333,7 @@ export default function PrevizHistorySection({
                             </div>
                         );
                     })}
-                    {hasMore && (
+                    {hasMore && !infiniteScroll && (
                         <button
                             type="button"
                             onClick={loadMore}
@@ -274,6 +346,17 @@ export default function PrevizHistorySection({
                             {loadingMore ? "Loading…" : "Load more"}
                         </button>
                     )}
+                </div>
+                {infiniteScroll && hasMore && (
+                    <div
+                        ref={sentinelRef}
+                        className="col-span-2 flex items-center justify-center gap-1 py-3 text-[10px] text-[var(--text-muted)]"
+                    >
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce [animation-delay:-0.3s]" />
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce [animation-delay:-0.15s]" />
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce" />
+                    </div>
+                )}
                 </div>
             ) : (
                 <p className="text-[10px] text-[var(--text-muted)]">No history yet.</p>

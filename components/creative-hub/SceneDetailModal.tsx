@@ -2,10 +2,10 @@ import { Scene, Shot } from "@/types/creative-hub";
 import { X, Calendar, MapPin, Clock, Film, Edit, Trash2, Wand2, Loader2, ExternalLink, MessageSquare, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { getShots, generateShots, updateScene, getSceneCharacters, getSceneDialogs, dismissStaleShotWarning, deleteSceneShots } from "@/services/creative-hub";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
-import SceneCharacterDetailModal from "./SceneCharacterDetailModal";
 import ShotSkeleton from "./ShotSkeleton";
 import Link from "next/link";
 
@@ -17,6 +17,7 @@ interface SceneDetailModalProps {
 }
 
 export default function SceneDetailModal({ scene, projectId, onClose, onUpdate }: SceneDetailModalProps) {
+  const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<Scene>>({});
   const [saving, setSaving] = useState(false);
@@ -27,7 +28,6 @@ export default function SceneDetailModal({ scene, projectId, onClose, onUpdate }
   const [generatingShots, setGeneratingShots] = useState(false);
 
   const [sceneCharacters, setSceneCharacters] = useState<any[]>([]);
-  const [selectedSceneCharacter, setSelectedSceneCharacter] = useState<any | null>(null);
 
   const [dialogs, setDialogs] = useState<any[]>([]);
   const [loadingDialogs, setLoadingDialogs] = useState(false);
@@ -372,9 +372,13 @@ export default function SceneDetailModal({ scene, projectId, onClose, onUpdate }
                 {sceneCharacters.length > 0 ? (
                     <div className="flex flex-wrap gap-4">
                         {sceneCharacters.map((char: any, idx: number) => (
-                            <div 
-                                key={idx} 
-                                onClick={() => setSelectedSceneCharacter(char)}
+                            <div
+                                key={idx}
+                                onClick={() => {
+                                    if (!projectId || !char?.id) return;
+                                    onClose();
+                                    router.push(`/projects/${projectId}/creative-hub/scene-characters/${char.id}`);
+                                }}
                                 className="flex items-center gap-3 bg-[var(--surface-hover)]/50 p-3 rounded-md border border-[var(--border)] min-w-[200px] cursor-pointer hover:bg-[var(--surface-hover)] hover:border-emerald-500/50 transition-all group"
                             >
                                 <div className="w-10 h-10 bg-[#222] rounded-md overflow-hidden flex-shrink-0 relative">
@@ -532,19 +536,6 @@ export default function SceneDetailModal({ scene, projectId, onClose, onUpdate }
              )}
           </div>
           
-          {/* Nested Modals */}
-          {selectedSceneCharacter && (
-              <SceneCharacterDetailModal 
-                  sceneCharacter={selectedSceneCharacter}
-                  scriptId={scene.script_id}
-                  onClose={() => setSelectedSceneCharacter(null)}
-                  onUpdate={() => {
-                      fetchSceneCharacters(); // Refresh local characters list
-                      // onUpdate(); // Optional: Refresh parent scene data if needed, but local fetch is faster
-                      setSelectedSceneCharacter(null);
-                  }}
-              />
-          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>
