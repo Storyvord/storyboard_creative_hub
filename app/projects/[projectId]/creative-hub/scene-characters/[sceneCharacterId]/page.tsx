@@ -938,6 +938,7 @@ export default function SceneCharacterDetailPage() {
                                             activePrevizId={sc.character.active_previz ?? null}
                                             refreshKey={historyRefreshKey}
                                             infiniteScroll
+                                            thumbnailAspect="portrait"
                                             onActivePrevizChange={() => {
                                                 fetchScene();
                                                 setHistoryRefreshKey((k) => k + 1);
@@ -980,6 +981,7 @@ export default function SceneCharacterDetailPage() {
                                         activePrevizId={sc.active_previz ?? null}
                                         refreshKey={historyRefreshKey}
                                         infiniteScroll
+                                        thumbnailAspect="portrait"
                                         onActivePrevizChange={() => {
                                             fetchScene();
                                             setHistoryRefreshKey((k) => k + 1);

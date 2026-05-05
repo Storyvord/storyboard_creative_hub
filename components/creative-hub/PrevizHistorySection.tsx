@@ -32,6 +32,11 @@ interface PrevizHistorySectionProps {
      * Use this when the section lives inside a tab panel that should NOT
      * extend the page scroll (e.g. the Library tab). */
     infiniteScroll?: boolean;
+    /** Thumbnail aspect ratio. Defaults to "video" (16:9) so existing call
+     * sites keep their current look. Use "portrait" (3:4) for character
+     * libraries where wide cards waste space and "square" (1:1) when the
+     * subject doesn't have a strong vertical or horizontal bias. */
+    thumbnailAspect?: "video" | "portrait" | "square";
 }
 
 type FlatPreviz = {
@@ -76,7 +81,14 @@ export default function PrevizHistorySection({
     refreshKey = 0,
     secondaryAction,
     infiniteScroll = false,
+    thumbnailAspect = "video",
 }: PrevizHistorySectionProps) {
+    const aspectClass =
+        thumbnailAspect === "portrait"
+            ? "aspect-[3/4]"
+            : thumbnailAspect === "square"
+              ? "aspect-square"
+              : "aspect-video";
     const [secondaryRunningId, setSecondaryRunningId] = useState<number | null>(null);
     const handleSecondary = async (previzId: number) => {
         if (!secondaryAction) return;
@@ -238,7 +250,7 @@ export default function PrevizHistorySection({
                                         : "border-[var(--border)]"
                                 } group relative flex flex-col`}
                             >
-                                <div className="aspect-video relative">
+                                <div className={`${aspectClass} relative`}>
                                     {previz.image_url ? (
                                         <img
                                             src={previz.image_url}
