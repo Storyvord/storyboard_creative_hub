@@ -38,6 +38,7 @@ import {
     Plus,
     MapPin,
     Clock,
+    X,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
@@ -268,6 +269,14 @@ export default function SceneCharacterDetailPage() {
 
     const filteredCloths = availableCloths.filter((c) => c.cloth_type === activeSlot);
     const selectedCount = Object.values(selectedCloths).filter((c) => c !== null).length;
+    const assignedCostume = CLOTH_SLOTS
+        .map((slot) => ({ slot, cloth: selectedCloths[slot.id] }))
+        .filter((row): row is { slot: typeof CLOTH_SLOTS[number]; cloth: Cloth } => !!row.cloth);
+
+    const handleRemoveAssigned = (slotId: string) =>
+        setSelectedCloths((prev) => ({ ...prev, [slotId]: null }));
+
+    const handleClearAssigned = () => setSelectedCloths({});
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -640,6 +649,80 @@ export default function SceneCharacterDetailPage() {
 
                         {activeTab === "wardrobe" && (
                             <div className="overflow-hidden">
+                                {/* Assigned costume rack — mirrors the SceneLookEditor
+                                     pattern on the Character page. Always visible at
+                                     the top of the Wardrobe tab so the artist can see
+                                     what's currently in the outfit and dismiss items
+                                     without hunting through slot tabs. */}
+                                <div className="px-4 pt-4 pb-3 border-b border-[var(--border)]">
+                                    <div className="flex items-center justify-between mb-2.5">
+                                        <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-semibold flex items-center gap-1.5">
+                                            <Shirt className="h-3 w-3 text-indigo-400" />
+                                            Assigned costume
+                                            {selectedCount > 0 && (
+                                                <span className="ml-1 text-indigo-400 font-bold">{selectedCount}</span>
+                                            )}
+                                        </p>
+                                        {selectedCount > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={handleClearAssigned}
+                                                className="text-[10px] text-[var(--text-muted)] hover:text-red-400 transition-colors"
+                                            >
+                                                Clear all
+                                            </button>
+                                        )}
+                                    </div>
+                                    {assignedCostume.length === 0 ? (
+                                        <div className="flex items-center gap-2 text-[var(--text-muted)] py-1">
+                                            <Shirt className="h-3.5 w-3.5" />
+                                            <span className="text-[10px]">No items selected — pick from wardrobe below</span>
+                                        </div>
+                                    ) : (
+                                        <div
+                                            className="flex gap-2.5 overflow-x-auto pb-0.5"
+                                            style={{ scrollbarWidth: "none" }}
+                                        >
+                                            {assignedCostume.map(({ slot, cloth }) => (
+                                                <div key={slot.id} className="flex-shrink-0 relative group/item">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setActiveSlot(slot.id)}
+                                                        title={`Edit ${slot.label} slot`}
+                                                        className={`block w-14 h-14 rounded-xl bg-[var(--surface)] overflow-hidden border ${
+                                                            activeSlot === slot.id
+                                                                ? "border-emerald-500/60 ring-1 ring-emerald-500/30"
+                                                                : "border-indigo-500/25 hover:border-indigo-500/50"
+                                                        } transition-colors`}
+                                                    >
+                                                        {cloth.image_url ? (
+                                                            <img
+                                                                src={cloth.image_url}
+                                                                alt={cloth.name}
+                                                                className="w-full h-full object-contain"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <Shirt className="h-5 w-5 text-[var(--text-muted)]" />
+                                                            </div>
+                                                        )}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveAssigned(slot.id)}
+                                                        title={`Remove ${cloth.name} from outfit`}
+                                                        className="absolute -top-1 -right-1 bg-[var(--surface-hover)] border border-[var(--border)] rounded-full p-0.5 opacity-0 group-hover/item:opacity-100 focus:opacity-100 transition-opacity"
+                                                    >
+                                                        <X className="h-2.5 w-2.5 text-[var(--text-secondary)]" />
+                                                    </button>
+                                                    <p className="text-[10px] text-[var(--text-muted)] text-center mt-1 truncate max-w-[56px]">
+                                                        {cloth.name}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="p-4 border-b border-[var(--border)]">
                                     <div className="flex items-center justify-between mb-3">
                                         <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-1.5">
