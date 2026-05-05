@@ -1174,18 +1174,31 @@ export default function LocationDetailPage() {
                                                 <Shirt className="h-3 w-3" />
                                                 Wardrobe-impacting
                                             </span>
-                                            {[
-                                                "Sun blow-out 11–14h",
-                                                "Surface dust",
-                                                "Mud risk · low",
-                                                "Formality · casual",
-                                                "Whites blow out",
-                                            ].map((label) => (
+                                            {/* Severity-typed wardrobe facts — Loop 3:
+                                                 the panel called out that an all-neutral
+                                                 strip flattens "fabric will be ruined" and
+                                                 "formality is casual" into the same visual
+                                                 weight. `warn` items are wardrobe risks
+                                                 (will affect choices); `info` items are
+                                                 context. */}
+                                            {(
+                                                [
+                                                    { label: "Sun blow-out 11–14h", severity: "warn" },
+                                                    { label: "Surface dust", severity: "warn" },
+                                                    { label: "Mud risk · low", severity: "info" },
+                                                    { label: "Formality · casual", severity: "info" },
+                                                    { label: "Whites blow out", severity: "warn" },
+                                                ] as const
+                                            ).map((p) => (
                                                 <span
-                                                    key={label}
-                                                    className="px-1.5 py-0.5 rounded text-[10px] bg-[var(--surface)] text-[var(--text-secondary)] border border-[var(--border)] font-medium"
+                                                    key={p.label}
+                                                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                                                        p.severity === "warn"
+                                                            ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                                                            : "bg-[var(--surface)] text-[var(--text-secondary)] border-[var(--border)]"
+                                                    }`}
                                                 >
-                                                    {label}
+                                                    {p.label}
                                                 </span>
                                             ))}
                                             <span className="ml-auto">
@@ -1308,7 +1321,15 @@ export default function LocationDetailPage() {
                                             <span>No marking floors — gaff tape only on the rubber mats</span>
                                         </li>
                                     </ul>
+                                    {/* Paperwork mini-section — the bare `border-t`
+                                         was easy to miss; an explicit label tells
+                                         the reader the second block is a different
+                                         class of fact (filings + insurance) than
+                                         the bulleted on-set restrictions above. */}
                                     <div className="border-t border-[var(--border)] pt-2 space-y-0.5">
+                                        <p className="text-[9px] uppercase tracking-widest text-[var(--text-muted)] font-semibold mb-1">
+                                            Paperwork
+                                        </p>
                                         <InfoRow
                                             icon={ClipboardList}
                                             label="City permit"
