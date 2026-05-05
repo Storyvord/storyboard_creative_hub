@@ -1022,7 +1022,7 @@ export default function CharacterDetailPage() {
                 return (
                   <button
                     key={a.id}
-                    onClick={() => setSelectedAppearance(a)}
+                    onClick={() => router.push(`/projects/${projectId}/creative-hub/scene-characters/${a.id}`)}
                     className={`group relative rounded-xl overflow-hidden border transition-all duration-200 text-left ${
                       isGenerating ? "border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.08)]" :
                       "border-[var(--border)] bg-[var(--surface-raised)]/30 hover:border-[var(--border-hover)] hover:bg-[var(--surface-raised)]"
@@ -1145,23 +1145,8 @@ export default function CharacterDetailPage() {
         </div>
       </div>
 
-      {/* Scene Look Editor modal */}
-      {selectedAppearance && (
-        <SceneLookEditor
-          key={selectedAppearance.id}
-          appearance={selectedAppearance}
-          availableCloths={availableCloths}
-          generating={generatingScenes.has(selectedAppearance.id)}
-          genStep={generatingScenes.get(selectedAppearance.id) ?? null}
-          characterPortraitUrl={imagePreview}
-          characterName={name}
-          onGenerate={(model, provider, notes, clothIds, prompt) =>
-            handleSceneGenerate(selectedAppearance.id, model, provider, notes, clothIds, prompt)
-          }
-          onUpdate={fetchCharacter}
-          onClose={() => setSelectedAppearance(null)}
-        />
-      )}
+      {/* Scene-look detail moved to the dedicated SceneCharacter page; the
+           inline SceneLookEditor modal is no longer mounted from here. */}
 
       <ModelSelector
         isOpen={isModelOpen}

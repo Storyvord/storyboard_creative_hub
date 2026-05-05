@@ -9,9 +9,22 @@ import {
     generateSceneCharacterImage,
     getBulkTaskStatus,
     getCloths,
+    createCloth,
     setActiveSubjectPreviz,
+    getScene,
 } from "@/services/creative-hub";
 import { Cloth } from "@/types/creative-hub";
+
+const CLOTH_SLOTS = [
+    { id: "head", label: "Head" },
+    { id: "face", label: "Face" },
+    { id: "torso", label: "Torso" },
+    { id: "legs", label: "Legs" },
+    { id: "feet", label: "Feet" },
+    { id: "hands", label: "Hands" },
+    { id: "full_body", label: "Full Body" },
+    { id: "accessories", label: "Accessories" },
+];
 import {
     Loader2,
     ArrowLeft,
@@ -23,6 +36,7 @@ import {
     Trash2,
     Shirt,
     Film,
+    Plus,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
@@ -63,7 +77,17 @@ export default function SceneCharacterDetailPage() {
     const [isModelOpen, setIsModelOpen] = useState(false);
     const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
+    // Wardrobe state — ported from the deprecated SceneCharacterDetailModal so
+    // the dedicated detail page is feature-complete and the modal can retire.
+    const [activeSlot, setActiveSlot] = useState<string>("torso");
+    const [availableCloths, setAvailableCloths] = useState<Cloth[]>([]);
+    const [selectedCloths, setSelectedCloths] = useState<Record<string, Cloth | null>>({});
+    const [loadingCloths, setLoadingCloths] = useState(false);
+    const [savingOutfit, setSavingOutfit] = useState(false);
+    const [uploadingCloth, setUploadingCloth] = useState(false);
+
     const fileRef = useRef<HTMLInputElement>(null);
+    const clothFileRef = useRef<HTMLInputElement>(null);
 
     const fetchScene = useCallback(async () => {
         const data = (await getSceneCharacter(sceneCharacterId)) as SceneCharacterDetail;
@@ -71,13 +95,46 @@ export default function SceneCharacterDetailPage() {
         setNotes(data.notes || "");
         setImagePreview(data.image_url || null);
         setImageFile(null);
+
+        // Hydrate selected outfit from the persisted cloths array.
+        const initialSelection: Record<string, Cloth | null> = {};
+        for (const cloth of data.cloths || []) {
+            if (cloth?.cloth_type) initialSelection[cloth.cloth_type] = cloth;
+        }
+        setSelectedCloths(initialSelection);
         return data;
     }, [sceneCharacterId]);
+
+    const fetchClothLibrary = useCallback(async (scriptId: number) => {
+        setLoadingCloths(true);
+        try {
+            const data = await getCloths(scriptId);
+            setAvailableCloths(data || []);
+        } catch (err) {
+            console.error("Failed to fetch wardrobe", err);
+            toast.error(extractApiError(err, "Failed to load wardrobe"));
+        } finally {
+            setLoadingCloths(false);
+        }
+    }, []);
 
     useEffect(() => {
         const init = async () => {
             try {
-                await fetchScene();
+                const data = await fetchScene();
+                // Discover scriptId via the linked Scene, then warm the
+                // wardrobe library so the cloths grid renders without
+                // an extra round trip when the user opens it.
+                if (data.scene !== undefined && data.scene !== null) {
+                    try {
+                        const scene = await getScene(Number(data.scene));
+                        const scriptId = (scene as { script_id?: number; script?: number }).script_id
+                            ?? (scene as { script?: number }).script;
+                        if (scriptId) await fetchClothLibrary(Number(scriptId));
+                    } catch (err) {
+                        console.error("Failed to derive scriptId for wardrobe", err);
+                    }
+                }
             } catch (err) {
                 console.error("Failed to load scene character", err);
                 toast.error(extractApiError(err, "Failed to load scene character."));
@@ -86,7 +143,7 @@ export default function SceneCharacterDetailPage() {
             }
         };
         if (sceneCharacterId) init();
-    }, [sceneCharacterId, fetchScene]);
+    }, [sceneCharacterId, fetchScene, fetchClothLibrary]);
 
     // Poll background generation task (matches SceneCharacterDetailModal pattern).
     useEffect(() => {
@@ -124,6 +181,72 @@ export default function SceneCharacterDetailPage() {
     }, [activeTaskId, fetchScene]);
 
     const dirty = !!sc && (notes !== (sc.notes || "") || !!imageFile);
+
+    // ── Wardrobe handlers ────────────────────────────────────────────────
+    const handleClothSelect = (cloth: Cloth) => {
+        setSelectedCloths((prev) => ({
+            ...prev,
+            [activeSlot]: cloth.id === prev[activeSlot]?.id ? null : cloth,
+        }));
+    };
+
+    const handleClothUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !sc) return;
+        // Discover scriptId from current scene context lazily.
+        let scriptId: number | undefined;
+        try {
+            const scene = await getScene(Number(sc.scene));
+            const sid = (scene as { script_id?: number; script?: number }).script_id
+                ?? (scene as { script?: number }).script;
+            if (sid) scriptId = Number(sid);
+        } catch {
+            /* fallthrough */
+        }
+        if (!scriptId) {
+            toast.error("Could not resolve script for wardrobe.");
+            return;
+        }
+        setUploadingCloth(true);
+        try {
+            const newCloth = await createCloth(scriptId, {
+                name: file.name.split(".")[0],
+                cloth_type: activeSlot,
+                image: file,
+            });
+            toast.success("Item added to wardrobe");
+            await fetchClothLibrary(scriptId);
+            handleClothSelect(newCloth);
+        } catch (err) {
+            console.error("Failed to upload cloth", err);
+            toast.error(extractApiError(err, "Failed to upload item"));
+        } finally {
+            setUploadingCloth(false);
+            if (clothFileRef.current) clothFileRef.current.value = "";
+        }
+    };
+
+    const handleSaveOutfit = async () => {
+        setSavingOutfit(true);
+        try {
+            const clothIds = Object.values(selectedCloths)
+                .filter((c) => c !== null)
+                .map((c) => (c as Cloth).id);
+            await updateSceneCharacter(sceneCharacterId, {
+                cloth_ids: clothIds,
+                notes,
+            });
+            toast.success("Outfit saved");
+            await fetchScene();
+        } catch (err) {
+            toast.error(extractApiError(err, "Failed to save outfit"));
+        } finally {
+            setSavingOutfit(false);
+        }
+    };
+
+    const filteredCloths = availableCloths.filter((c) => c.cloth_type === activeSlot);
+    const selectedCount = Object.values(selectedCloths).filter((c) => c !== null).length;
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -476,6 +599,130 @@ export default function SceneCharacterDetailPage() {
                                 This scene character is not linked to a global character.
                             </p>
                         )}
+                    </div>
+
+                    {/* Wardrobe / Fitting Room — ported from the deprecated
+                         SceneCharacterDetailModal so the dedicated page is
+                         feature-complete. Slot tabs along the top, cloth
+                         thumbnails for the active slot below. */}
+                    <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] mt-4 overflow-hidden">
+                        <div className="p-3 border-b border-[var(--border)]">
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-1.5">
+                                    <Shirt className="h-3 w-3 text-indigo-400" />
+                                    Wardrobe
+                                </h3>
+                                <span className="text-[9px] text-[var(--text-muted)]">
+                                    <span className="text-[var(--text-primary)] font-bold">{selectedCount}</span>{" "}
+                                    selected
+                                </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                                {CLOTH_SLOTS.map((slot) => (
+                                    <button
+                                        key={slot.id}
+                                        type="button"
+                                        onClick={() => setActiveSlot(slot.id)}
+                                        className={`px-2.5 py-1 rounded text-[10px] font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
+                                            activeSlot === slot.id
+                                                ? "bg-emerald-600 text-white"
+                                                : "bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
+                                        }`}
+                                    >
+                                        {slot.label}
+                                        {selectedCloths[slot.id] && (
+                                            <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="p-3">
+                            <input
+                                ref={clothFileRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleClothUpload}
+                            />
+                            {loadingCloths ? (
+                                <div className="text-[10px] text-[var(--text-muted)] py-4 text-center">
+                                    Loading wardrobe…
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => clothFileRef.current?.click()}
+                                        disabled={uploadingCloth}
+                                        className="aspect-square rounded-md border-2 border-dashed border-[var(--border)] hover:border-emerald-500 hover:bg-[var(--surface-hover)] transition-all cursor-pointer flex flex-col items-center justify-center text-[var(--text-muted)] hover:text-emerald-400 gap-1 group"
+                                    >
+                                        {uploadingCloth ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <>
+                                                <Plus className="h-4 w-4" />
+                                                <span className="text-[8px] uppercase tracking-wider">Add</span>
+                                            </>
+                                        )}
+                                    </button>
+                                    {filteredCloths.map((cloth) => {
+                                        const isSelected = selectedCloths[activeSlot]?.id === cloth.id;
+                                        return (
+                                            <button
+                                                key={cloth.id}
+                                                type="button"
+                                                onClick={() => handleClothSelect(cloth)}
+                                                className={`group relative aspect-square rounded-md overflow-hidden border-2 cursor-pointer transition-all ${
+                                                    isSelected
+                                                        ? "border-emerald-500 ring-2 ring-emerald-500/30"
+                                                        : "border-[var(--border)] hover:border-[var(--border-hover)]"
+                                                }`}
+                                            >
+                                                {cloth.image_url ? (
+                                                    <img
+                                                        src={cloth.image_url}
+                                                        alt={cloth.name}
+                                                        loading="lazy"
+                                                        decoding="async"
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center bg-[var(--surface)] text-[var(--text-muted)]">
+                                                        <Shirt className="h-5 w-5" />
+                                                    </div>
+                                                )}
+                                                <div className="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-sm px-1 py-0.5">
+                                                    <p className="text-[8px] text-white font-medium truncate">
+                                                        {cloth.name}
+                                                    </p>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            {!loadingCloths && filteredCloths.length === 0 && (
+                                <p className="text-[9px] text-[var(--text-muted)] italic mt-2 text-center">
+                                    No items for {CLOTH_SLOTS.find((s) => s.id === activeSlot)?.label} yet.
+                                </p>
+                            )}
+                        </div>
+                        <div className="p-3 border-t border-[var(--border)]">
+                            <button
+                                type="button"
+                                onClick={handleSaveOutfit}
+                                disabled={savingOutfit}
+                                className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-medium transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                            >
+                                {savingOutfit ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                    <Save className="h-3 w-3" />
+                                )}
+                                Save outfit
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
