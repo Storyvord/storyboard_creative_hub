@@ -88,6 +88,7 @@ const PERSONA_OVERVIEW_ORDER: Record<Persona, OverviewCardKey[]> = {
 };
 
 const PERSONA_STORAGE_KEY = "loc-detail-persona";
+const PERSONA_ONBOARD_STORAGE_KEY = "loc-detail-persona-onboarded";
 
 // ─── Demo-data pill ────────────────────────────────────────────────────
 // Used to clearly mark every region whose contents are placeholder copy
@@ -225,6 +226,37 @@ export default function LocationDetailPage() {
     // references. Local state, no persistence (Aria's note).
     const [heroLandscape, setHeroLandscape] = useState(false);
 
+    // First-session "Switch lens" tooltip — flagged once per browser
+    // through localStorage. Shown next to the persona switcher until the
+    // user dismisses it OR changes persona for the first time. The
+    // panel's note: many testers didn't realise the persona row WAS
+    // interactive, since it sits above the tab bar.
+    const [showPersonaOnboard, setShowPersonaOnboard] = useState(false);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            const seen = window.localStorage.getItem(PERSONA_ONBOARD_STORAGE_KEY);
+            if (!seen) setShowPersonaOnboard(true);
+        } catch {
+            /* localStorage unavailable — leave hint hidden */
+        }
+    }, []);
+    const dismissPersonaOnboard = useCallback(() => {
+        setShowPersonaOnboard(false);
+        try {
+            window.localStorage.setItem(PERSONA_ONBOARD_STORAGE_KEY, "1");
+        } catch {
+            /* non-blocking */
+        }
+    }, []);
+
+    // Persona switcher row — used to scroll the active chip into view on
+    // narrow screens (the row is `overflow-x-auto`, and on mobile the
+    // active chip can sit off-screen at first paint when the user has a
+    // non-default persona persisted).
+    const personaRowRef = useRef<HTMLDivElement>(null);
+    const personaChipRefs = useRef<Partial<Record<Persona, HTMLButtonElement | null>>>({});
+
     const handlePersonaChange = useCallback((next: Persona) => {
         setPersona(next);
         setActiveTab(PERSONA_DEFAULT_TAB[next]);
@@ -233,7 +265,28 @@ export default function LocationDetailPage() {
         } catch {
             /* non-blocking */
         }
-    }, []);
+        // Center the newly-active chip inside the scroller. `nearest`
+        // for block keeps the page from jumping vertically; `center`
+        // for inline keeps the active lens visually anchored.
+        personaChipRefs.current[next]?.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+            inline: "center",
+        });
+        // First persona change is enough — dismiss the onboard hint.
+        if (showPersonaOnboard) dismissPersonaOnboard();
+    }, [showPersonaOnboard, dismissPersonaOnboard]);
+
+    // On mount / when the hydrated persona resolves, scroll the active
+    // chip into view without animation. Otherwise on a narrow phone the
+    // active chip can be clipped off the right edge and the user has no
+    // visual confirmation of which lens they are in.
+    useEffect(() => {
+        const el = personaChipRefs.current[persona];
+        if (!el) return;
+        // `instant` so the very first paint is already centered.
+        el.scrollIntoView({ behavior: "auto", block: "nearest", inline: "center" });
+    }, [persona]);
 
     const fileRef = useRef<HTMLInputElement>(null);
 
@@ -843,40 +896,63 @@ export default function LocationDetailPage() {
                          resolution to "Overview tries to serve everyone and
                          serves no one first" — the user picks their lens once
                          and the page reshapes around it. */}
-                    <div
-                        className="mb-3 bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-1.5 flex items-center gap-1 overflow-x-auto"
-                        role="tablist"
-                        aria-label="Persona lens"
-                    >
-                        {(
-                            [
-                                { key: "producer", label: "Producer", icon: ShieldCheck },
-                                { key: "director", label: "Director", icon: Clapperboard },
-                                { key: "cast", label: "Cast", icon: Mic2 },
-                                { key: "wardrobe", label: "Wardrobe", icon: Shirt },
-                                { key: "logistics", label: "Logistics", icon: UserCog },
-                            ] as const
-                        ).map((p) => {
-                            const Icon = p.icon;
-                            const active = persona === p.key;
-                            return (
-                                <button
-                                    key={p.key}
-                                    type="button"
-                                    role="tab"
-                                    aria-selected={active}
-                                    onClick={() => handlePersonaChange(p.key)}
-                                    className={`flex-1 min-w-fit flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-widest transition-colors ${
-                                        active
-                                            ? "bg-emerald-600 text-white shadow-sm"
-                                            : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
-                                    }`}
-                                >
-                                    <Icon className="h-3 w-3" />
-                                    {p.label}
-                                </button>
-                            );
-                        })}
+                    <div className="relative mb-3">
+                        <div
+                            ref={personaRowRef}
+                            className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-1.5 flex items-center gap-1 overflow-x-auto [scroll-snap-type:x_mandatory]"
+                            role="tablist"
+                            aria-label="Persona lens"
+                        >
+                            {(
+                                [
+                                    { key: "producer", label: "Producer", icon: ShieldCheck },
+                                    { key: "director", label: "Director", icon: Clapperboard },
+                                    { key: "cast", label: "Cast", icon: Mic2 },
+                                    { key: "wardrobe", label: "Wardrobe", icon: Shirt },
+                                    { key: "logistics", label: "Logistics", icon: UserCog },
+                                ] as const
+                            ).map((p) => {
+                                const Icon = p.icon;
+                                const active = persona === p.key;
+                                return (
+                                    <button
+                                        key={p.key}
+                                        ref={(el) => {
+                                            personaChipRefs.current[p.key] = el;
+                                        }}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={active}
+                                        onClick={() => handlePersonaChange(p.key)}
+                                        className={`flex-1 min-w-fit flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-widest transition-colors [scroll-snap-align:center] ${
+                                            active
+                                                ? "bg-emerald-600 text-white shadow-sm"
+                                                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
+                                        }`}
+                                    >
+                                        <Icon className="h-3 w-3" />
+                                        {p.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {/* First-session onboard hint — anchored to the persona
+                             row, dismissed on first manual persona change OR
+                             on tap. Persisted to localStorage so we never
+                             show it twice. */}
+                        {showPersonaOnboard && (
+                            <button
+                                type="button"
+                                onClick={dismissPersonaOnboard}
+                                className="absolute -top-2 right-2 translate-y-[-100%] z-10 flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-600 text-white text-[9px] font-semibold uppercase tracking-widest shadow-lg hover:bg-emerald-500 transition-colors animate-in fade-in"
+                                aria-label="Dismiss persona switcher hint"
+                            >
+                                <UserCog className="h-3 w-3" />
+                                Switch lens
+                                <span className="ml-1 opacity-70">·</span>
+                                <span className="opacity-70">tap to dismiss</span>
+                            </button>
+                        )}
                     </div>
                     <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] overflow-hidden">
                         {/* Tab bar — 4 tabs:
