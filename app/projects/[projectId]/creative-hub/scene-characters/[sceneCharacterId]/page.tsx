@@ -32,7 +32,6 @@ import {
     Wand2,
     Save,
     User as UserIcon,
-    Pencil,
     Trash2,
     Shirt,
     Film,
@@ -42,6 +41,7 @@ import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
+import SceneCharacterBuildSheet from "@/components/creative-hub/SceneCharacterBuildSheet";
 
 type GenStep = "saving" | "queued" | "rendering";
 
@@ -69,7 +69,6 @@ export default function SceneCharacterDetailPage() {
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [notes, setNotes] = useState("");
 
-    const [editingNotes, setEditingNotes] = useState(false);
     const [saving, setSaving] = useState(false);
     const [generating, setGenerating] = useState(false);
     const [genStep, setGenStep] = useState<GenStep | null>(null);
@@ -263,7 +262,6 @@ export default function SceneCharacterDetailPage() {
             await updateSceneCharacter(sceneCharacterId, payload);
             toast.success("Saved");
             await fetchScene();
-            setEditingNotes(false);
         } catch (err) {
             toast.error(extractApiError(err, "Failed to save."));
         } finally {
@@ -459,63 +457,26 @@ export default function SceneCharacterDetailPage() {
                         )}
                     </button>
 
-                    {/* Notes / edit prompt */}
-                    <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest">
-                                Appearance Notes / Prompt
-                            </h3>
-                            <button
-                                onClick={() => setEditingNotes((v) => !v)}
-                                className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
-                                title={editingNotes ? "Cancel edit" : "Edit notes"}
-                            >
-                                <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                        </div>
-                        {editingNotes ? (
-                            <div className="space-y-3">
-                                <textarea
-                                    value={notes}
-                                    onChange={(e) => setNotes(e.target.value)}
-                                    rows={4}
-                                    placeholder="e.g. wearing a red dress, dirty face, exhausted look…"
-                                    className="w-full bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs text-[var(--text-secondary)] leading-relaxed focus:outline-none focus:border-emerald-500/40 transition-colors resize-none placeholder:text-[var(--text-muted)]"
-                                />
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => {
-                                            setEditingNotes(false);
-                                            setNotes(sc.notes || "");
-                                        }}
-                                        className="flex-1 py-2 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors bg-[var(--surface-raised)] rounded-lg border border-[var(--border)]"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleSave}
-                                        disabled={saving || !dirty}
-                                        className="flex-1 py-2 text-[10px] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-30"
-                                    >
-                                        {saving ? (
-                                            <Loader2 className="h-3 w-3 animate-spin" />
-                                        ) : (
-                                            <Save className="h-3 w-3" />
-                                        )}
-                                        Save
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-                                {notes || (
-                                    <span className="text-[var(--text-muted)] italic">
-                                        No appearance notes yet.
-                                    </span>
-                                )}
-                            </p>
-                        )}
-                    </div>
+                    {/* Build Sheet — structured Character-Artist form. The
+                         composed string is what feeds the AI's appearance_notes
+                         placeholder, so the prompt stays human-readable. */}
+                    <SceneCharacterBuildSheet
+                        initialNotes={sc.notes}
+                        saving={saving}
+                        onSave={async (composed) => {
+                            setSaving(true);
+                            try {
+                                await updateSceneCharacter(sceneCharacterId, { notes: composed });
+                                setNotes(composed);
+                                toast.success("Build sheet saved");
+                                await fetchScene();
+                            } catch (err) {
+                                toast.error(extractApiError(err, "Failed to save build sheet"));
+                            } finally {
+                                setSaving(false);
+                            }
+                        }}
+                    />
 
                     {/* Scene-look history */}
                     <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-4">
