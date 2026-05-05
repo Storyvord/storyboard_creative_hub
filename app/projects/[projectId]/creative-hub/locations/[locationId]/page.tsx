@@ -1098,7 +1098,9 @@ export default function LocationDetailPage() {
                                             {timeFilter && (
                                                 <div className="flex items-center justify-between mb-1.5 -mt-1">
                                                     <span className="text-[9px] uppercase tracking-widest text-emerald-400">
-                                                        Filtered: {timeFilter}
+                                                        Filtered:{" "}
+                                                        {timeFilter.charAt(0).toUpperCase() +
+                                                            timeFilter.slice(1)}
                                                     </span>
                                                     <button
                                                         type="button"
@@ -1150,17 +1152,38 @@ export default function LocationDetailPage() {
                                                     : "grid-cols-3"
                                             }`}
                                         >
-                                            {(persona === "director"
-                                                ? [1, 2, 3, 4, 5, 6]
-                                                : [1, 2, 3]
-                                            ).map((i) => (
-                                                <div
-                                                    key={i}
-                                                    className="aspect-video rounded bg-[var(--surface-raised)] border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)]"
-                                                >
-                                                    <ImageIcon className="h-4 w-4 opacity-40" />
-                                                </div>
-                                            ))}
+                                            {/* Loop 3: Aria flagged the icon-only
+                                                 placeholder tiles read as "stubbed"
+                                                 instead of "demo data". A row of
+                                                 keyed gradient washes gives the
+                                                 strip visual rhythm so it reads as
+                                                 a mood swatch row, not a broken
+                                                 image grid. The DemoPill on the
+                                                 card header still flags placeholder
+                                                 status. */}
+                                            {(() => {
+                                                const swatches: Array<{ from: string; to: string }> = [
+                                                    { from: "from-emerald-500/20", to: "to-emerald-500/40" },
+                                                    { from: "from-indigo-500/20", to: "to-indigo-500/40" },
+                                                    { from: "from-amber-500/20", to: "to-amber-500/40" },
+                                                    { from: "from-sky-500/20", to: "to-sky-500/40" },
+                                                    { from: "from-rose-500/20", to: "to-rose-500/40" },
+                                                    { from: "from-fuchsia-500/20", to: "to-fuchsia-500/40" },
+                                                ];
+                                                const tiles = persona === "director"
+                                                    ? [0, 1, 2, 3, 4, 5]
+                                                    : [0, 1, 2];
+                                                return tiles.map((i) => {
+                                                    const s = swatches[i % swatches.length];
+                                                    return (
+                                                        <div
+                                                            key={i}
+                                                            className={`aspect-video rounded border border-[var(--border)] bg-gradient-to-br ${s.from} ${s.to}`}
+                                                            aria-hidden
+                                                        />
+                                                    );
+                                                });
+                                            })()}
                                         </div>
                                     </InfoCard>
                                 ),
