@@ -377,9 +377,56 @@ export default function SceneCharacterDetailPage() {
     };
 
     if (loading) {
+        // Skeleton matches the Character page layout (rail + content) so the
+        // initial-load shape doesn't shift under the artist's eyes once the
+        // real grid hydrates.
         return (
-            <div className="p-6 flex justify-center">
-                <Loader2 className="animate-spin h-6 w-6 text-[var(--text-muted)]" />
+            <div className="p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                    <div className="h-3 w-12 rounded bg-[var(--surface-hover)] animate-pulse" />
+                    <div className="h-3 w-12 rounded bg-[var(--surface-hover)] animate-pulse" />
+                </div>
+                <div className="space-y-2">
+                    <div className="h-5 w-64 rounded bg-[var(--surface-hover)] animate-pulse" />
+                    <div className="h-3 w-80 rounded bg-[var(--surface-hover)] animate-pulse" />
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+                    <div className="space-y-4">
+                        <div
+                            className="w-full rounded-xl bg-[var(--surface-raised)] animate-pulse"
+                            style={{ aspectRatio: "2/3" }}
+                        />
+                        <div className="h-9 rounded-md bg-[var(--surface-raised)] animate-pulse" />
+                        <div className="rounded-xl bg-[var(--surface-raised)] border border-[var(--border)] p-3 space-y-2">
+                            <div className="h-2.5 w-20 rounded bg-[var(--surface-hover)] animate-pulse" />
+                            <div className="grid grid-cols-3 gap-1.5">
+                                {[...Array(6)].map((_, i) => (
+                                    <div key={i} className="aspect-square rounded bg-[var(--surface-hover)] animate-pulse" />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="rounded-xl bg-[var(--surface-raised)] border border-[var(--border)] overflow-hidden">
+                        <div className="flex border-b border-[var(--border)]">
+                            {[...Array(3)].map((_, i) => (
+                                <div key={i} className="flex-1 h-10 bg-[var(--surface)] animate-pulse" />
+                            ))}
+                        </div>
+                        <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {[...Array(6)].map((_, i) => (
+                                <div key={i} className="rounded-lg bg-[var(--surface)] border border-[var(--border)] p-3 space-y-2">
+                                    <div className="h-3 w-16 rounded bg-[var(--surface-hover)] animate-pulse" />
+                                    <div className="h-12 rounded bg-[var(--surface-hover)] animate-pulse" />
+                                    <div className="flex gap-1.5">
+                                        {[...Array(4)].map((_, j) => (
+                                            <div key={j} className="h-4 w-12 rounded-full bg-[var(--surface-hover)] animate-pulse" />
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     }
@@ -486,7 +533,7 @@ export default function SceneCharacterDetailPage() {
                          Character page so the same artist sees consistent framing. */}
                     <div
                         className="aspect-[2/3] bg-[var(--background)] rounded-xl border border-[var(--border)] overflow-hidden relative cursor-pointer group"
-                        onClick={() => fileRef.current?.click()}
+                        onClick={() => imagePreview && fileRef.current?.click()}
                     >
                         {imagePreview ? (
                             <img
@@ -494,25 +541,55 @@ export default function SceneCharacterDetailPage() {
                                 alt="Scene look"
                                 className="w-full h-full object-contain"
                             />
-                        ) : sc.character?.image_url ? (
-                            <div className="w-full h-full relative">
-                                <img
-                                    src={sc.character.image_url}
-                                    alt="Base character"
-                                    className="w-full h-full object-contain opacity-70"
-                                />
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                    <span className="px-3 py-1 bg-black/60 text-white text-xs rounded-md backdrop-blur-md border border-white/10">
-                                        Showing base portrait — generate a scene look
-                                    </span>
-                                </div>
-                            </div>
                         ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
-                                <UserIcon className="h-8 w-8 mb-2 opacity-30" />
-                                <span className="text-[10px] uppercase tracking-wider">
-                                    No image yet — click to upload
-                                </span>
+                            // True empty state — small base-portrait thumb (when
+                            // available) anchors the artist's expectation, primary
+                            // Generate CTA does the real work, secondary upload
+                            // affordance stays present but de-emphasised.
+                            <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-[var(--text-muted)] p-4 text-center">
+                                {sc.character?.image_url ? (
+                                    <div className="w-16 aspect-[2/3] rounded-lg overflow-hidden border border-[var(--border)] bg-[var(--surface-raised)]">
+                                        <img
+                                            src={sc.character.image_url}
+                                            alt={`${baseName} base portrait`}
+                                            className="w-full h-full object-contain opacity-80"
+                                        />
+                                    </div>
+                                ) : (
+                                    <UserIcon className="h-10 w-10 opacity-30" />
+                                )}
+                                <div>
+                                    <p className="text-[11px] font-semibold text-[var(--text-secondary)]">
+                                        No scene look yet
+                                    </p>
+                                    <p className="text-[9px] text-[var(--text-muted)] mt-0.5">
+                                        {sc.character?.image_url
+                                            ? `Build the sheet, then generate against ${baseName}'s base portrait`
+                                            : "Build the sheet, then generate"}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleGenerate();
+                                    }}
+                                    disabled={generating || saving}
+                                    className="mt-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                                >
+                                    <Wand2 className="h-3 w-3" />
+                                    Generate scene look
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        fileRef.current?.click();
+                                    }}
+                                    className="text-[9px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline-offset-2 hover:underline flex items-center gap-1"
+                                >
+                                    <Upload className="h-2.5 w-2.5" /> or upload your own
+                                </button>
                             </div>
                         )}
                         {generating && (
