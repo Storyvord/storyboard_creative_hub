@@ -37,6 +37,10 @@ interface PrevizHistorySectionProps {
      * libraries where wide cards waste space and "square" (1:1) when the
      * subject doesn't have a strong vertical or horizontal bias. */
     thumbnailAspect?: "video" | "portrait" | "square";
+    /** Grid column count. Defaults to 2 for backward compat. Use 4 in
+     * wide panels (e.g. the Library tab on the SceneCharacter page) so
+     * full-body character looks aren't cropped at top/bottom. */
+    gridCols?: 2 | 3 | 4;
 }
 
 type FlatPreviz = {
@@ -82,6 +86,7 @@ export default function PrevizHistorySection({
     secondaryAction,
     infiniteScroll = false,
     thumbnailAspect = "video",
+    gridCols = 2,
 }: PrevizHistorySectionProps) {
     const aspectClass =
         thumbnailAspect === "portrait"
@@ -89,6 +94,12 @@ export default function PrevizHistorySection({
             : thumbnailAspect === "square"
               ? "aspect-square"
               : "aspect-video";
+    // Tailwind only sees class names that appear literally in source — switch
+    // statement keeps every value in plain text so the JIT doesn't drop them.
+    const gridColsClass =
+        gridCols === 4 ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
+        : gridCols === 3 ? "grid-cols-2 lg:grid-cols-3"
+        : "grid-cols-2";
     const [secondaryRunningId, setSecondaryRunningId] = useState<number | null>(null);
     const handleSecondary = async (previzId: number) => {
         if (!secondaryAction) return;
@@ -236,7 +247,7 @@ export default function PrevizHistorySection({
                             : ""
                     }
                 >
-                <div className="grid grid-cols-2 gap-3">
+                <div className={`grid ${gridColsClass} gap-3`}>
                     {history.map((previz) => {
                         const isActive = previz.id === activePrevizId;
                         const isSetting = settingActiveId === previz.id;
