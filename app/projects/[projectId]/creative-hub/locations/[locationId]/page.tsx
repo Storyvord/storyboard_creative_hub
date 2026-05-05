@@ -362,7 +362,18 @@ export default function LocationDetailPage() {
         }
     };
 
+    // Placeholder secured-status guard. When the backend ships
+    // secured / contract fields, this should read from `location` and
+    // block Delete on contracted-and-secured locations (Maya's note: a
+    // producer should never bin a location that has a signed contract
+    // by mistake). Today the field doesn't exist so we always allow.
+    const isContractLocked = false;
+
     const handleDelete = async () => {
+        if (isContractLocked) {
+            toast.error("This location is locked — a contract is on file.");
+            return;
+        }
         if (!confirm("Delete this location? This cannot be undone.")) return;
         try {
             await deleteLocation(locationId);
@@ -520,9 +531,17 @@ export default function LocationDetailPage() {
                 </div>
             </div>
 
-            {/* Title bar — full width above the working grid. Mirrors the
-                 SceneCharacter detail title strip so users on either page see
-                 the same anchor pattern: name + scene/context pills. */}
+            {/* Title bar — full width above the working grid. When the
+                 Producer persona is active, the row promotes the Production-
+                 tab summary (secured, day-rate, hold-expires, scene count)
+                 inline so Maya doesn't have to switch tabs to see what kind
+                 of risk this location is. Other personas keep the leaner
+                 anchor strip (time, secured pill, scene count) so wardrobe
+                 / cast aren't drowning in producer-side numbers.
+
+                 All status / cost / date values are placeholder (DemoPill
+                 marker tail) until the backend ships the corresponding
+                 fields. */}
             <div className="flex items-end justify-between flex-wrap gap-3">
                 <div className="min-w-0">
                     <h1 className="text-lg font-black text-[var(--text-primary)] tracking-tight">
@@ -535,14 +554,22 @@ export default function LocationDetailPage() {
                                 {time}
                             </span>
                         )}
-                        {/* Secured-status pill is intentionally placeholder — the
-                             field doesn't exist server-side yet. Marked with a
-                             demo pill so reviewers don't read it as live data. */}
                         <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase font-mono px-1.5 py-0.5 rounded tracking-wider flex items-center gap-1">
                             <ShieldCheck className="h-2.5 w-2.5" />
                             Permit pending
                         </span>
-                        <DemoPill />
+                        {persona === "producer" && (
+                            <>
+                                <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase font-mono px-1.5 py-0.5 rounded tracking-wider flex items-center gap-1">
+                                    <DollarSign className="h-2.5 w-2.5" />
+                                    $4,200/day
+                                </span>
+                                <span className="text-[9px] bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase font-mono px-1.5 py-0.5 rounded tracking-wider flex items-center gap-1">
+                                    <Calendar className="h-2.5 w-2.5" />
+                                    Hold ends 2026-05-20
+                                </span>
+                            </>
+                        )}
                         <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
                             <Film className="h-3 w-3 text-emerald-500" />
                             4 scenes shoot here
