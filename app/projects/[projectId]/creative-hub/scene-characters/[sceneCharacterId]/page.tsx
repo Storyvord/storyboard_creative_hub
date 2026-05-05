@@ -90,6 +90,10 @@ export default function SceneCharacterDetailPage() {
     const [isModelOpen, setIsModelOpen] = useState(false);
     const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
     const [activeTab, setActiveTab] = useState<"build" | "wardrobe" | "library">("build");
+    // Library sub-tab: "parent" surfaces the global Character's pool (with
+    // a secondary "Use for this scene" action), "current" surfaces only
+    // this scene-character's own generations.
+    const [librarySubTab, setLibrarySubTab] = useState<"parent" | "current">("parent");
 
     // Wardrobe state — ported from the deprecated SceneCharacterDetailModal so
     // the dedicated detail page is feature-complete and the modal can retire.
@@ -898,46 +902,96 @@ export default function SceneCharacterDetailPage() {
                         )}
 
                         {activeTab === "library" && (
-                            <div className="p-4">
-                                {sc.character?.id ? (
+                            <div className="p-4 space-y-3">
+                                {/* Sub-tabs: scope the library to either the
+                                     parent Character's full pool (default —
+                                     shows base portraits + every sibling
+                                     scene look) or this scene-character's
+                                     own generations. The PrevizHistorySection
+                                     below remounts on switch (via `key`) so
+                                     pagination + scroll position reset. */}
+                                <div className="flex gap-1 border-b border-[var(--border)]">
+                                    {(
+                                        [
+                                            { key: "parent", label: "Parent Character" },
+                                            { key: "current", label: "Current Scene" },
+                                        ] as const
+                                    ).map((t) => {
+                                        const active = librarySubTab === t.key;
+                                        return (
+                                            <button
+                                                key={t.key}
+                                                type="button"
+                                                onClick={() => setLibrarySubTab(t.key)}
+                                                className={`px-3 py-1.5 text-[10px] font-medium uppercase tracking-widest transition-colors border-b-2 -mb-px ${
+                                                    active
+                                                        ? "border-emerald-500 text-emerald-400"
+                                                        : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                                                }`}
+                                            >
+                                                {t.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {librarySubTab === "parent" ? (
+                                    sc.character?.id ? (
+                                        <PrevizHistorySection
+                                            key="library-parent"
+                                            kind="character"
+                                            subjectId={sc.character.id}
+                                            subjectLabel={`Library — ${baseName}`}
+                                            activePrevizId={sc.character.active_previz ?? null}
+                                            refreshKey={historyRefreshKey}
+                                            infiniteScroll
+                                            onActivePrevizChange={() => {
+                                                fetchScene();
+                                                setHistoryRefreshKey((k) => k + 1);
+                                            }}
+                                            secondaryAction={{
+                                                label: "Use for this scene",
+                                                title: "Apply this image to the current scene character",
+                                                onClick: async (previzId) => {
+                                                    try {
+                                                        await setActiveSubjectPreviz(
+                                                            "scene_character",
+                                                            sceneCharacterId,
+                                                            previzId,
+                                                        );
+                                                        toast.success("Applied to this scene");
+                                                        await fetchScene();
+                                                        setHistoryRefreshKey((k) => k + 1);
+                                                    } catch (err) {
+                                                        toast.error(
+                                                            extractApiError(
+                                                                err,
+                                                                "Failed to apply.",
+                                                            ),
+                                                        );
+                                                    }
+                                                },
+                                            }}
+                                        />
+                                    ) : (
+                                        <p className="text-[10px] text-[var(--text-muted)] italic py-4 text-center">
+                                            This scene character is not linked to a global character — no shared library.
+                                        </p>
+                                    )
+                                ) : (
                                     <PrevizHistorySection
-                                        kind="character"
-                                        subjectId={sc.character.id}
-                                        subjectLabel={`Library — ${baseName}`}
-                                        activePrevizId={sc.character.active_previz ?? null}
+                                        key="library-current"
+                                        kind="scene_character"
+                                        subjectId={sceneCharacterId}
+                                        subjectLabel={`Scene look — ${baseName}`}
+                                        activePrevizId={sc.active_previz ?? null}
                                         refreshKey={historyRefreshKey}
+                                        infiniteScroll
                                         onActivePrevizChange={() => {
                                             fetchScene();
                                             setHistoryRefreshKey((k) => k + 1);
                                         }}
-                                        secondaryAction={{
-                                            label: "Use for this scene",
-                                            title: "Apply this image to the current scene character",
-                                            onClick: async (previzId) => {
-                                                try {
-                                                    await setActiveSubjectPreviz(
-                                                        "scene_character",
-                                                        sceneCharacterId,
-                                                        previzId,
-                                                    );
-                                                    toast.success("Applied to this scene");
-                                                    await fetchScene();
-                                                    setHistoryRefreshKey((k) => k + 1);
-                                                } catch (err) {
-                                                    toast.error(
-                                                        extractApiError(
-                                                            err,
-                                                            "Failed to apply.",
-                                                        ),
-                                                    );
-                                                }
-                                            },
-                                        }}
                                     />
-                                ) : (
-                                    <p className="text-[10px] text-[var(--text-muted)] italic py-4 text-center">
-                                        This scene character is not linked to a global character — no shared library.
-                                    </p>
                                 )}
                             </div>
                         )}
