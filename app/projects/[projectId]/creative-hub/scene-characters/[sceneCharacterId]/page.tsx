@@ -36,6 +36,8 @@ import {
     Shirt,
     Film,
     Plus,
+    MapPin,
+    Clock,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
@@ -57,6 +59,15 @@ interface SceneCharacterDetail {
     [key: string]: unknown;
 }
 
+interface SceneMeta {
+    scene_name?: string;
+    int_ext?: string | null;
+    location?: string | null;
+    environment?: string | null;
+    time?: string | null;
+    order?: number | null;
+}
+
 export default function SceneCharacterDetailPage() {
     const params = useParams();
     const router = useRouter();
@@ -64,6 +75,7 @@ export default function SceneCharacterDetailPage() {
     const sceneCharacterId = Number(params.sceneCharacterId);
 
     const [sc, setSc] = useState<SceneCharacterDetail | null>(null);
+    const [sceneMeta, setSceneMeta] = useState<SceneMeta | null>(null);
     const [loading, setLoading] = useState(true);
 
     const [imageFile, setImageFile] = useState<File | null>(null);
@@ -129,6 +141,14 @@ export default function SceneCharacterDetailPage() {
                 if (data.scene !== undefined && data.scene !== null) {
                     try {
                         const scene = await getScene(Number(data.scene));
+                        setSceneMeta({
+                            scene_name: scene.scene_name,
+                            int_ext: scene.int_ext ?? null,
+                            location: scene.location ?? null,
+                            environment: scene.environment ?? null,
+                            time: (scene as { time?: string | null }).time ?? null,
+                            order: scene.order ?? null,
+                        });
                         const scriptId = (scene as { script_id?: number; script?: number }).script_id
                             ?? (scene as { script?: number }).script;
                         if (scriptId) await fetchClothLibrary(Number(scriptId));
@@ -364,14 +384,36 @@ export default function SceneCharacterDetailPage() {
 
             {/* Title bar — full width above the working grid */}
             <div className="flex items-end justify-between flex-wrap gap-3">
-                <div>
+                <div className="min-w-0">
                     <h1 className="text-lg font-black text-[var(--text-primary)] tracking-tight">
                         Scene Look — <span className="text-emerald-400">{baseName}</span>
+                        {sceneMeta?.scene_name && (
+                            <span className="text-[var(--text-muted)] font-semibold"> · {sceneMeta.scene_name}</span>
+                        )}
                     </h1>
-                    <div className="flex items-center gap-3 mt-1">
-                        {sc.scene !== undefined && (
+                    {/* Scene-context strip — INT/EXT, location, environment pills.
+                         Mirrors the SceneLookEditor header on the Character page so
+                         the artist sees the same scene anchors on either surface. */}
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        {(sceneMeta?.order != null || sc.scene !== undefined) && (
+                            <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1 font-mono">
+                                <Film className="h-3 w-3 text-emerald-500" />
+                                SC {String(sceneMeta?.order ?? sc.scene ?? 0).padStart(2, "0")}
+                            </span>
+                        )}
+                        {sceneMeta?.int_ext && (
+                            <span className="text-[9px] bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)] uppercase font-mono px-1.5 py-0.5 rounded tracking-wider">
+                                {sceneMeta.int_ext}
+                            </span>
+                        )}
+                        {sceneMeta?.location && (
                             <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
-                                <Film className="h-3 w-3 text-emerald-500" /> Scene #{sc.scene}
+                                <MapPin className="h-3 w-3" />{sceneMeta.location}
+                            </span>
+                        )}
+                        {sceneMeta?.environment && (
+                            <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
+                                <Clock className="h-3 w-3" />{sceneMeta.environment}
                             </span>
                         )}
                         <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
@@ -394,15 +436,17 @@ export default function SceneCharacterDetailPage() {
                 </div>
             </div>
 
-            {/* Two-column working grid: hero rail (1/3) + stylist tools (2/3).
-                 Mirrors the Character page proportions so artists working on
-                 either page have a consistent layout. */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Two-column working grid: fixed-width hero rail (280px) + stylist tools.
+                 Mirrors the Character page's `lg:grid-cols-[260px_1fr]` rail so artists
+                 working on either page have a consistent layout — wider here because
+                 the SceneCharacter rail also hosts the compact history strip. */}
+            <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
                 {/* Left rail: hero + generate + compact history */}
                 <div className="space-y-4">
-                    {/* Image */}
+                    {/* Image — `aspect-[2/3]` portrait orientation matches the
+                         Character page so the same artist sees consistent framing. */}
                     <div
-                        className="aspect-video bg-[var(--background)] rounded-xl border border-[var(--border)] overflow-hidden relative cursor-pointer group"
+                        className="aspect-[2/3] bg-[var(--background)] rounded-xl border border-[var(--border)] overflow-hidden relative cursor-pointer group"
                         onClick={() => fileRef.current?.click()}
                     >
                         {imagePreview ? (
@@ -510,7 +554,7 @@ export default function SceneCharacterDetailPage() {
                 </div>
 
                 {/* Right: stylist tools tabbed area */}
-                <div className="lg:col-span-2">
+                <div className="min-w-0">
                     <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] overflow-hidden">
                         {/* Tab bar */}
                         <div className="flex border-b border-[var(--border)] bg-[var(--surface)]">
