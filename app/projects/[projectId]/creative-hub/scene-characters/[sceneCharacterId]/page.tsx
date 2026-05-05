@@ -300,16 +300,10 @@ export default function SceneCharacterDetailPage() {
         }
     };
 
-    // Holds the prompt to send when the model dialog confirms. When the
-    // generate flow originates from the Build Sheet, this is the composed
-    // prompt (auto-saved); when it originates from the legacy page-level
-    // button, this falls back to the persisted `notes`.
+    // Holds the composed Build Sheet prompt to send once the model dialog
+    // confirms. The Build Sheet is the only generate entry point, so this is
+    // always set before the ModelSelector opens.
     const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
-
-    const handleGenerate = () => {
-        setPendingPrompt(null);
-        setIsModelOpen(true);
-    };
 
     const handleBuildSheetGenerate = async (composed: string) => {
         // Auto-save the composed prompt so the artist can never trigger a
@@ -336,6 +330,9 @@ export default function SceneCharacterDetailPage() {
         quality?: string,
         size?: string,
     ) => {
+        // Build Sheet is the only entry point; pendingPrompt is always set,
+        // but fall back to persisted notes for safety in the unlikely event
+        // the dialog is opened with no composed prompt.
         const promptForGen = pendingPrompt ?? notes;
         setIsModelOpen(false);
         setPendingPrompt(null);
@@ -572,13 +569,12 @@ export default function SceneCharacterDetailPage() {
                                     type="button"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        handleGenerate();
+                                        setActiveTab("build");
                                     }}
-                                    disabled={generating || saving}
-                                    className="mt-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                                    className="mt-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5"
                                 >
                                     <Wand2 className="h-3 w-3" />
-                                    Generate scene look
+                                    Build &amp; generate
                                 </button>
                                 <button
                                     type="button"
@@ -616,25 +612,6 @@ export default function SceneCharacterDetailPage() {
                             onChange={handleFileChange}
                         />
                     </div>
-
-                    {/* Generate button */}
-                    <button
-                        onClick={handleGenerate}
-                        disabled={generating || saving}
-                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                        {generating ? (
-                            <>
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                Generating…
-                            </>
-                        ) : (
-                            <>
-                                <Wand2 className="h-3.5 w-3.5" />
-                                AI Generate Scene Look
-                            </>
-                        )}
-                    </button>
 
                     {/* Compact history — drawn from the parent character pool
                          so it includes both base portraits and every sibling
