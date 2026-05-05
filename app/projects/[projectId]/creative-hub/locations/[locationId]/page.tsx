@@ -1239,8 +1239,18 @@ export default function LocationDetailPage() {
                                     />
                                 </InfoCard>
 
-                                <InfoCard title="Restrictions" icon={AlertTriangle} demo>
-                                    <ul className="space-y-1.5 text-[11px] text-[var(--text-secondary)]">
+                                {/* Merged Restrictions + Permit card — Loop 1
+                                     critique: the old Restrictions card here
+                                     and the Permit & paperwork card on the
+                                     Production tab were both answering "what
+                                     can we do at this location". Now they
+                                     live in one place, on Logistics where the
+                                     answer is most often needed in the field.
+                                     The producer still gets a permit-status
+                                     pill in the title row + the secured-status
+                                     card on Production, so they aren't blind. */}
+                                <InfoCard title="Restrictions & permits" icon={AlertTriangle} demo>
+                                    <ul className="space-y-1.5 text-[11px] text-[var(--text-secondary)] mb-2">
                                         <li className="flex items-start gap-1.5">
                                             <AlertTriangle className="h-3 w-3 text-amber-400 mt-0.5 flex-shrink-0" />
                                             <span>No open flame — interior is heritage-listed</span>
@@ -1254,6 +1264,23 @@ export default function LocationDetailPage() {
                                             <span>No marking floors — gaff tape only on the rubber mats</span>
                                         </li>
                                     </ul>
+                                    <div className="border-t border-[var(--border)] pt-2 space-y-0.5">
+                                        <InfoRow
+                                            icon={ClipboardList}
+                                            label="City permit"
+                                            value="Pending — ref #CFO-22431"
+                                        />
+                                        <InfoRow
+                                            icon={ClipboardList}
+                                            label="Insurance"
+                                            value="$2M GL on file · cert sent 2026-04-30"
+                                        />
+                                        <InfoRow
+                                            icon={ClipboardList}
+                                            label="Drone waiver"
+                                            value="Submitted, awaiting FAA"
+                                        />
+                                    </div>
                                 </InfoCard>
 
                                 <InfoCard title="On-site contact" icon={Phone} demo>
@@ -1303,23 +1330,13 @@ export default function LocationDetailPage() {
                                     />
                                 </InfoCard>
 
-                                <InfoCard title="Permit & paperwork" icon={ClipboardList} demo>
-                                    <InfoRow
-                                        icon={ClipboardList}
-                                        label="City permit"
-                                        value="Pending — contact City Film Office (ref #CFO-22431)"
-                                    />
-                                    <InfoRow
-                                        icon={ClipboardList}
-                                        label="Insurance"
-                                        value="$2M GL on file; certificate emailed to owner 2026-04-30"
-                                    />
-                                    <InfoRow
-                                        icon={ClipboardList}
-                                        label="Drone waiver"
-                                        value="Submitted, awaiting FAA acknowledgement"
-                                    />
-                                </InfoCard>
+                                {/* Permit & paperwork card was here in Loop 1
+                                     but it duplicated the Logistics-tab
+                                     Restrictions card. Merged into a single
+                                     "Restrictions & permits" card on
+                                     Logistics. Producer still gets the
+                                     permit-pending pill in the title row and
+                                     the Secured status card below. */}
 
                                 <InfoCard title="Vendor & cost" icon={DollarSign} demo>
                                     <InfoRow
