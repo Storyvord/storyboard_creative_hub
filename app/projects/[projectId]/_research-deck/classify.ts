@@ -141,9 +141,15 @@ export function labelKey(obj: Record<string, unknown>): string {
 // envelope sections route through the same component dispatcher used for the
 // classifier. Returns null when the hint is unrecognised so callers fall back
 // to the heuristic `classifySection`.
-export function vizTypeToKind(vizType: string | undefined | null): SectionKind | null {
-  if (!vizType) return null;
-  switch (vizType.toLowerCase()) {
+export function vizTypeToKind(vizType: unknown): SectionKind | null {
+  // Defensive: backend payloads sometimes deliver `viz_type` as a non-string
+  // (number, boolean, nested object) when the field is mis-populated. Coerce
+  // to a normalised string and bail on anything that isn't string-castable
+  // rather than crashing the whole deck render.
+  if (vizType === null || vizType === undefined) return null;
+  const s = typeof vizType === "string" ? vizType : String(vizType);
+  if (!s) return null;
+  switch (s.toLowerCase()) {
     case "prose":
     case "narrative":
     case "summary":
