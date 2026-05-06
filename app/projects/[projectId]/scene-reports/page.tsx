@@ -30,7 +30,6 @@ import {
 import {
   CustomSceneReportType,
   SceneGeneratedReport,
-  SceneReportEnvelope,
   SystemSceneReportType,
 } from "@/types/scene-reports";
 
@@ -39,28 +38,7 @@ import { PALETTE } from "../_research-deck/classify";
 import ScenePicker from "./_components/ScenePicker";
 import GenerateSceneReportsModal, { GenerateSelection } from "./_components/GenerateSceneReportsModal";
 import NewCustomSceneReportModal from "./_components/NewCustomSceneReportModal";
-
-// ── Legacy fallback detector ─────────────────────────────────────────────────
-function isLegacyEnvelope(env: SceneReportEnvelope | null | undefined): boolean {
-  if (!env) return false;
-  if (env.tab_type === "legacy_markdown") return true;
-  if (typeof env.legacy_markdown === "string" && env.legacy_markdown.trim().length > 0) return true;
-  const firstSection = env.sections?.[0];
-  const firstProse = firstSection?.data?.prose as Record<string, unknown> | undefined;
-  if (firstProse && typeof firstProse.markdown === "string" && (firstProse.markdown as string).trim().length > 0) {
-    return env.tab_type === "legacy_markdown";
-  }
-  return false;
-}
-
-function extractLegacyMarkdown(env: SceneReportEnvelope | null | undefined): string {
-  if (!env) return "";
-  if (typeof env.legacy_markdown === "string" && env.legacy_markdown.trim().length > 0) return env.legacy_markdown;
-  const firstSection = env.sections?.[0];
-  const prose = firstSection?.data?.prose as Record<string, unknown> | undefined;
-  if (prose && typeof prose.markdown === "string") return prose.markdown as string;
-  return "";
-}
+import LegacyReportView, { extractLegacyMarkdown, isLegacyEnvelope } from "./_components/LegacyReportView";
 
 // ── Generated-report renderer ────────────────────────────────────────────────
 function SceneReportDocument({
@@ -830,68 +808,3 @@ export default function SceneReportsPage() {
   );
 }
 
-// ── Legacy report view (placeholder; full impl in dedicated commit) ────────
-function LegacyReportView({
-  markdown,
-  onRegenerate,
-  regenerating,
-}: {
-  markdown: string;
-  onRegenerate: () => void;
-  regenerating: boolean;
-}) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          padding: "10px 14px",
-          borderRadius: 10,
-          border: "1px solid rgba(234,179,8,0.4)",
-          background: "rgba(234,179,8,0.1)",
-        }}
-      >
-        <p style={{ margin: 0, fontSize: 12, color: "#854d0e" }}>
-          Legacy report — regenerate for the new deck layout.
-        </p>
-        <button
-          onClick={onRegenerate}
-          disabled={regenerating}
-          style={{
-            padding: "6px 12px",
-            borderRadius: 6,
-            border: "1px solid rgba(234,179,8,0.5)",
-            background: "rgba(234,179,8,0.2)",
-            color: "#854d0e",
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: regenerating ? "wait" : "pointer",
-            opacity: regenerating ? 0.6 : 1,
-          }}
-        >
-          {regenerating ? "Regenerating…" : "Regenerate"}
-        </button>
-      </div>
-      <pre
-        style={{
-          margin: 0,
-          padding: 16,
-          borderRadius: 10,
-          border: "1px solid var(--border)",
-          background: "var(--surface)",
-          fontSize: 12,
-          lineHeight: 1.6,
-          color: "var(--text-secondary)",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-        }}
-      >
-        {markdown || "No legacy markdown content."}
-      </pre>
-    </div>
-  );
-}
