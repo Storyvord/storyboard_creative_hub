@@ -18,7 +18,7 @@ import {
 import { toast } from "react-toastify";
 
 import { Scene, Script } from "@/types/creative-hub";
-import { getScenes, getScripts } from "@/services/creative-hub";
+import { getBulkTaskStatus, getScenes, getScripts } from "@/services/creative-hub";
 import {
   bulkGenerateSceneReports,
   generateSceneReport,
@@ -33,8 +33,8 @@ import {
   SystemSceneReportType,
 } from "@/types/scene-reports";
 
-import { DeckRenderer } from "../_research-deck/DeckRenderer";
-import { PALETTE } from "../_research-deck/classify";
+import { DeckRenderer } from "../../_research-deck/DeckRenderer";
+import { PALETTE } from "../../_research-deck/classify";
 import ScenePicker from "./_components/ScenePicker";
 import GenerateSceneReportsModal, { GenerateSelection } from "./_components/GenerateSceneReportsModal";
 import NewCustomSceneReportModal from "./_components/NewCustomSceneReportModal";
@@ -140,9 +140,22 @@ export default function SceneReportsPage() {
 
   const [bootLoading, setBootLoading] = useState(true);
   const [reportsLoading, setReportsLoading] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  // Captured at handleGenerate start so the report grid can render one
+  // skeleton card per pending report (with the actual report_name) while
+  // the AI is working. Cleared by the polling effect as tasks settle.
+  const [pendingReports, setPendingReports] = useState<GenerateSelection[]>([]);
+  // Tracks in-flight Celery tasks (STO-1071 async generation). Each entry maps
+  // a Celery task_id back to its (report_type, report_name) skeleton plus the
+  // wall-clock time it was enqueued — used for the 15-min hard cap. Polled at
+  // 5s while non-empty.
+  const [pendingTasks, setPendingTasks] = useState<
+    { task_id: string; report_type: "system" | "custom"; report_name: string; enqueued_at: number }[]
+  >([]);
   const [showGenerate, setShowGenerate] = useState(false);
   const [showNewCustom, setShowNewCustom] = useState(false);
+
+  // `generating` is purely derived from in-flight tasks now; no separate state.
+  const generating = pendingTasks.length > 0;
 
   // ── Initial: scripts + report types (project-scoped) ────────────────────────
   useEffect(() => {
@@ -234,32 +247,50 @@ export default function SceneReportsPage() {
   }, [selectedScene, refreshSceneReports]);
 
   // ── Generation handlers ────────────────────────────────────────────────────
+  // STO-1071: backend now returns 202 + task_ids immediately; we enqueue the
+  // skeletons + tasks and let the polling effect drive the UI to settled state.
   const handleGenerate = async (selected: GenerateSelection[]) => {
     if (!selectedScene?.id) return;
     if (selected.length === 0) {
       toast.error("Select at least one report.");
       return;
     }
-    setGenerating(true);
+    setPendingReports(selected);
     setShowGenerate(false);
     try {
-      if (selected.length === 1) {
-        const result = await generateSceneReport(selectedScene.id, {
-          report_type: selected[0].report_type,
-          report_name: selected[0].report_name,
-          force_regenerate: true,
-        });
-        toast.success(result.message ?? "Scene report generated.");
-        await refreshSceneReports(selectedScene.id);
-        if (result.report?.id) setActiveTab(`report-${result.report.id}`);
-      } else {
-        await bulkGenerateSceneReports(selectedScene.id, {
-          reports: selected,
-          force_regenerate: true,
-        });
-        toast.success("Scene reports generated.");
-        await refreshSceneReports(selectedScene.id);
+      const result =
+        selected.length === 1
+          ? await generateSceneReport(selectedScene.id, {
+              report_type: selected[0].report_type,
+              report_name: selected[0].report_name,
+              force_regenerate: true,
+            })
+          : await bulkGenerateSceneReports(selectedScene.id, {
+              reports: selected,
+              force_regenerate: true,
+            });
+
+      // Map task_ids → skeletons by index (response order is preserved).
+      const enqueuedAt = Date.now();
+      const newTasks = result.task_ids.map((task_id, i) => {
+        const r = result.reports[i] ?? selected[i];
+        return {
+          task_id,
+          report_type: (r?.report_type ?? "system") as "system" | "custom",
+          report_name: r?.report_name ?? "",
+          enqueued_at: enqueuedAt,
+        };
+      });
+      if (newTasks.length === 0) {
+        // No tasks came back (shouldn't happen) — clear skeletons & bail.
+        setPendingReports([]);
+        toast.error("Generation request did not return any tasks.");
+        return;
       }
+      setPendingTasks((prev) => [...prev, ...newTasks]);
+      toast.info(
+        `Queued ${newTasks.length} report${newTasks.length === 1 ? "" : "s"} — generating in background…`,
+      );
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string; error?: string; errors?: unknown } } };
       const msg =
@@ -267,8 +298,7 @@ export default function SceneReportsPage() {
         err?.response?.data?.error ??
         (err?.response?.data?.errors ? "Some reports failed to generate." : "Failed to generate reports.");
       toast.error(msg);
-    } finally {
-      setGenerating(false);
+      setPendingReports([]);
     }
   };
 
@@ -280,24 +310,156 @@ export default function SceneReportsPage() {
         toast.error("Cannot regenerate — report name missing.");
         return;
       }
-      setGenerating(true);
+      const skeleton: GenerateSelection = {
+        report_type: report.report_type,
+        report_name: reportName,
+      };
+      setPendingReports((prev) => [...prev, skeleton]);
       try {
-        await generateSceneReport(selectedScene.id, {
+        const result = await generateSceneReport(selectedScene.id, {
           report_type: report.report_type,
           report_name: reportName,
           force_regenerate: true,
         });
-        toast.success("Report regenerated.");
-        await refreshSceneReports(selectedScene.id);
+        const enqueuedAt = Date.now();
+        const newTasks = result.task_ids.map((task_id, i) => {
+          const r = result.reports[i] ?? skeleton;
+          return {
+            task_id,
+            report_type: (r?.report_type ?? "system") as "system" | "custom",
+            report_name: r?.report_name ?? reportName,
+            enqueued_at: enqueuedAt,
+          };
+        });
+        if (newTasks.length === 0) {
+          setPendingReports((prev) =>
+            prev.filter(
+              (p) => !(p.report_name === skeleton.report_name && p.report_type === skeleton.report_type),
+            ),
+          );
+          toast.error("Regeneration request did not return any tasks.");
+          return;
+        }
+        setPendingTasks((prev) => [...prev, ...newTasks]);
+        toast.info("Queued regeneration — running in background…");
       } catch (e) {
         console.error(e);
         toast.error("Regeneration failed.");
-      } finally {
-        setGenerating(false);
+        setPendingReports((prev) =>
+          prev.filter(
+            (p) => !(p.report_name === skeleton.report_name && p.report_type === skeleton.report_type),
+          ),
+        );
       }
     },
-    [selectedScene, refreshSceneReports],
+    [selectedScene],
   );
+
+  // ── Polling for in-flight Celery tasks (STO-1071) ──────────────────────────
+  // Polls /bulk_taskstatus/ every 5s while there are unsettled tasks. On each
+  // settled task we refetch the report list and drop the matching skeleton +
+  // task entry. Tasks running >15min are abandoned with a toast (the row
+  // exists server-side; the user can refresh later). We stop polling on
+  // unmount and when `selectedScene.id` changes (so navigating away doesn't
+  // keep the timer alive against a stale scene).
+  useEffect(() => {
+    if (pendingTasks.length === 0) return;
+    if (!selectedScene?.id) return;
+
+    const sceneId = selectedScene.id;
+    const HARD_CAP_MS = 15 * 60 * 1000;
+    const SETTLED = new Set(["completed", "success", "failed", "failure"]);
+    let cancelled = false;
+
+    const tick = async () => {
+      // Snapshot current pending tasks; abandon anything past the 15-min cap.
+      const now = Date.now();
+      const stale = pendingTasks.filter((p) => now - p.enqueued_at > HARD_CAP_MS);
+      if (stale.length > 0) {
+        for (const s of stale) {
+          toast.error(
+            `${s.report_name || "Report"} — generation taking longer than expected; check back later.`,
+          );
+        }
+        if (!cancelled) {
+          setPendingTasks((prev) => prev.filter((p) => !stale.some((s) => s.task_id === p.task_id)));
+          setPendingReports((prev) =>
+            prev.filter(
+              (pr) =>
+                !stale.some((s) => s.report_name === pr.report_name && s.report_type === pr.report_type),
+            ),
+          );
+        }
+      }
+
+      const liveTasks = pendingTasks.filter((p) => now - p.enqueued_at <= HARD_CAP_MS);
+      if (liveTasks.length === 0) return;
+
+      let data: { tasks?: { task_id: string; status: string; error?: string }[] };
+      try {
+        data = await getBulkTaskStatus(liveTasks.map((t) => t.task_id));
+      } catch (err) {
+        console.error("[scene-reports] bulk task status poll failed:", err);
+        return;
+      }
+      if (cancelled) return;
+
+      const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+      const settled = tasks.filter((t) => SETTLED.has((t.status ?? "").toLowerCase()));
+      if (settled.length === 0) return;
+
+      const successes = settled.filter((t) => ["completed", "success"].includes((t.status ?? "").toLowerCase()));
+      const failures = settled.filter((t) => ["failed", "failure"].includes((t.status ?? "").toLowerCase()));
+
+      // Refetch report list — the new cards will appear and the matching
+      // skeleton will drop in the same render via the setPendingReports below.
+      try {
+        await refreshSceneReports(sceneId);
+      } catch (err) {
+        console.error("[scene-reports] refresh after settle failed:", err);
+      }
+      if (cancelled) return;
+
+      // Toast failures (success is visible as the new card).
+      for (const f of failures) {
+        const matched = liveTasks.find((p) => p.task_id === f.task_id);
+        toast.error(`${matched?.report_name ?? "Report"} failed${f.error ? `: ${f.error}` : ""}`);
+      }
+
+      const settledIds = new Set(settled.map((s) => s.task_id));
+      const settledKeys = new Set(
+        liveTasks
+          .filter((p) => settledIds.has(p.task_id))
+          .map((p) => `${p.report_type}::${p.report_name}`),
+      );
+      setPendingTasks((prev) => prev.filter((p) => !settledIds.has(p.task_id)));
+      setPendingReports((prev) =>
+        prev.filter((pr) => !settledKeys.has(`${pr.report_type}::${pr.report_name}`)),
+      );
+
+      // If this drained the queue and we had at least one success, celebrate.
+      if (settled.length === liveTasks.length && successes.length > 0) {
+        toast.success(
+          successes.length === 1 ? "Scene report generated." : "All scene reports generated.",
+        );
+      }
+    };
+
+    tick();
+    const id = window.setInterval(tick, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [pendingTasks, selectedScene?.id, refreshSceneReports]);
+
+  // If the user navigates to a different scene while tasks are in flight,
+  // drop the skeletons + task entries so the new scene doesn't show stale
+  // pending UI. The tasks themselves will still complete server-side.
+  useEffect(() => {
+    setPendingReports([]);
+    setPendingTasks([]);
+  }, [selectedScene?.id]);
 
   // ── Tabs ───────────────────────────────────────────────────────────────────
   const systemGenerated = generatedReports.filter((r) => r.report_type !== "custom");
@@ -448,7 +610,7 @@ export default function SceneReportsPage() {
       {/* Body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 32px" }}>
         {!selectedScene ? (
-          <div style={{ maxWidth: 1100, margin: "0 auto", marginTop: 8 }}>
+          <div style={{ maxWidth: 1100, marginInline: "auto", marginTop: 8, marginBottom: 0 }}>
             <ScenePicker
               scripts={scripts}
               selectedScript={selectedScript}
@@ -603,7 +765,7 @@ export default function SceneReportsPage() {
                     />
                     <p style={{ fontSize: 13, color: "var(--text-muted)" }}>Loading reports…</p>
                   </div>
-                ) : generatedReports.length === 0 ? (
+                ) : generatedReports.length === 0 && pendingReports.length === 0 ? (
                   <div
                     style={{
                       padding: "48px 0",
@@ -646,6 +808,48 @@ export default function SceneReportsPage() {
                       gap: 12,
                     }}
                   >
+                    {/* One skeleton per in-flight report, labelled with the
+                         requested report_name so the user knows what's
+                         cooking. Sits alongside existing report cards if any. */}
+                    {pendingReports.map((p, i) => (
+                      <div
+                        key={`pending-${p.report_name}-${i}`}
+                        aria-busy="true"
+                        aria-label={`Generating ${p.report_name}`}
+                        className="animate-pulse"
+                        style={{
+                          padding: 16,
+                          borderRadius: 12,
+                          border: "1px dashed var(--border)",
+                          background: "var(--surface)",
+                          position: "relative",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            background:
+                              "linear-gradient(120deg, transparent 0%, rgba(34,197,94,0.06) 50%, transparent 100%)",
+                          }}
+                        />
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, position: "relative" }}>
+                          <Loader2 size={12} className="animate-spin" style={{ color: "#22c55e" }} />
+                          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#22c55e" }}>
+                            Generating
+                          </span>
+                        </div>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 10, position: "relative" }}>
+                          {p.report_name}
+                        </p>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, position: "relative" }}>
+                          <div style={{ height: 8, borderRadius: 4, background: "var(--surface-hover)", width: "92%" }} />
+                          <div style={{ height: 8, borderRadius: 4, background: "var(--surface-hover)", width: "76%" }} />
+                          <div style={{ height: 8, borderRadius: 4, background: "var(--surface-hover)", width: "84%" }} />
+                        </div>
+                      </div>
+                    ))}
                     {generatedReports.map((r, i) => {
                       const isCustom = r.report_type === "custom";
                       const color = isCustom ? "#3b82f6" : PALETTE[i % PALETTE.length];
