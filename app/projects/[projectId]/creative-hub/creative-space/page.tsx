@@ -21,6 +21,7 @@ import {
   getBulkTaskStatus,
   getLatestTaskStatus,
   getPrevisualization,
+  isTaskBackfillRow,
 } from "@/services/creative-hub";
 import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
@@ -805,6 +806,9 @@ export default function CreativeSpacePage() {
           return;
         }
         if (FAILED_TASK_STATUSES.has(status.status)) {
+          // Skip migration-backfilled rows (STO-1073 0070) — those weren't
+          // real failures, just precheck markers from the index migration.
+          if (isTaskBackfillRow(status)) return;
           // Surface the failure as an errored tile so the user isn't left
           // staring at a silent spinner.
           markErrored(previzId, "Image generation failed");

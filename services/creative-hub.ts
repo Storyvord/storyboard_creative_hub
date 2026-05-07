@@ -601,6 +601,7 @@ export interface LatestTaskStatus {
     progress_current: number;
     progress_total: number;
     progress_message: string;
+    error?: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -996,4 +997,18 @@ export const getScriptPrevizHistory = async (
         previous: data.previous ?? null,
         results: data.results ?? [],
     };
+};
+
+// ─── Backfill-row filter ───────────────────────────────────────────────────
+// STO-1073 migration 0070 marked older stuck-in-flight TaskStatus rows as
+// `failed` so the new partial unique index could be created. Those rows
+// carry a stable error prefix; mount-time restore must NOT surface them as
+// fresh failures or every user sees the migration message in their UI.
+export const TASK_BACKFILL_ERROR_PREFIX =
+    "Marked failed by STO-1073 partial-unique-index precheck";
+
+export const isTaskBackfillRow = (task: { error?: string | null } | null | undefined): boolean => {
+    if (!task) return false;
+    const err = (task.error || "").trim();
+    return err.startsWith(TASK_BACKFILL_ERROR_PREFIX);
 };
