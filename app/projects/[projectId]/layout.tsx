@@ -6,6 +6,7 @@ import {
   Video, LayoutDashboard, Users, Settings, FileText, Clapperboard,
   UserRound, MapPin, Shirt, Film, ChevronLeft, ChevronRight, Moon, Sun,
   Calendar, CalendarDays, FolderOpen, BarChart2, ListTodo, Bell, Megaphone, BriefcaseBusiness,
+  ScrollText,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useState, useEffect } from "react";
@@ -25,6 +26,7 @@ const PROJECT_NAV = [
   { name: "Calendar", href: (id: string) => `/projects/${id}/calendar`, icon: CalendarDays },
   { name: "Jobs", href: (id: string) => `/projects/${id}/jobs`, icon: BriefcaseBusiness },
   { name: "Research Deck", href: (id: string) => `/projects/${id}/reports`, icon: BarChart2 },
+  { name: "Scene Reports", href: (id: string) => `/projects/${id}/scene-reports`, icon: ScrollText },
 ];
 
 const CREATIVE_HUB_NAV = [
