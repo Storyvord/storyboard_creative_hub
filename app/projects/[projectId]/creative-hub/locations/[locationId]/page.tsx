@@ -780,6 +780,29 @@ export default function LocationDetailPage() {
                          next to the hero so users can re-apply a recent
                          preview without scrolling to the Library section. */}
                     <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-3">
+                        <div className="flex items-center justify-end gap-3 mb-2">
+                            <button
+                                type="button"
+                                onClick={handleOpenCompare}
+                                disabled={compareLoading}
+                                className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 disabled:text-[var(--text-muted)] disabled:cursor-not-allowed transition-colors"
+                                title="Compare recent generations side-by-side"
+                            >
+                                <GitCompare className="w-3 h-3" />
+                                {compareLoading ? "Loading…" : "Compare"}
+                            </button>
+                            {location.script ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setScriptHistoryOpen(true)}
+                                    className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 transition-colors"
+                                    title="Browse every previz on this script"
+                                >
+                                    <History className="w-3 h-3" />
+                                    View Full History
+                                </button>
+                            ) : null}
+                        </div>
                         <CompactHistoryStrip
                             kind="location"
                             subjectId={locationId}
@@ -1657,29 +1680,6 @@ export default function LocationDetailPage() {
                             subtitle="Generated previews · upload history"
                         />
                         <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-3">
-                            <div className="flex items-center justify-end gap-3 mb-2">
-                                <button
-                                    type="button"
-                                    onClick={handleOpenCompare}
-                                    disabled={compareLoading}
-                                    className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 disabled:text-[var(--text-muted)] disabled:cursor-not-allowed transition-colors"
-                                    title="Compare recent generations side-by-side"
-                                >
-                                    <GitCompare className="w-3 h-3" />
-                                    {compareLoading ? "Loading…" : "Compare"}
-                                </button>
-                                {location.script ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => setScriptHistoryOpen(true)}
-                                        className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 transition-colors"
-                                        title="Browse every previz on this script"
-                                    >
-                                        <History className="w-3 h-3" />
-                                        View Full History
-                                    </button>
-                                ) : null}
-                            </div>
                             <PrevizHistorySection
                                 kind="location"
                                 subjectId={locationId}
