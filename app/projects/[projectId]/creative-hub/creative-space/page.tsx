@@ -49,6 +49,27 @@ interface TaggedLocation  { id: number; name: string; image_url?: string; }
 
 // ─── Tag parsers ──────────────────────────────────────────────────────────────
 
+// Reference images attached to the prompt — labelled $1 / $2 / … in the
+// order the user attached them. The parser yields the list of indices the
+// user actually mentioned so the parent can show "tagged" chips for each.
+function getTaggedImageIndicesFromText(text: string, imageCount: number): number[] {
+  if (imageCount <= 0) return [];
+  const result: number[] = [];
+  const seen = new Set<number>();
+  // Match $<digits> not preceded by an alphanumeric (so "$1.99" still matches
+  // but "USD$1" does not — defensive against accidental currency-style use).
+  const pattern = /(?:^|[^A-Za-z0-9_])\$(\d+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = pattern.exec(text)) !== null) {
+    const idx = parseInt(m[1], 10);
+    if (idx >= 1 && idx <= imageCount && !seen.has(idx)) {
+      seen.add(idx);
+      result.push(idx);
+    }
+  }
+  return result;
+}
+
 function getTaggedCharactersFromText(text: string, characters: TaggedCharacter[]): TaggedCharacter[] {
   if (!characters.length) return [];
   const escaped = characters.map((c) => c.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
@@ -79,11 +100,22 @@ function getTaggedLocationsFromText(text: string, locations: TaggedLocation[]): 
 
 // ─── MentionInput ─────────────────────────────────────────────────────────────
 
+interface AttachedImageMention {
+  /** Previsualization id of the uploaded reference. */
+  id: number;
+  /** 1-indexed pill number — what the user types ($1, $2, ...). */
+  index: number;
+  /** Thumbnail for the dropdown row. */
+  image_url: string;
+}
+
 interface MentionInputProps {
   value: string;
   onChange: (val: string) => void;
   characters: TaggedCharacter[];
   locations: TaggedLocation[];
+  /** Attached uploaded references. Triggered with `$` and inserted as `$N`. */
+  images?: AttachedImageMention[];
   disabled?: boolean;
   onKeyDown?: React.KeyboardEventHandler<HTMLTextAreaElement>;
   onPaste?: React.ClipboardEventHandler<HTMLTextAreaElement>;
@@ -91,7 +123,8 @@ interface MentionInputProps {
 
 type DropdownItem =
   | { kind: "character"; item: TaggedCharacter }
-  | { kind: "location";  item: TaggedLocation  };
+  | { kind: "location";  item: TaggedLocation  }
+  | { kind: "image";     item: AttachedImageMention };
 
 function rankByQuery<T extends { name: string }>(items: T[], query: string): T[] {
   if (!query) return items;
@@ -105,12 +138,12 @@ function rankByQuery<T extends { name: string }>(items: T[], query: string): T[]
   });
 }
 
-function MentionInput({ value, onChange, characters, locations, disabled, onKeyDown, onPaste }: MentionInputProps) {
+function MentionInput({ value, onChange, characters, locations, images = [], disabled, onKeyDown, onPaste }: MentionInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
 
-  const [mentionChar,  setMentionChar]  = useState<"@" | "#" | null>(null);
+  const [mentionChar,  setMentionChar]  = useState<"@" | "#" | "$" | null>(null);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionStart, setMentionStart] = useState<number | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -137,6 +170,13 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
       return rankByQuery(locations.filter((l) => l.name.toLowerCase().includes(q)), mentionQuery)
         .map((item) => ({ kind: "location" as const, item }));
     }
+    if (mentionChar === "$") {
+      // $ matches digits — filter by string-prefix on the index.
+      const filtered = images.filter((img) =>
+        q ? String(img.index).startsWith(q) : true,
+      );
+      return filtered.map((item) => ({ kind: "image" as const, item }));
+    }
     return [];
   })();
 
@@ -154,21 +194,37 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
 
     const cursor    = e.target.selectionStart ?? 0;
     const textUpTo  = newVal.slice(0, cursor);
-    const lastAt    = textUpTo.lastIndexOf("@");
-    const lastHash  = textUpTo.lastIndexOf("#");
-    const triggerIdx  = Math.max(lastAt, lastHash);
-    const triggerChar = triggerIdx === lastAt ? "@" : "#";
+    const lastAt     = textUpTo.lastIndexOf("@");
+    const lastHash   = textUpTo.lastIndexOf("#");
+    const lastDollar = textUpTo.lastIndexOf("$");
+    const triggerIdx = Math.max(lastAt, lastHash, lastDollar);
+    let triggerChar: "@" | "#" | "$" = "@";
+    if (triggerIdx === lastDollar) triggerChar = "$";
+    else if (triggerIdx === lastHash) triggerChar = "#";
+    else if (triggerIdx === lastAt) triggerChar = "@";
 
     if (triggerIdx !== -1) {
       const fragment = textUpTo.slice(triggerIdx + 1);
       if (!fragment.includes(" ")) {
-        setMentionChar(triggerChar);
-        setMentionQuery(fragment);
-        setMentionStart(triggerIdx);
-        setShowDropdown(true);
-        setSelectedIdx(0);
-        positionDropdown();
-        return;
+        // Defensive guards — only open the dropdown when the fragment makes
+        // sense for the trigger:
+        //   $ → digits only (don't pop on $foo or $1.99 mid-typing)
+        //   @ / # → no-space already ensured above
+        //   $ also requires the char before the trigger NOT be alphanumeric
+        //   so "USD$1" doesn't activate it.
+        const prevChar = triggerIdx > 0 ? textUpTo[triggerIdx - 1] : "";
+        const validPrev = !prevChar || !/[A-Za-z0-9_]/.test(prevChar);
+        const validFragment =
+          triggerChar === "$" ? /^\d*$/.test(fragment) : true;
+        if (validPrev && validFragment) {
+          setMentionChar(triggerChar);
+          setMentionQuery(fragment);
+          setMentionStart(triggerIdx);
+          setShowDropdown(true);
+          setSelectedIdx(0);
+          positionDropdown();
+          return;
+        }
       }
     }
     setShowDropdown(false);
@@ -186,7 +242,9 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
     setMentionChar(null);
     setTimeout(() => {
       if (textareaRef.current) {
-        const pos = before.length + label.length + 2;
+        // Cursor lands one past the inserted mention + trailing space.
+        // For $ (image) mentions the label is short ("1", "2", ...) — same math holds.
+        const pos = before.length + 1 + label.length + 1;
         textareaRef.current.setSelectionRange(pos, pos);
         textareaRef.current.focus();
         syncScroll();
@@ -206,7 +264,15 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
         return;
       } else if (e.key === "Tab" || e.key === "Enter") {
         const sel = dropdownItems[selectedIdx];
-        if (sel) { e.preventDefault(); insertMention(sel.item.name); return; }
+        if (sel) {
+          e.preventDefault();
+          const label =
+            sel.kind === "image"
+              ? String((sel.item as AttachedImageMention).index)
+              : (sel.item as TaggedCharacter | TaggedLocation).name;
+          insertMention(label);
+          return;
+        }
       } else if (e.key === "Escape") {
         setShowDropdown(false);
         return;
@@ -246,7 +312,7 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
             {/* Header */}
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#1f1f1f] sticky top-0 bg-[#141414] z-10">
               <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
-                {mentionChar === "@" ? "Characters" : "Locations"}
+                {mentionChar === "@" ? "Characters" : mentionChar === "#" ? "Locations" : "Reference Images"}
                 {mentionQuery && (
                   <span className="text-[var(--text-muted)] normal-case font-normal">
                     {" "}· {dropdownItems.length} match{dropdownItems.length !== 1 ? "es" : ""}
@@ -257,24 +323,54 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
             </div>
 
             {dropdownItems.map((d, i) => {
-              const label      = d.item.name;
-              const imageUrl   = d.kind === "character" ? d.item.image_url : (d.item as TaggedLocation).image_url;
-              const isChar     = d.kind === "character";
+              const isChar  = d.kind === "character";
+              const isLoc   = d.kind === "location";
+              const isImage = d.kind === "image";
+              const label =
+                isImage ? String((d.item as AttachedImageMention).index) : (d.item as TaggedCharacter | TaggedLocation).name;
+              const displayLabel = isImage ? `Image ${label}` : label;
+              const imageUrl =
+                isChar  ? (d.item as TaggedCharacter).image_url
+                : isLoc ? (d.item as TaggedLocation).image_url
+                : (d.item as AttachedImageMention).image_url;
               const isSelected = selectedIdx === i;
               const isBest     = i === 0;
 
               const q        = mentionQuery.toLowerCase();
-              const matchIdx = label.toLowerCase().indexOf(q);
+              const matchIdx = displayLabel.toLowerCase().indexOf(q);
+              const accent =
+                isChar  ? "text-emerald-300"
+                : isLoc ? "text-sky-300"
+                :         "text-amber-300";
+              const accentBase =
+                isChar  ? "text-emerald-400"
+                : isLoc ? "text-sky-400"
+                :         "text-amber-400";
+              const ringBorder =
+                isChar  ? "border-emerald-500/20"
+                : isLoc ? "border-sky-500/20"
+                :         "border-amber-500/20";
+              const selBg =
+                isChar  ? "bg-emerald-500/10"
+                : isLoc ? "bg-sky-500/10"
+                :         "bg-amber-500/10";
+              const tabPill =
+                isChar  ? "text-emerald-600 border-emerald-900/50 bg-emerald-950/40"
+                : isLoc ? "text-sky-600 border-sky-900/50 bg-sky-950/40"
+                :         "text-amber-600 border-amber-900/50 bg-amber-950/40";
+              const triggerSym =
+                isChar ? "@" : isLoc ? "#" : "$";
+
               const highlighted =
                 q && matchIdx !== -1 ? (
                   <>
-                    {label.slice(0, matchIdx)}
-                    <span className={isChar ? "text-emerald-300" : "text-sky-300"}>
-                      {label.slice(matchIdx, matchIdx + q.length)}
+                    {displayLabel.slice(0, matchIdx)}
+                    <span className={accent}>
+                      {displayLabel.slice(matchIdx, matchIdx + q.length)}
                     </span>
-                    {label.slice(matchIdx + q.length)}
+                    {displayLabel.slice(matchIdx + q.length)}
                   </>
-                ) : label;
+                ) : displayLabel;
 
               return (
                 <button
@@ -283,33 +379,27 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
                   onMouseDown={(e) => { e.preventDefault(); insertMention(label); }}
                   onMouseEnter={() => setSelectedIdx(i)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
-                    isSelected
-                      ? isChar ? "bg-emerald-500/10" : "bg-sky-500/10"
-                      : "hover:bg-[var(--surface-hover)]"
+                    isSelected ? selBg : "hover:bg-[var(--surface-hover)]"
                   }`}
                 >
-                  <div className={`w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-[#1f1f1f] border ${
-                    isChar ? "border-emerald-500/20" : "border-sky-500/20"
-                  }`}>
+                  <div className={`w-6 h-6 ${isImage ? "rounded" : "rounded-full"} overflow-hidden flex-shrink-0 bg-[#1f1f1f] border ${ringBorder}`}>
                     {imageUrl ? (
-                      <img src={imageUrl} alt={label} className="w-full h-full object-cover" />
+                      <img src={imageUrl} alt={displayLabel} className="w-full h-full object-cover" />
                     ) : isChar ? (
                       <User className="w-3 h-3 m-auto mt-1.5 text-emerald-500/60" />
-                    ) : (
+                    ) : isLoc ? (
                       <MapPin className="w-3 h-3 m-auto mt-1.5 text-sky-500/60" />
+                    ) : (
+                      <Paperclip className="w-3 h-3 m-auto mt-1.5 text-amber-500/60" />
                     )}
                   </div>
-                  <span className={`text-xs flex-1 ${isChar ? "text-emerald-400" : "text-sky-400"}`}>
+                  <span className={`text-xs flex-1 ${accentBase}`}>
                     {highlighted}
                   </span>
                   {isBest ? (
-                    <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
-                      isChar
-                        ? "text-emerald-600 border-emerald-900/50 bg-emerald-950/40"
-                        : "text-sky-600 border-sky-900/50 bg-sky-950/40"
-                    }`}>Tab</span>
+                    <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${tabPill}`}>Tab</span>
                   ) : (
-                    <span className="text-[9px] text-[var(--text-muted)] font-mono">{isChar ? "@" : "#"}</span>
+                    <span className="text-[9px] text-[var(--text-muted)] font-mono">{triggerSym}</span>
                   )}
                 </button>
               );
@@ -331,12 +421,21 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
       return parts;
     }
 
-    // Build dynamic regex like /(@John Smith|#Hong Kong)/gi
+    // Build dynamic regex like /(@John Smith|#Hong Kong|\$1|\$2)/gi
     const escapedChars = charNames.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
     const escapedLocs  = locNames.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-    const charPattern = escapedChars.length > 0 ? `@(?:${escapedChars.join("|")})` : "";
-    const locPattern  = escapedLocs.length > 0  ? `#(?:${escapedLocs.join("|")})` : "";
-    const combined    = [charPattern, locPattern].filter(Boolean).join("|");
+    const charPattern  = escapedChars.length > 0 ? `@(?:${escapedChars.join("|")})` : "";
+    const locPattern   = escapedLocs.length  > 0 ? `#(?:${escapedLocs.join("|")})`  : "";
+    // $-image tags: only highlight ones that match an attached pill index.
+    const imageIndices = images.map((img) => img.index);
+    const imagePattern = imageIndices.length > 0
+      ? `\\$(?:${imageIndices.join("|")})(?![0-9])`
+      : "";
+    const combined = [charPattern, locPattern, imagePattern].filter(Boolean).join("|");
+    if (!combined) {
+      parts.push(<span key={`t0`} className="text-white">{text}</span>);
+      return parts;
+    }
     const re = new RegExp(`(${combined})`, "gi");
 
     let last = 0;
@@ -345,12 +444,12 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
       if (m.index > last)
         parts.push(<span key={`t${last}`} className="text-white">{text.slice(last, m.index)}</span>);
       const token = m[0];
+      const color =
+        token.startsWith("@") ? "text-emerald-400"
+        : token.startsWith("#") ? "text-sky-400"
+        : "text-amber-400";
       parts.push(
-        <span key={`m${m.index}`}
-          className={token.startsWith("@")
-            ? "text-emerald-400"
-            : "text-sky-400"}
-        >{token}</span>
+        <span key={`m${m.index}`} className={color}>{token}</span>
       );
       last = m.index + token.length;
     }
@@ -401,7 +500,7 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
           display: "block",
           zIndex: 1,
         }}
-        placeholder="Describe the vision… use @Character or #Location to tag references"
+        placeholder="Describe the vision… @Character, #Location, $1 / $2 for uploaded references"
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
@@ -1259,14 +1358,16 @@ export default function CreativeSpacePage() {
           )}
           {attachedReferences.length > 0 && (
             <p className="text-[10px] text-[var(--text-muted)] px-1">
-              Reference these in your prompt as{" "}
+              Tag these in your prompt with{" "}
               {attachedReferences.map((_r, i) => (
                 <span key={`hint-${i}`}>
                   {i > 0 && ", "}
-                  <span className="text-emerald-400 font-mono">image {i + 1}</span>
+                  <span className="text-amber-400 font-mono">${i + 1}</span>
                 </span>
               ))}
-              .
+              {" "}— type{" "}
+              <span className="text-amber-400 font-mono">$</span>
+              {" "}for autocomplete.
             </p>
           )}
 
@@ -1300,6 +1401,11 @@ export default function CreativeSpacePage() {
                 onChange={setPrompt}
                 characters={characters}
                 locations={locations}
+                images={attachedReferences.map((r, i) => ({
+                  id: r.id,
+                  index: i + 1,
+                  image_url: r.image_url,
+                }))}
                 disabled={isGenerating}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleGenerate(); }
