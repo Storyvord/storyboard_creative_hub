@@ -597,6 +597,10 @@ export default function CreativeSpacePage() {
   const [locations,        setLocations]        = useState<TaggedLocation[]>([]);
   const [taggedCharacters, setTaggedCharacters] = useState<TaggedCharacter[]>([]);
   const [taggedLocations,  setTaggedLocations]  = useState<TaggedLocation[]>([]);
+  // STO-546: indices (1-based) of attached references that the prompt
+  // currently references via $N. Drives the live confirmation chips and
+  // the per-pill "tagged" highlight state.
+  const [taggedImageIndices, setTaggedImageIndices] = useState<number[]>([]);
 
   // STO-546: User-attached reference images (ChatGPT-style attachments)
   const [attachedReferences, setAttachedReferences] = useState<CreativeSpaceReference[]>([]);
@@ -868,7 +872,8 @@ export default function CreativeSpacePage() {
   useEffect(() => {
     setTaggedCharacters(getTaggedCharactersFromText(prompt, characters));
     setTaggedLocations(getTaggedLocationsFromText(prompt, locations));
-  }, [prompt, characters, locations]);
+    setTaggedImageIndices(getTaggedImageIndicesFromText(prompt, attachedReferences.length));
+  }, [prompt, characters, locations, attachedReferences.length]);
 
   const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const idx = Number(e.target.value);
@@ -1317,20 +1322,37 @@ export default function CreativeSpacePage() {
           {(attachedReferences.length > 0 || uploadingReferences > 0) && (
             <div className="flex gap-2 overflow-x-auto px-1 pb-1 scrollbar-thin">
               {attachedReferences.map((ref, idx) => {
-                const tag = `Image ${idx + 1}`;
+                const num = idx + 1;
+                const tag = `Image ${num}`;
+                const isTagged = taggedImageIndices.includes(num);
                 return (
                 <div
                   key={`ref-${ref.id}`}
-                  className="flex items-center gap-1.5 bg-[var(--surface-hover)] border border-[var(--border)] rounded-lg pl-1 pr-1.5 py-1 flex-shrink-0"
-                  title={`Reference as "${tag.toLowerCase()}" in your prompt${ref.description ? ` — ${ref.description}` : ""}`}
+                  className={`flex items-center gap-1.5 rounded-lg pl-1 pr-1.5 py-1 flex-shrink-0 transition-colors border ${
+                    isTagged
+                      ? "bg-amber-500/15 border-amber-500/50 shadow-[0_0_0_1px_rgba(245,158,11,0.25)]"
+                      : "bg-[var(--surface-hover)] border-[var(--border)]"
+                  }`}
+                  title={
+                    isTagged
+                      ? `Tagged as $${num} in your prompt${ref.description ? ` — ${ref.description}` : ""}`
+                      : `Reference as $${num} or "image ${num}"${ref.description ? ` — ${ref.description}` : ""}`
+                  }
                 >
-                  <img
-                    src={ref.image_url}
-                    alt={tag}
-                    className="w-8 h-8 rounded object-cover bg-[var(--background)]"
-                  />
-                  <span className="text-[10px] font-semibold text-emerald-400">
-                    {tag}
+                  <div className="relative">
+                    <img
+                      src={ref.image_url}
+                      alt={tag}
+                      className={`w-8 h-8 rounded object-cover bg-[var(--background)] ${isTagged ? "ring-2 ring-amber-400/70" : ""}`}
+                    />
+                    {isTagged && (
+                      <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-amber-500 text-black px-1 rounded-full leading-none py-0.5">
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-[10px] font-mono font-semibold ${isTagged ? "text-amber-300" : "text-amber-400/70"}`}>
+                    ${num}
                   </span>
                   <button
                     type="button"
@@ -1358,13 +1380,30 @@ export default function CreativeSpacePage() {
           )}
           {attachedReferences.length > 0 && (
             <p className="text-[10px] text-[var(--text-muted)] px-1">
-              Tag these in your prompt with{" "}
-              {attachedReferences.map((_r, i) => (
-                <span key={`hint-${i}`}>
-                  {i > 0 && ", "}
-                  <span className="text-amber-400 font-mono">${i + 1}</span>
-                </span>
-              ))}
+              {taggedImageIndices.length > 0 ? (
+                <>
+                  <span className="text-amber-300 font-medium">
+                    {taggedImageIndices.length} of {attachedReferences.length} tagged
+                  </span>
+                  {" "}— remaining:{" "}
+                </>
+              ) : (
+                <>Tag these in your prompt with{" "}</>
+              )}
+              {attachedReferences.map((_r, i) => {
+                const num = i + 1;
+                const tagged = taggedImageIndices.includes(num);
+                return (
+                  <span key={`hint-${i}`}>
+                    {i > 0 && ", "}
+                    <span
+                      className={`font-mono ${tagged ? "text-amber-300/40 line-through" : "text-amber-400"}`}
+                    >
+                      ${num}
+                    </span>
+                  </span>
+                );
+              })}
               {" "}— type{" "}
               <span className="text-amber-400 font-mono">$</span>
               {" "}for autocomplete.
@@ -1372,7 +1411,7 @@ export default function CreativeSpacePage() {
           )}
 
           {/* Live tag chips */}
-          {(taggedCharacters.length > 0 || taggedLocations.length > 0) && (
+          {(taggedCharacters.length > 0 || taggedLocations.length > 0 || taggedImageIndices.length > 0) && (
             <div className="flex flex-wrap gap-1.5 px-1">
               {taggedCharacters.map((c) => (
                 <div key={`chip-char-${c.id}`} className="flex items-center gap-1.5 bg-emerald-950/50 border border-emerald-800/40 rounded-full pl-1 pr-1.5 py-0.5">
@@ -1390,6 +1429,18 @@ export default function CreativeSpacePage() {
                   <span className="text-[10px] text-sky-300 font-medium">#{l.name}</span>
                 </div>
               ))}
+              {taggedImageIndices.map((idx) => {
+                const ref = attachedReferences[idx - 1];
+                if (!ref) return null;
+                return (
+                  <div key={`chip-img-${idx}`} className="flex items-center gap-1.5 bg-amber-950/50 border border-amber-800/40 rounded-full pl-1 pr-1.5 py-0.5">
+                    <div className="w-4 h-4 rounded overflow-hidden bg-[var(--surface-hover)]">
+                      <img src={ref.image_url} alt={`Image ${idx}`} className="w-full h-full object-cover" />
+                    </div>
+                    <span className="text-[10px] text-amber-300 font-mono font-medium">${idx}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
 
