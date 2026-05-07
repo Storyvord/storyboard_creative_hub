@@ -491,10 +491,39 @@ export const createScriptPrevisualization = async (data: {
   size?: string;
   character_ids?: number[];
   location_ids?: number[];
+  reference_previz_ids?: number[];
 }): Promise<any> => {
     const response = await api.post(`/api/creative_hub/previsualization/create/`, data);
     return response.data;
 }
+
+// STO-546: User-uploaded reference image attachment for the Creative Space chat.
+// Uploads the file as a Previsualization row scoped to the script (no AI generation),
+// which the backend then mirrors into the script-wide PrevizHistory feed tagged
+// with notes="User-uploaded reference" so it surfaces in the chat history.
+export interface CreativeSpaceReference {
+  id: number;
+  image_url: string;
+  description?: string | null;
+  created_at?: string;
+}
+
+export const uploadCreativeSpaceReference = async (
+  scriptId: number,
+  file: File,
+): Promise<CreativeSpaceReference> => {
+  const formData = new FormData();
+  formData.append("image_file", file);
+  formData.append("script", String(scriptId));
+  formData.append("generate_ai_image", "false");
+  formData.append("description", "User reference");
+  const response = await api.post(
+    `/api/creative_hub/previsualization/create/`,
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+  return response.data;
+};
 
 export const getImageModels = async (): Promise<ImageModel[]> => {
     const response = await api.get(`/api/creative_hub/image-models/`);
