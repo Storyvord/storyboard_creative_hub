@@ -492,8 +492,26 @@ export const createScriptPrevisualization = async (data: {
   character_ids?: number[];
   location_ids?: number[];
   reference_previz_ids?: number[];
-}): Promise<any> => {
+}): Promise<{
+  id: number;
+  image_url: string | null;
+  task_id?: string;
+  kickoff_status?: "queued" | "in_flight";
+  description?: string;
+  aspect_ratio?: string;
+  shot_type?: string;
+  camera_angle?: string;
+  [key: string]: any;
+}> => {
     const response = await api.post(`/api/creative_hub/previsualization/create/`, data);
+    return response.data;
+}
+
+// STO-1073: simple GET for a single previz row. Used by Creative Space
+// to refetch the rendered `image_url` after the async previs_generation
+// task completes, since the initial POST returns image_url=null.
+export const getPrevisualization = async (previzId: number): Promise<any> => {
+    const response = await api.get(`/api/creative_hub/previsualization/${previzId}/`);
     return response.data;
 }
 
