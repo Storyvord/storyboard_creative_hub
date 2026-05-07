@@ -258,12 +258,27 @@ export default function ShotDetailModal({
   };
 
   const handleEditPromptSubmit = async (model?: string, provider?: string, quality?: string, size?: string) => {
-      if (!shot || !editPrompt.trim() || !shot.image_url) return;
+      if (!shot || !editPrompt.trim()) return;
+      // Resolve the canonical active-previz image: prefer the history entry
+      // matching shot.active_previz (the source of truth), then the embedded
+      // shot.previz, then the legacy shot.image_url mirror. Editing should
+      // always operate on the current active previz, never on a stale mirror.
+      const activePrevizFromHistory = shot.active_previz
+          ? previzHistory.find((p: any) => p.id === shot.active_previz)
+          : null;
+      const sourceImageUrl =
+          activePrevizFromHistory?.image_url ??
+          (shot as any).previz?.image_url ??
+          shot.image_url;
+      if (!sourceImageUrl) {
+          toast.error("No active previz image to edit. Generate or upload one first.");
+          return;
+      }
       setIsEditingPreviz(true);
       try {
           await editPrevizWithPrompt(
               shot.id,
-              shot.image_url,
+              sourceImageUrl,
               editPrompt.trim(),
               scene?.id,
               (scene?.script_id || scene?.script) as number | undefined,
