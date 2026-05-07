@@ -20,11 +20,13 @@ import {
     Pencil,
     Trash2,
     Clock,
+    History,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
+import ScriptHistoryModal from "@/components/creative-hub/ScriptHistoryModal";
 import { useGenerationTasks } from "@/hooks/useGenerationTasks";
 
 type GenStep = "saving" | "queued" | "rendering";
@@ -51,6 +53,7 @@ export default function LocationDetailPage() {
     const [isModelOpen, setIsModelOpen] = useState(false);
     const [trackedTasks, setTrackedTasks] = useState<Record<string, number>>({});
     const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+    const [scriptHistoryOpen, setScriptHistoryOpen] = useState(false);
 
     const fileRef = useRef<HTMLInputElement>(null);
 
@@ -416,6 +419,19 @@ export default function LocationDetailPage() {
                 {/* Right: history */}
                 <div>
                     <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-4">
+                        {location.script ? (
+                            <div className="flex items-center justify-end mb-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setScriptHistoryOpen(true)}
+                                    className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 transition-colors"
+                                    title="Browse every previz on this script"
+                                >
+                                    <History className="w-3 h-3" />
+                                    View Full History
+                                </button>
+                            </div>
+                        ) : null}
                         <PrevizHistorySection
                             kind="location"
                             subjectId={locationId}
@@ -439,6 +455,22 @@ export default function LocationDetailPage() {
                 title="Select Model for Location Image"
                 confirmLabel="Generate Image"
             />
+
+            {location.script && (
+                <ScriptHistoryModal
+                    open={scriptHistoryOpen}
+                    onClose={() => setScriptHistoryOpen(false)}
+                    scriptId={location.script}
+                    currentKind="location"
+                    currentSubjectId={locationId}
+                    currentSubjectLabel={location.name}
+                    currentActivePrevizId={location.active_previz ?? null}
+                    onApplied={() => {
+                        setHistoryRefreshKey((k) => k + 1);
+                        fetchLocation();
+                    }}
+                />
+            )}
         </div>
     );
 }

@@ -10,12 +10,13 @@ import {
 import { Character, Cloth } from "@/types/creative-hub";
 import {
   Loader2, ArrowLeft, Upload, Wand2, Save, Film,
-  Shirt, Check, User, ImageOff, MapPin, Clock, Pencil, X,
+  Shirt, Check, User, ImageOff, MapPin, Clock, Pencil, X, History,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
+import ScriptHistoryModal from "@/components/creative-hub/ScriptHistoryModal";
 import { useGenerationTasks } from "@/hooks/useGenerationTasks";
 import { useUserInfo } from "@/hooks/useUserInfo";
 
@@ -524,6 +525,7 @@ export default function CharacterDetailPage() {
   const [trackedPortraitTasks, setTrackedPortraitTasks] = useState<Record<string, number>>({});
   const [trackedSceneTasks, setTrackedSceneTasks] = useState<Record<string, number>>({});
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [scriptHistoryOpen, setScriptHistoryOpen] = useState(false);
 
   const fetchCharacter = useCallback(async (): Promise<CharacterDetail> => {
     const data = await getCharacter(characterId) as CharacterDetail;
@@ -958,6 +960,19 @@ export default function CharacterDetailPage() {
 
           {/* Portrait history */}
           <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-4">
+            {character.script ? (
+              <div className="flex items-center justify-end mb-2">
+                <button
+                  type="button"
+                  onClick={() => setScriptHistoryOpen(true)}
+                  className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 transition-colors"
+                  title="Browse every previz on this script"
+                >
+                  <History className="w-3 h-3" />
+                  View Full History
+                </button>
+              </div>
+            ) : null}
             <PrevizHistorySection
               kind="character"
               subjectId={characterId}
@@ -1156,6 +1171,22 @@ export default function CharacterDetailPage() {
         title="Generate Character Portrait"
         confirmLabel="Generate"
       />
+
+      {character.script && (
+        <ScriptHistoryModal
+          open={scriptHistoryOpen}
+          onClose={() => setScriptHistoryOpen(false)}
+          scriptId={character.script}
+          currentKind="character"
+          currentSubjectId={characterId}
+          currentSubjectLabel={character.name}
+          currentActivePrevizId={(character as Character).active_previz ?? null}
+          onApplied={() => {
+            setHistoryRefreshKey((k) => k + 1);
+            fetchCharacter();
+          }}
+        />
+      )}
     </div>
   );
 }
