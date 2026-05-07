@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, getStoryboardDataPaginated, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, updateScene, createShot, reorderShots as reorderShotsApi, getCharacters, updateShotDetails, getShotDetail } from "@/services/creative-hub";
+import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, getStoryboardDataPaginated, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, updateScene, createShot, reorderShots as reorderShotsApi, getCharacters, updateShotDetails, getShotDetail, isTaskBackfillRow } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { Scene, Shot, Script } from "@/types/creative-hub";
 import { Loader2, Film, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon, CheckCircle, Circle, AlertTriangle, GripVertical, Plus, X } from "lucide-react";
@@ -825,8 +825,9 @@ export default function StoryboardPage() {
                           newTracked[task.object_id] = task.task_id;
                           if (task.status === 'retrying') newRetrying[task.object_id] = true;
                       }
-                      // Restore errors from recently failed/revoked tasks so user sees "Failed" + Retry
-                      if (!hasImage && taskAge < maxAgeMs && ['failed','failure','revoked'].includes(task.status)) {
+                      // Restore errors from recently failed/revoked tasks so user sees "Failed" + Retry.
+                      // Skip migration-backfilled rows (STO-1073 0070) — those weren't real failures.
+                      if (!hasImage && taskAge < maxAgeMs && ['failed','failure','revoked'].includes(task.status) && !isTaskBackfillRow(task)) {
                           newErrors[task.object_id] = task.error || 'Generation failed.';
                       }
                   });
