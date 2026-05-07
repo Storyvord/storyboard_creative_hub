@@ -1014,33 +1014,40 @@ export default function CreativeSpacePage() {
             }}
           />
 
-          {/* STO-546: Reference attachment pills (horizontally scrollable). */}
+          {/* STO-546: Reference attachment pills (horizontally scrollable).
+               Pills are numbered "Image 1", "Image 2", etc. so the user can
+               reference them in the prompt as "image 1 walks past image 2"
+               etc. The backend prepends a numbered legend to the prompt so
+               the AI client maps these tags to the ordered reference URLs. */}
           {(attachedReferences.length > 0 || uploadingReferences > 0) && (
             <div className="flex gap-2 overflow-x-auto px-1 pb-1 scrollbar-thin">
-              {attachedReferences.map((ref) => (
+              {attachedReferences.map((ref, idx) => {
+                const tag = `Image ${idx + 1}`;
+                return (
                 <div
                   key={`ref-${ref.id}`}
                   className="flex items-center gap-1.5 bg-[var(--surface-hover)] border border-[var(--border)] rounded-lg pl-1 pr-1.5 py-1 flex-shrink-0"
-                  title={ref.description || "Reference"}
+                  title={`Reference as "${tag.toLowerCase()}" in your prompt${ref.description ? ` — ${ref.description}` : ""}`}
                 >
                   <img
                     src={ref.image_url}
-                    alt="Reference"
+                    alt={tag}
                     className="w-8 h-8 rounded object-cover bg-[var(--background)]"
                   />
-                  <span className="text-[10px] text-[var(--text-secondary)] max-w-[100px] truncate">
-                    {ref.description || "Reference"}
+                  <span className="text-[10px] font-semibold text-emerald-400">
+                    {tag}
                   </span>
                   <button
                     type="button"
                     onClick={() => setAttachedReferences((prev) => prev.filter((r) => r.id !== ref.id))}
                     className="p-0.5 rounded hover:bg-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-                    aria-label="Detach reference"
+                    aria-label={`Detach ${tag}`}
                   >
                     <X className="w-3 h-3" />
                   </button>
                 </div>
-              ))}
+                );
+              })}
               {Array.from({ length: uploadingReferences }).map((_, i) => (
                 <div
                   key={`uploading-${i}`}
@@ -1053,6 +1060,18 @@ export default function CreativeSpacePage() {
                 </div>
               ))}
             </div>
+          )}
+          {attachedReferences.length > 0 && (
+            <p className="text-[10px] text-[var(--text-muted)] px-1">
+              Reference these in your prompt as{" "}
+              {attachedReferences.map((_r, i) => (
+                <span key={`hint-${i}`}>
+                  {i > 0 && ", "}
+                  <span className="text-emerald-400 font-mono">image {i + 1}</span>
+                </span>
+              ))}
+              .
+            </p>
           )}
 
           {/* Live tag chips */}
