@@ -2,7 +2,8 @@ import { Shot, Scene, Character } from "@/types/creative-hub";
 import { X, Film, User, ChevronLeft, ChevronRight, Clock, AlertTriangle, Upload, Pencil, Send, GitCompare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
-import { uploadPreviz, getShotPreviz, getShotPrevizPage, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails, getCameraAngles, CameraAngle, getShotTypes, ShotType } from "@/services/creative-hub";
+import { uploadPreviz, getShotPreviz, getShotPrevizPage, setActivePreviz, getStoryboardData, editPrevizWithPrompt, updateShotDetails, getCameraAngles, CameraAngle, getShotTypes, ShotType, getBulkTaskStatus } from "@/services/creative-hub";
+import { useRestoreInflightTask } from "@/hooks/useRestoreInflightTask";
 import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
 import PrevizReferenceStrip from "@/components/creative-hub/PrevizReferenceStrip";
@@ -43,6 +44,54 @@ const LIGHTING_OPTIONS = [
     "Neon",
     "Other",
 ];
+
+// Polling constants for the async edit-previz Celery task. Backend writes a
+// TaskStatus row keyed (previsualization, <new_previz_id>, "previs_generation").
+const EDIT_POLL_INTERVAL_MS = 2000;
+const EDIT_POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes — generous; UI cancels via component-unmount
+const COMPLETE_TASK_STATUSES = new Set<string>(["completed", "success"]);
+const FAILED_TASK_STATUSES = new Set<string>(["failed", "failure", "revoked"]);
+
+/**
+ * Poll `getBulkTaskStatus` until the given task_id reports completion or
+ * failure. Resolves silently on completion; rejects with the backend error
+ * (or a sensible fallback) on failure / disappearance / overall timeout.
+ *
+ * Caller passes a `cancelled` ref so the loop can exit cleanly when the
+ * modal unmounts mid-edit (no orphan setTimeouts, no setState-after-unmount).
+ */
+async function pollTaskUntilComplete(
+    taskId: string,
+    cancelledRef: { current: boolean },
+    intervalMs: number = EDIT_POLL_INTERVAL_MS,
+    timeoutMs: number = EDIT_POLL_TIMEOUT_MS,
+): Promise<void> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (cancelledRef.current) return;
+        try {
+            const data = await getBulkTaskStatus([taskId]);
+            const tasks: any[] = data?.tasks || [];
+            const row = tasks.find((t: any) => t.task_id === taskId);
+            if (!row) {
+                // Task vanished from the backend — bail rather than spin.
+                throw new Error("Task status disappeared");
+            }
+            if (COMPLETE_TASK_STATUSES.has(row.status)) return;
+            if (FAILED_TASK_STATUSES.has(row.status)) {
+                throw new Error(row.error || row.error_message || "Edit failed");
+            }
+            // pending / processing / retrying / started → keep polling.
+        } catch (err: any) {
+            // If this is one of our own throws above, propagate. Network blips
+            // (axios errors) are swallowed and retried next tick.
+            if (err?.message === "Task status disappeared" || err?.message === "Edit failed") throw err;
+            if (typeof err?.message === "string" && err.message.length > 0 && !err?.isAxiosError) throw err;
+        }
+        await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    throw new Error("Edit timed out after 5 minutes");
+}
 
 interface ShotDetailModalProps {
   shot: Shot | null;
@@ -85,6 +134,13 @@ export default function ShotDetailModal({
     });
   const [editPrompt, setEditPrompt] = useState('');
   const [isEditingPreviz, setIsEditingPreviz] = useState(false);
+  // The async edit pipeline:
+  //   - kickoff returns a task_id and the new (still-empty) previz_id
+  //   - we poll the task until completion, then flip active_previz
+  //   - if the user reloads mid-edit, the restore hook below repopulates these
+  //     so the spinner reappears and a fresh poll resumes.
+  const [editTaskId, setEditTaskId] = useState<string | null>(null);
+  const [editTargetPrevizId, setEditTargetPrevizId] = useState<number | null>(null);
   const [taggedCharacterIds, setTaggedCharacterIds] = useState<TaggedCharacter[]>([]);
   const [cameraAngles, setCameraAngles] = useState<CameraAngle[]>([]);
   const [shotTypes, setShotTypes] = useState<ShotType[]>([]);
@@ -126,6 +182,12 @@ export default function ShotDetailModal({
                         lighting: shot.lighting || "",
                 });
                 setEditPrompt("");
+                // Switching to a different shot: tear down any in-flight edit
+                // tracking so we don't carry a stale spinner / poll across
+                // shots. The restore hook below will re-seed it if needed.
+                setEditTaskId(null);
+                setEditTargetPrevizId(null);
+                setIsEditingPreviz(false);
     }
   }, [shot?.id]);
   
@@ -257,13 +319,61 @@ export default function ShotDetailModal({
       finally { setUploading(false); e.target.value = ''; }
   };
 
+  // Shared post-completion refresh: flip active_previz on the Shot, refresh
+  // the local history list, and bubble the new image up to the parent. Used
+  // both by a freshly-kicked-off edit (handleEditPromptSubmit) and by a
+  // restore-resumed poll (the poll effect below).
+  const finalizeEdit = async (newPrevizId: number) => {
+      if (!shot) return;
+      try {
+          await setActivePreviz(shot.id, newPrevizId);
+      } catch (err) {
+          console.error("Failed to set active previz after edit", err);
+          // Continue anyway — we still want to refresh history so the user
+          // sees the new entry and can manually flip if needed.
+      }
+
+      const refreshedHistory = await getShotPreviz(shot.id);
+      const sortedHistory = sortByRecency(refreshedHistory);
+      setPrevizHistory(sortedHistory);
+
+      const newPreviz = sortedHistory.find((p: any) => p.id === newPrevizId) || sortedHistory[0];
+      if (newPreviz && onUpdateShot) {
+          onUpdateShot(shot.id, 'active_previz', newPreviz.id);
+          onUpdateShot(shot.id, 'image_url', newPreviz.image_url);
+          onUpdateShot(shot.id, 'previz', newPreviz);
+      }
+
+      if (activeTab === 'script') {
+          fetchScriptPreviz();
+      }
+
+      if (onRefresh) onRefresh();
+  };
+
   const handleEditPromptSubmit = async (model?: string, provider?: string, quality?: string, size?: string) => {
-      if (!shot || !editPrompt.trim() || !shot.image_url) return;
+      if (!shot || !editPrompt.trim()) return;
+      // Resolve the canonical active-previz image: prefer the history entry
+      // matching shot.active_previz (the source of truth), then the embedded
+      // shot.previz, then the legacy shot.image_url mirror. Editing should
+      // always operate on the current active previz, never on a stale mirror.
+      const activePrevizFromHistory = shot.active_previz
+          ? previzHistory.find((p: any) => p.id === shot.active_previz)
+          : null;
+      const sourceImageUrl =
+          activePrevizFromHistory?.image_url ??
+          (shot as any).previz?.image_url ??
+          shot.image_url;
+      if (!sourceImageUrl) {
+          toast.error("No active previz image to edit. Generate or upload one first.");
+          return;
+      }
       setIsEditingPreviz(true);
       try {
-          await editPrevizWithPrompt(
+          // Step 1: kickoff (returns ~200ms, no inline AI wait)
+          const kickoff = await editPrevizWithPrompt(
               shot.id,
-              shot.image_url,
+              sourceImageUrl,
               editPrompt.trim(),
               scene?.id,
               (scene?.script_id || scene?.script) as number | undefined,
@@ -272,40 +382,68 @@ export default function ShotDetailModal({
               quality,
               size,
           );
-
-          // Immediately reflect new active previz in parent state
-          const refreshedHistory = await getShotPreviz(shot.id);
-          const sortedHistory = [...refreshedHistory].sort((a: any, b: any) => {
-              const aTime = a?.assignment_date || a?.created_at || 0;
-              const bTime = b?.assignment_date || b?.created_at || 0;
-              const aDate = aTime ? new Date(aTime).getTime() : 0;
-              const bDate = bTime ? new Date(bTime).getTime() : 0;
-              if (aDate !== bDate) return bDate - aDate;
-              return (b?.id || 0) - (a?.id || 0);
-          });
-          setPrevizHistory(sortedHistory);
-
-          const latestPreviz = sortedHistory[0];
-          if (latestPreviz && onUpdateShot) {
-              onUpdateShot(shot.id, 'active_previz', latestPreviz.id);
-              onUpdateShot(shot.id, 'image_url', latestPreviz.image_url);
-              onUpdateShot(shot.id, 'previz', latestPreviz);
-          }
-
-          if (activeTab === 'script') {
-              fetchScriptPreviz();
-          }
-
-          toast.success("Edit prompt applied — new previz created!");
+          // Track for restore-on-reload — the poll effect below picks these up.
+          setEditTaskId(kickoff.task_id);
+          setEditTargetPrevizId(kickoff.new_previz_id);
+          // The poll effect drives finalizeEdit + clears spinner state. Clear
+          // the prompt now so the user sees an empty box while the spinner
+          // runs and can't accidentally re-submit.
           setEditPrompt('');
-          if (onRefresh) onRefresh();
       } catch (error) {
-          console.error("Failed to create edited previz", error);
+          console.error("Failed to kick off edit", error);
           toast.error(extractApiError(error, "Failed to apply edit prompt."));
-      } finally {
           setIsEditingPreviz(false);
       }
   };
+
+  // Drives the actual polling for an in-flight edit. Activates whenever
+  // editTaskId is set — by handleEditPromptSubmit OR by the restore hook.
+  useEffect(() => {
+      if (!editTaskId || !editTargetPrevizId) return;
+      const cancelled = { current: false };
+      (async () => {
+          try {
+              await pollTaskUntilComplete(editTaskId, cancelled);
+              if (cancelled.current) return;
+              await finalizeEdit(editTargetPrevizId);
+              if (cancelled.current) return;
+              toast.success("Edit prompt applied — new previz created!");
+          } catch (err) {
+              if (cancelled.current) return;
+              console.error("Edit polling failed", err);
+              toast.error(extractApiError(err, "Failed to apply edit prompt."));
+          } finally {
+              if (cancelled.current) return;
+              setEditTaskId(null);
+              setEditTargetPrevizId(null);
+              setIsEditingPreviz(false);
+          }
+      })();
+      return () => {
+          cancelled.current = true;
+      };
+      // finalizeEdit closes over `shot`/`onRefresh`/etc. but we deliberately
+      // only re-run when the task identity changes — restarting polling on
+      // every parent re-render would be wrong.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTaskId, editTargetPrevizId]);
+
+  // Mount-time restore: if a previs_generation task is still running for the
+  // Shot's current active_previz (e.g. user reloaded mid-edit), repopulate
+  // the editTaskId so the poll effect above resumes the spinner. We key on
+  // the Shot's active previz because that's the row the Celery task is
+  // writing into — the modal doesn't otherwise know the new_previz_id.
+  useRestoreInflightTask({
+      contentType: "previsualization",
+      objectId: shot?.active_previz ?? null,
+      taskType: "previs_generation",
+      enabled: !!shot && !editTaskId,
+      onInflight: (taskStatus) => {
+          setIsEditingPreviz(true);
+          setEditTaskId(taskStatus.task_id);
+          setEditTargetPrevizId(taskStatus.object_id);
+      },
+  });
 
   const handleSaveDetails = async () => {
       if (!shot || !isDetailsDirty || hasEditPrompt) return;

@@ -5,18 +5,25 @@ import { useParams, useRouter } from "next/navigation";
 import {
   getCharacter, updateCharacter, generateCharacterImage,
   getCloths, updateSceneCharacter, generateSceneCharacterImage,
-  getCharacterTasks,
+  getCharacterTasks, setActiveSubjectPreviz,
+  uploadCreativeSpaceReference, CreativeSpaceReference,
 } from "@/services/creative-hub";
 import { Character, Cloth } from "@/types/creative-hub";
 import {
   Loader2, ArrowLeft, Upload, Wand2, Save, Film,
-  Shirt, Check, User, ImageOff, MapPin, Clock, Pencil, X,
+  Shirt, Check, User, ImageOff, MapPin, Clock, Pencil, X, History, GitCompare,
+  Paperclip,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
+import ScriptHistoryModal from "@/components/creative-hub/ScriptHistoryModal";
+import PrevizCompareView from "@/components/creative-hub/PrevizCompareView";
+import { getPrevizHistory } from "@/services/creative-hub";
+
 import { useGenerationTasks } from "@/hooks/useGenerationTasks";
+import { useRestoreInflightTask } from "@/hooks/useRestoreInflightTask";
 import { useUserInfo } from "@/hooks/useUserInfo";
 
 type GenStep = "saving" | "queued" | "rendering";
@@ -524,6 +531,60 @@ export default function CharacterDetailPage() {
   const [trackedPortraitTasks, setTrackedPortraitTasks] = useState<Record<string, number>>({});
   const [trackedSceneTasks, setTrackedSceneTasks] = useState<Record<string, number>>({});
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [scriptHistoryOpen, setScriptHistoryOpen] = useState(false);
+  // STO-546: reference images attached to the next AI generation kickoff.
+  const [genReferences, setGenReferences] = useState<CreativeSpaceReference[]>([]);
+  const [uploadingRefs, setUploadingRefs] = useState(0);
+  const refFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [comparePrevizList, setComparePrevizList] = useState<Array<{ id: number; image_url: string | null; aspect_ratio: string | null; created_at: string; added_by: { name?: string | null; email?: string | null } | null; notes: string | null }>>([]);
+  const [compareLoading, setCompareLoading] = useState(false);
+
+  // STO-546: upload attached reference images via the creative-space helper
+  // so they get a previz_id we can pass to the generate-image endpoint.
+  const handleAttachRefs = async (files: FileList | File[]) => {
+    if (!character?.script) {
+      toast.error("Open a character with a script first.");
+      return;
+    }
+    const valid = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (valid.length === 0) return;
+    setUploadingRefs((n) => n + valid.length);
+    for (const file of valid) {
+      try {
+        const ref = await uploadCreativeSpaceReference(character.script, file);
+        setGenReferences((prev) => prev.find((r) => r.id === ref.id) ? prev : [...prev, ref]);
+        setHistoryRefreshKey((k) => k + 1);
+      } catch (err) {
+        toast.error(extractApiError(err, `Failed to upload ${file.name}`));
+      } finally {
+        setUploadingRefs((n) => n - 1);
+      }
+    }
+  };
+
+  const handleOpenCompare = async () => {
+    if (compareLoading) return;
+    setCompareLoading(true);
+    try {
+      const result = await getPrevizHistory("character", characterId, 1, 24);
+      setComparePrevizList(
+        result.results.map((row) => ({
+          id: row.previsualization.id,
+          image_url: row.previsualization.image_url ?? null,
+          aspect_ratio: row.previsualization.aspect_ratio ?? null,
+          created_at: row.created_at,
+          added_by: row.added_by,
+          notes: row.notes ?? null,
+        })),
+      );
+      setCompareOpen(true);
+    } catch (err) {
+      toast.error(extractApiError(err, "Failed to load history for compare."));
+    } finally {
+      setCompareLoading(false);
+    }
+  };
 
   const fetchCharacter = useCallback(async (): Promise<CharacterDetail> => {
     const data = await getCharacter(characterId) as CharacterDetail;
@@ -597,12 +658,17 @@ export default function CharacterDetailPage() {
   const handleSave = async () => {
     if (!name.trim()) return toast.error("Name is required");
     setSaving(true);
+    const hadUpload = !!imageFile;
     try {
       await updateCharacter(characterId, { name, description, ...(imageFile ? { image_url: imageFile } : {}) });
       toast.success("Saved");
       setImageFile(null);
       setEditingInfo(false);
       await fetchCharacter();
+      // STO-1070: a manual upload now writes a PrevizHistory row backend-side,
+      // so the per-subject strip needs to refetch to surface it without a
+      // page reload.
+      if (hadUpload) setHistoryRefreshKey((k) => k + 1);
     } catch (e) {
       toast.error(extractApiError(e, "Failed to save."));
     } finally {
@@ -614,13 +680,22 @@ export default function CharacterDetailPage() {
     setIsModelOpen(false);
     setGenerating(true);
     setPortraitGenStep("saving");
+    const hadUpload = !!imageFile;
     try {
       await updateCharacter(characterId, { name, description, ...(imageFile ? { image_url: imageFile } : {}) });
       setImageFile(null);
+      // STO-1070: bump so the manual-upload PrevizHistory row appears in
+      // the per-subject strip even before the subsequent AI generation
+      // completes (the AI task will bump again on settle).
+      if (hadUpload) setHistoryRefreshKey((k) => k + 1);
       setPortraitGenStep("queued");
-      const result = await generateCharacterImage(characterId, model, provider);
+      const refIds = genReferences.map((r) => r.id);
+      const result = await generateCharacterImage(characterId, model, provider, undefined, undefined, refIds);
       setTrackedPortraitTasks(prev => ({ ...prev, [result.task_id]: characterId }));
       setPortraitGenStep("rendering");
+      // STO-546: clear references after a successful kickoff so the next
+      // generation doesn't silently re-use them. Mirrors creative-space.
+      setGenReferences([]);
       // Backend deducts up-front when the Celery task is dispatched.
       refreshCredits();
       toast.success("Portrait rendering — will update when ready…");
@@ -694,6 +769,25 @@ export default function CharacterDetailPage() {
         setGeneratingScenes(prev => { const m = new Map(prev); m.delete(objectId); return m; });
         toast.error("Scene look generation failed. Please try again.");
       }
+    },
+  });
+
+  // STO-1073: canonical mount-time recovery for portrait jobs. The legacy
+  // getCharacterTasks scan in the init effect above still seeds scene-look
+  // restores; this hook covers the portrait task in a content-type-agnostic
+  // way and is the path other pages adopt going forward.
+  useRestoreInflightTask({
+    contentType: "character",
+    objectId: characterId,
+    taskType: "character_portrait_generation",
+    onInflight: (taskStatus) => {
+      setTrackedPortraitTasks(prev =>
+        prev[taskStatus.task_id] !== undefined
+          ? prev
+          : { ...prev, [taskStatus.task_id]: characterId }
+      );
+      setGenerating(true);
+      setPortraitGenStep("rendering");
     },
   });
 
@@ -880,6 +974,47 @@ export default function CharacterDetailPage() {
             </button>
           </div>
 
+          {/* STO-546: attach reference images for the next AI generation. */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => refFileInputRef.current?.click()}
+              disabled={!character?.script || generating}
+              className="flex items-center gap-1 text-[10px] text-emerald-400 hover:text-emerald-300 disabled:text-[var(--text-muted)] disabled:cursor-not-allowed transition-colors px-2 py-1 border border-dashed border-[var(--border)] rounded-md"
+              title="Attach reference images for the next generation"
+            >
+              <Paperclip className="w-3 h-3" /> Add reference
+            </button>
+            <input
+              ref={refFileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => { if (e.target.files) handleAttachRefs(e.target.files); e.target.value = ""; }}
+            />
+            {genReferences.map((ref, i) => (
+              <div key={`gen-ref-${ref.id}`} className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg pl-1 pr-1.5 py-0.5">
+                <img src={ref.image_url} alt={`Image ${i + 1}`} className="w-6 h-6 rounded object-cover" />
+                <span className="text-[10px] font-mono text-amber-300">${i + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => setGenReferences((prev) => prev.filter((r) => r.id !== ref.id))}
+                  className="p-0.5 rounded hover:bg-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  aria-label={`Remove image ${i + 1}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+            {Array.from({ length: uploadingRefs }).map((_, i) => (
+              <div key={`up-${i}`} className="flex items-center gap-1 bg-[var(--surface-hover)] border border-[var(--border)] rounded-lg px-2 py-1">
+                <Loader2 className="w-3 h-3 animate-spin text-emerald-500" />
+                <span className="text-[10px] text-[var(--text-muted)]">Uploading…</span>
+              </div>
+            ))}
+          </div>
+
           {/* Character name */}
           <div>
             <h1 className="text-lg font-black text-[var(--text-primary)] tracking-tight">{character.name}</h1>
@@ -958,6 +1093,29 @@ export default function CharacterDetailPage() {
 
           {/* Portrait history */}
           <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-4">
+            <div className="flex items-center justify-end gap-3 mb-2">
+              <button
+                type="button"
+                onClick={handleOpenCompare}
+                disabled={compareLoading}
+                className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 disabled:text-[var(--text-muted)] disabled:cursor-not-allowed transition-colors"
+                title="Compare recent generations side-by-side"
+              >
+                <GitCompare className="w-3 h-3" />
+                {compareLoading ? "Loading…" : "Compare"}
+              </button>
+              {character.script ? (
+                <button
+                  type="button"
+                  onClick={() => setScriptHistoryOpen(true)}
+                  className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 transition-colors"
+                  title="Browse every previz on this script"
+                >
+                  <History className="w-3 h-3" />
+                  View Full History
+                </button>
+              ) : null}
+            </div>
             <PrevizHistorySection
               kind="character"
               subjectId={characterId}
@@ -1156,6 +1314,38 @@ export default function CharacterDetailPage() {
         title="Generate Character Portrait"
         confirmLabel="Generate"
       />
+
+      {character.script && (
+        <ScriptHistoryModal
+          open={scriptHistoryOpen}
+          onClose={() => setScriptHistoryOpen(false)}
+          scriptId={character.script}
+          currentKind="character"
+          currentSubjectId={characterId}
+          currentSubjectLabel={character.name}
+          currentActivePrevizId={(character as Character).active_previz ?? null}
+          onApplied={() => {
+            setHistoryRefreshKey((k) => k + 1);
+            fetchCharacter();
+          }}
+        />
+      )}
+
+      {compareOpen && (
+        <PrevizCompareView
+          subjectId={characterId}
+          subjectLabel={`Character: ${character.name}`}
+          previzList={comparePrevizList}
+          activePrevizId={(character as Character).active_previz ?? null}
+          onClose={() => setCompareOpen(false)}
+          onSetActive={async (previzId) => {
+            await setActiveSubjectPreviz("character", characterId, previzId);
+            toast.success("Applied to character");
+            await fetchCharacter();
+            setHistoryRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
     </div>
   );
 }

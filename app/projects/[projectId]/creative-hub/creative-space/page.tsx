@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, Send, LayoutPanelTop, MonitorPlay, AlertTriangle, User, MapPin, History } from "lucide-react";
+import { Loader2, Send, LayoutPanelTop, MonitorPlay, AlertTriangle, User, MapPin, History, Paperclip, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import {
   getScripts,
@@ -16,6 +16,11 @@ import {
   CameraAngle,
   getShotTypes,
   ShotType,
+  uploadCreativeSpaceReference,
+  CreativeSpaceReference,
+  getBulkTaskStatus,
+  getLatestTaskStatus,
+  getPrevisualization,
 } from "@/services/creative-hub";
 import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
@@ -43,6 +48,27 @@ interface TaggedCharacter { id: number; name: string; image_url?: string; }
 interface TaggedLocation  { id: number; name: string; image_url?: string; }
 
 // ─── Tag parsers ──────────────────────────────────────────────────────────────
+
+// Reference images attached to the prompt — labelled $1 / $2 / … in the
+// order the user attached them. The parser yields the list of indices the
+// user actually mentioned so the parent can show "tagged" chips for each.
+function getTaggedImageIndicesFromText(text: string, imageCount: number): number[] {
+  if (imageCount <= 0) return [];
+  const result: number[] = [];
+  const seen = new Set<number>();
+  // Match $<digits> not preceded by an alphanumeric (so "$1.99" still matches
+  // but "USD$1" does not — defensive against accidental currency-style use).
+  const pattern = /(?:^|[^A-Za-z0-9_])\$(\d+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = pattern.exec(text)) !== null) {
+    const idx = parseInt(m[1], 10);
+    if (idx >= 1 && idx <= imageCount && !seen.has(idx)) {
+      seen.add(idx);
+      result.push(idx);
+    }
+  }
+  return result;
+}
 
 function getTaggedCharactersFromText(text: string, characters: TaggedCharacter[]): TaggedCharacter[] {
   if (!characters.length) return [];
@@ -74,18 +100,31 @@ function getTaggedLocationsFromText(text: string, locations: TaggedLocation[]): 
 
 // ─── MentionInput ─────────────────────────────────────────────────────────────
 
+interface AttachedImageMention {
+  /** Previsualization id of the uploaded reference. */
+  id: number;
+  /** 1-indexed pill number — what the user types ($1, $2, ...). */
+  index: number;
+  /** Thumbnail for the dropdown row. */
+  image_url: string;
+}
+
 interface MentionInputProps {
   value: string;
   onChange: (val: string) => void;
   characters: TaggedCharacter[];
   locations: TaggedLocation[];
+  /** Attached uploaded references. Triggered with `$` and inserted as `$N`. */
+  images?: AttachedImageMention[];
   disabled?: boolean;
   onKeyDown?: React.KeyboardEventHandler<HTMLTextAreaElement>;
+  onPaste?: React.ClipboardEventHandler<HTMLTextAreaElement>;
 }
 
 type DropdownItem =
   | { kind: "character"; item: TaggedCharacter }
-  | { kind: "location";  item: TaggedLocation  };
+  | { kind: "location";  item: TaggedLocation  }
+  | { kind: "image";     item: AttachedImageMention };
 
 function rankByQuery<T extends { name: string }>(items: T[], query: string): T[] {
   if (!query) return items;
@@ -99,12 +138,12 @@ function rankByQuery<T extends { name: string }>(items: T[], query: string): T[]
   });
 }
 
-function MentionInput({ value, onChange, characters, locations, disabled, onKeyDown }: MentionInputProps) {
+function MentionInput({ value, onChange, characters, locations, images = [], disabled, onKeyDown, onPaste }: MentionInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
 
-  const [mentionChar,  setMentionChar]  = useState<"@" | "#" | null>(null);
+  const [mentionChar,  setMentionChar]  = useState<"@" | "#" | "$" | null>(null);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionStart, setMentionStart] = useState<number | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -131,6 +170,13 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
       return rankByQuery(locations.filter((l) => l.name.toLowerCase().includes(q)), mentionQuery)
         .map((item) => ({ kind: "location" as const, item }));
     }
+    if (mentionChar === "$") {
+      // $ matches digits — filter by string-prefix on the index.
+      const filtered = images.filter((img) =>
+        q ? String(img.index).startsWith(q) : true,
+      );
+      return filtered.map((item) => ({ kind: "image" as const, item }));
+    }
     return [];
   })();
 
@@ -148,21 +194,37 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
 
     const cursor    = e.target.selectionStart ?? 0;
     const textUpTo  = newVal.slice(0, cursor);
-    const lastAt    = textUpTo.lastIndexOf("@");
-    const lastHash  = textUpTo.lastIndexOf("#");
-    const triggerIdx  = Math.max(lastAt, lastHash);
-    const triggerChar = triggerIdx === lastAt ? "@" : "#";
+    const lastAt     = textUpTo.lastIndexOf("@");
+    const lastHash   = textUpTo.lastIndexOf("#");
+    const lastDollar = textUpTo.lastIndexOf("$");
+    const triggerIdx = Math.max(lastAt, lastHash, lastDollar);
+    let triggerChar: "@" | "#" | "$" = "@";
+    if (triggerIdx === lastDollar) triggerChar = "$";
+    else if (triggerIdx === lastHash) triggerChar = "#";
+    else if (triggerIdx === lastAt) triggerChar = "@";
 
     if (triggerIdx !== -1) {
       const fragment = textUpTo.slice(triggerIdx + 1);
       if (!fragment.includes(" ")) {
-        setMentionChar(triggerChar);
-        setMentionQuery(fragment);
-        setMentionStart(triggerIdx);
-        setShowDropdown(true);
-        setSelectedIdx(0);
-        positionDropdown();
-        return;
+        // Defensive guards — only open the dropdown when the fragment makes
+        // sense for the trigger:
+        //   $ → digits only (don't pop on $foo or $1.99 mid-typing)
+        //   @ / # → no-space already ensured above
+        //   $ also requires the char before the trigger NOT be alphanumeric
+        //   so "USD$1" doesn't activate it.
+        const prevChar = triggerIdx > 0 ? textUpTo[triggerIdx - 1] : "";
+        const validPrev = !prevChar || !/[A-Za-z0-9_]/.test(prevChar);
+        const validFragment =
+          triggerChar === "$" ? /^\d*$/.test(fragment) : true;
+        if (validPrev && validFragment) {
+          setMentionChar(triggerChar);
+          setMentionQuery(fragment);
+          setMentionStart(triggerIdx);
+          setShowDropdown(true);
+          setSelectedIdx(0);
+          positionDropdown();
+          return;
+        }
       }
     }
     setShowDropdown(false);
@@ -180,7 +242,9 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
     setMentionChar(null);
     setTimeout(() => {
       if (textareaRef.current) {
-        const pos = before.length + label.length + 2;
+        // Cursor lands one past the inserted mention + trailing space.
+        // For $ (image) mentions the label is short ("1", "2", ...) — same math holds.
+        const pos = before.length + 1 + label.length + 1;
         textareaRef.current.setSelectionRange(pos, pos);
         textareaRef.current.focus();
         syncScroll();
@@ -200,7 +264,15 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
         return;
       } else if (e.key === "Tab" || e.key === "Enter") {
         const sel = dropdownItems[selectedIdx];
-        if (sel) { e.preventDefault(); insertMention(sel.item.name); return; }
+        if (sel) {
+          e.preventDefault();
+          const label =
+            sel.kind === "image"
+              ? String((sel.item as AttachedImageMention).index)
+              : (sel.item as TaggedCharacter | TaggedLocation).name;
+          insertMention(label);
+          return;
+        }
       } else if (e.key === "Escape") {
         setShowDropdown(false);
         return;
@@ -240,7 +312,7 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
             {/* Header */}
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#1f1f1f] sticky top-0 bg-[#141414] z-10">
               <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
-                {mentionChar === "@" ? "Characters" : "Locations"}
+                {mentionChar === "@" ? "Characters" : mentionChar === "#" ? "Locations" : "Reference Images"}
                 {mentionQuery && (
                   <span className="text-[var(--text-muted)] normal-case font-normal">
                     {" "}· {dropdownItems.length} match{dropdownItems.length !== 1 ? "es" : ""}
@@ -251,24 +323,54 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
             </div>
 
             {dropdownItems.map((d, i) => {
-              const label      = d.item.name;
-              const imageUrl   = d.kind === "character" ? d.item.image_url : (d.item as TaggedLocation).image_url;
-              const isChar     = d.kind === "character";
+              const isChar  = d.kind === "character";
+              const isLoc   = d.kind === "location";
+              const isImage = d.kind === "image";
+              const label =
+                isImage ? String((d.item as AttachedImageMention).index) : (d.item as TaggedCharacter | TaggedLocation).name;
+              const displayLabel = isImage ? `Image ${label}` : label;
+              const imageUrl =
+                isChar  ? (d.item as TaggedCharacter).image_url
+                : isLoc ? (d.item as TaggedLocation).image_url
+                : (d.item as AttachedImageMention).image_url;
               const isSelected = selectedIdx === i;
               const isBest     = i === 0;
 
               const q        = mentionQuery.toLowerCase();
-              const matchIdx = label.toLowerCase().indexOf(q);
+              const matchIdx = displayLabel.toLowerCase().indexOf(q);
+              const accent =
+                isChar  ? "text-emerald-300"
+                : isLoc ? "text-sky-300"
+                :         "text-amber-300";
+              const accentBase =
+                isChar  ? "text-emerald-400"
+                : isLoc ? "text-sky-400"
+                :         "text-amber-400";
+              const ringBorder =
+                isChar  ? "border-emerald-500/20"
+                : isLoc ? "border-sky-500/20"
+                :         "border-amber-500/20";
+              const selBg =
+                isChar  ? "bg-emerald-500/10"
+                : isLoc ? "bg-sky-500/10"
+                :         "bg-amber-500/10";
+              const tabPill =
+                isChar  ? "text-emerald-600 border-emerald-900/50 bg-emerald-950/40"
+                : isLoc ? "text-sky-600 border-sky-900/50 bg-sky-950/40"
+                :         "text-amber-600 border-amber-900/50 bg-amber-950/40";
+              const triggerSym =
+                isChar ? "@" : isLoc ? "#" : "$";
+
               const highlighted =
                 q && matchIdx !== -1 ? (
                   <>
-                    {label.slice(0, matchIdx)}
-                    <span className={isChar ? "text-emerald-300" : "text-sky-300"}>
-                      {label.slice(matchIdx, matchIdx + q.length)}
+                    {displayLabel.slice(0, matchIdx)}
+                    <span className={accent}>
+                      {displayLabel.slice(matchIdx, matchIdx + q.length)}
                     </span>
-                    {label.slice(matchIdx + q.length)}
+                    {displayLabel.slice(matchIdx + q.length)}
                   </>
-                ) : label;
+                ) : displayLabel;
 
               return (
                 <button
@@ -277,33 +379,27 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
                   onMouseDown={(e) => { e.preventDefault(); insertMention(label); }}
                   onMouseEnter={() => setSelectedIdx(i)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
-                    isSelected
-                      ? isChar ? "bg-emerald-500/10" : "bg-sky-500/10"
-                      : "hover:bg-[var(--surface-hover)]"
+                    isSelected ? selBg : "hover:bg-[var(--surface-hover)]"
                   }`}
                 >
-                  <div className={`w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-[#1f1f1f] border ${
-                    isChar ? "border-emerald-500/20" : "border-sky-500/20"
-                  }`}>
+                  <div className={`w-6 h-6 ${isImage ? "rounded" : "rounded-full"} overflow-hidden flex-shrink-0 bg-[#1f1f1f] border ${ringBorder}`}>
                     {imageUrl ? (
-                      <img src={imageUrl} alt={label} className="w-full h-full object-cover" />
+                      <img src={imageUrl} alt={displayLabel} className="w-full h-full object-cover" />
                     ) : isChar ? (
                       <User className="w-3 h-3 m-auto mt-1.5 text-emerald-500/60" />
-                    ) : (
+                    ) : isLoc ? (
                       <MapPin className="w-3 h-3 m-auto mt-1.5 text-sky-500/60" />
+                    ) : (
+                      <Paperclip className="w-3 h-3 m-auto mt-1.5 text-amber-500/60" />
                     )}
                   </div>
-                  <span className={`text-xs flex-1 ${isChar ? "text-emerald-400" : "text-sky-400"}`}>
+                  <span className={`text-xs flex-1 ${accentBase}`}>
                     {highlighted}
                   </span>
                   {isBest ? (
-                    <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
-                      isChar
-                        ? "text-emerald-600 border-emerald-900/50 bg-emerald-950/40"
-                        : "text-sky-600 border-sky-900/50 bg-sky-950/40"
-                    }`}>Tab</span>
+                    <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${tabPill}`}>Tab</span>
                   ) : (
-                    <span className="text-[9px] text-[var(--text-muted)] font-mono">{isChar ? "@" : "#"}</span>
+                    <span className="text-[9px] text-[var(--text-muted)] font-mono">{triggerSym}</span>
                   )}
                 </button>
               );
@@ -325,12 +421,21 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
       return parts;
     }
 
-    // Build dynamic regex like /(@John Smith|#Hong Kong)/gi
+    // Build dynamic regex like /(@John Smith|#Hong Kong|\$1|\$2)/gi
     const escapedChars = charNames.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
     const escapedLocs  = locNames.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-    const charPattern = escapedChars.length > 0 ? `@(?:${escapedChars.join("|")})` : "";
-    const locPattern  = escapedLocs.length > 0  ? `#(?:${escapedLocs.join("|")})` : "";
-    const combined    = [charPattern, locPattern].filter(Boolean).join("|");
+    const charPattern  = escapedChars.length > 0 ? `@(?:${escapedChars.join("|")})` : "";
+    const locPattern   = escapedLocs.length  > 0 ? `#(?:${escapedLocs.join("|")})`  : "";
+    // $-image tags: only highlight ones that match an attached pill index.
+    const imageIndices = images.map((img) => img.index);
+    const imagePattern = imageIndices.length > 0
+      ? `\\$(?:${imageIndices.join("|")})(?![0-9])`
+      : "";
+    const combined = [charPattern, locPattern, imagePattern].filter(Boolean).join("|");
+    if (!combined) {
+      parts.push(<span key={`t0`} className="text-white">{text}</span>);
+      return parts;
+    }
     const re = new RegExp(`(${combined})`, "gi");
 
     let last = 0;
@@ -339,12 +444,12 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
       if (m.index > last)
         parts.push(<span key={`t${last}`} className="text-white">{text.slice(last, m.index)}</span>);
       const token = m[0];
+      const color =
+        token.startsWith("@") ? "text-emerald-400"
+        : token.startsWith("#") ? "text-sky-400"
+        : "text-amber-400";
       parts.push(
-        <span key={`m${m.index}`}
-          className={token.startsWith("@")
-            ? "text-emerald-400"
-            : "text-sky-400"}
-        >{token}</span>
+        <span key={`m${m.index}`} className={color}>{token}</span>
       );
       last = m.index + token.length;
     }
@@ -395,10 +500,11 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
           display: "block",
           zIndex: 1,
         }}
-        placeholder="Describe the vision… use @Character or #Location to tag references"
+        placeholder="Describe the vision… @Character, #Location, $1 / $2 for uploaded references"
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onPaste={onPaste}
         onScroll={syncScroll}
         disabled={disabled}
         rows={1}
@@ -406,6 +512,49 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
       {dropdown}
     </div>
   );
+}
+
+// ─── Task polling ─────────────────────────────────────────────────────────────
+// STO-1073: Creative Space `/previsualization/create/` is now async — POST
+// returns 201 immediately with a task_id, the rendered `image_url` arrives
+// later via a Celery worker. Poll `getBulkTaskStatus` until the task lands.
+//
+// Copied verbatim from ShotDetailModal (commit 2e942ae) so both surfaces
+// share semantics — same 2s tick, same 5min ceiling, same status sets.
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const COMPLETE_TASK_STATUSES = new Set<string>(["completed", "success"]);
+const FAILED_TASK_STATUSES = new Set<string>(["failed", "failure", "revoked"]);
+const INFLIGHT_TASK_STATUSES = new Set<string>(["pending", "processing", "retrying", "started"]);
+
+async function pollTaskUntilComplete(
+    taskId: string,
+    cancelledRef: { current: boolean },
+    intervalMs: number = POLL_INTERVAL_MS,
+    timeoutMs: number = POLL_TIMEOUT_MS,
+): Promise<void> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (cancelledRef.current) return;
+        try {
+            const data = await getBulkTaskStatus([taskId]);
+            const tasks: any[] = data?.tasks || [];
+            const row = tasks.find((t: any) => t.task_id === taskId);
+            if (!row) {
+                throw new Error("Task status disappeared");
+            }
+            if (COMPLETE_TASK_STATUSES.has(row.status)) return;
+            if (FAILED_TASK_STATUSES.has(row.status)) {
+                throw new Error(row.error || row.error_message || "Image generation failed");
+            }
+            // pending / processing / retrying / started → keep polling.
+        } catch (err: any) {
+            if (err?.message === "Task status disappeared" || err?.message === "Image generation failed") throw err;
+            if (typeof err?.message === "string" && err.message.length > 0 && !err?.isAxiosError) throw err;
+        }
+        await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    throw new Error("Image generation timed out after 5 minutes");
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -448,6 +597,16 @@ export default function CreativeSpacePage() {
   const [locations,        setLocations]        = useState<TaggedLocation[]>([]);
   const [taggedCharacters, setTaggedCharacters] = useState<TaggedCharacter[]>([]);
   const [taggedLocations,  setTaggedLocations]  = useState<TaggedLocation[]>([]);
+  // STO-546: indices (1-based) of attached references that the prompt
+  // currently references via $N. Drives the live confirmation chips and
+  // the per-pill "tagged" highlight state.
+  const [taggedImageIndices, setTaggedImageIndices] = useState<number[]>([]);
+
+  // STO-546: User-attached reference images (ChatGPT-style attachments)
+  const [attachedReferences, setAttachedReferences] = useState<CreativeSpaceReference[]>([]);
+  const [uploadingReferences, setUploadingReferences] = useState(0); // count of in-flight uploads
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const fetchHistory = async (sid: number, page: number, isInitial: boolean = false) => {
     if (isFetchingHistory) return;
@@ -483,6 +642,43 @@ export default function CreativeSpacePage() {
     } finally {
       setIsFetchingHistory(false);
     }
+  };
+
+  // STO-546: Upload one or more files as Creative Space reference images.
+  // Uploads run sequentially to keep things simple, but the in-flight count
+  // increments up-front so all "Uploading..." pills appear immediately.
+  const handleAttachFiles = async (files: FileList | File[]) => {
+    if (!scriptId) {
+      toast.error("Open a script first.");
+      return;
+    }
+    const valid = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (valid.length === 0) return;
+    setUploadingReferences((n) => n + valid.length);
+    for (const file of valid) {
+      try {
+        const ref = await uploadCreativeSpaceReference(scriptId, file);
+        setAttachedReferences((prev) =>
+          prev.some((r) => r.id === ref.id) ? prev : [...prev, ref],
+        );
+        // Refresh script-wide history so the upload appears in the feed
+        fetchHistory(scriptId, 1, true);
+      } catch (err) {
+        toast.error(extractApiError(err, `Failed to upload ${file.name}`));
+      } finally {
+        setUploadingReferences((n) => n - 1);
+      }
+    }
+  };
+
+  // Add a previously-uploaded previz back as a reference without re-uploading.
+  const attachExistingPreviz = (previzId: number, imageUrl?: string | null, description?: string | null) => {
+    if (!previzId || !imageUrl) return;
+    setAttachedReferences((prev) =>
+      prev.some((r) => r.id === previzId)
+        ? prev
+        : [...prev, { id: previzId, image_url: imageUrl, description: description ?? null }],
+    );
   };
 
   useEffect(() => {
@@ -523,6 +719,122 @@ export default function CreativeSpacePage() {
       .catch(console.error);
   }, [projectId]);
 
+  // ── STO-1073: restore in-flight previs_generation tasks on reload ─────
+  // The first page of history may include rows whose AI render is still in
+  // flight (`image_url=null`, recent `updated_at`). On the originating tab
+  // the optimistic tile carried `isGenerating: true`; on a fresh load that
+  // state is gone. We fan out one `getLatestTaskStatus` per candidate row,
+  // capped at 5 concurrent requests, and whichever come back as inflight
+  // get marked `isGenerating: true` and polled to completion.
+  //
+  // Mirrors the storyboard restore in commit 2b2ff76 — same set of inflight
+  // statuses, same ref-guard pattern so a re-render doesn't re-run this.
+  const restorePrevizScriptIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!scriptId) return;
+    if (history.length === 0) return;
+    if (restorePrevizScriptIdRef.current === scriptId) return;
+    restorePrevizScriptIdRef.current = scriptId;
+
+    const RECENT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+    const now = Date.now();
+    const candidates = history.filter((row) => {
+      if (!row || row.image_url) return false;
+      if (typeof row.id !== "number") return false;
+      // Skip optimistic tiles that haven't been swapped yet (id == Date.now()-ish);
+      // they're already being polled by the active handleGenerate call.
+      if (row.isGenerating) return false;
+      const ts = row.updated_at || row.created_at;
+      if (!ts) return false;
+      const age = now - new Date(ts).getTime();
+      return age >= 0 && age <= RECENT_WINDOW_MS;
+    });
+    if (candidates.length === 0) return;
+
+    let cancelled = false;
+    const cancelledRef = { current: false };
+
+    // Tiny inline concurrency limiter — at most `limit` workers in flight.
+    const runWithConcurrency = async <T,>(items: T[], limit: number, worker: (item: T) => Promise<void>) => {
+      let cursor = 0;
+      const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (cursor < items.length) {
+          const idx = cursor++;
+          try {
+            await worker(items[idx]);
+          } catch {
+            /* best-effort restore */
+          }
+        }
+      });
+      await Promise.allSettled(runners);
+    };
+
+    const resolveRow = async (previzId: number) => {
+      try {
+        const finalPreviz = await getPrevisualization(previzId);
+        if (cancelled) return;
+        const resolved = { ...finalPreviz, isGenerating: false };
+        setHistory((prev) => prev.map((item) => (item.id === previzId ? { ...item, ...resolved } : item)));
+        setSessionGenerations((prev) =>
+          prev.map((item) => (item.id === previzId ? { ...item, ...resolved } : item)),
+        );
+      } catch (err) {
+        if (cancelled) return;
+        // Refetch failed — leave the spinner alone rather than misreporting.
+        console.error("Failed to refetch previz after restore poll:", err);
+      }
+    };
+
+    const markErrored = (previzId: number, msg: string) => {
+      const errored = (item: any) =>
+        item.id === previzId ? { ...item, isGenerating: false, isError: true, errorMessage: msg } : item;
+      setHistory((prev) => prev.map(errored));
+      setSessionGenerations((prev) => prev.map(errored));
+    };
+
+    (async () => {
+      await runWithConcurrency(candidates, 5, async (row: any) => {
+        const previzId = row.id as number;
+        const status = await getLatestTaskStatus("previsualization", previzId, "previs_generation");
+        if (!status || cancelled) return;
+        if (COMPLETE_TASK_STATUSES.has(status.status)) {
+          // Worker finished while we were away — pull the populated row.
+          await resolveRow(previzId);
+          return;
+        }
+        if (FAILED_TASK_STATUSES.has(status.status)) {
+          // Surface the failure as an errored tile so the user isn't left
+          // staring at a silent spinner.
+          markErrored(previzId, "Image generation failed");
+          return;
+        }
+        if (!INFLIGHT_TASK_STATUSES.has(status.status)) return;
+
+        // Re-spin the tile and resume polling.
+        setHistory((prev) => prev.map((item) => (item.id === previzId ? { ...item, isGenerating: true } : item)));
+        setSessionGenerations((prev) =>
+          prev.map((item) => (item.id === previzId ? { ...item, isGenerating: true } : item)),
+        );
+        try {
+          await pollTaskUntilComplete(status.task_id, cancelledRef);
+          if (cancelled) return;
+          await resolveRow(previzId);
+        } catch (err: any) {
+          if (cancelled) return;
+          const msg = err?.message || "Image generation failed";
+          markErrored(previzId, msg);
+        }
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      cancelledRef.current = true;
+    };
+  }, [scriptId, history]);
+
   // Maintain scroll position when compiling new older history
   useEffect(() => {
     if (!containerRef.current) return;
@@ -560,7 +872,8 @@ export default function CreativeSpacePage() {
   useEffect(() => {
     setTaggedCharacters(getTaggedCharactersFromText(prompt, characters));
     setTaggedLocations(getTaggedLocationsFromText(prompt, locations));
-  }, [prompt, characters, locations]);
+    setTaggedImageIndices(getTaggedImageIndicesFromText(prompt, attachedReferences.length));
+  }, [prompt, characters, locations, attachedReferences.length]);
 
   const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const idx = Number(e.target.value);
@@ -590,6 +903,7 @@ export default function CreativeSpacePage() {
 
     const newGen = {
         id: tempId,
+        __tempId: tempId,
         isGenerating: true,
         prompt: capturedPrompt,
         aspect_ratio: aspectRatio,
@@ -611,6 +925,8 @@ export default function CreativeSpacePage() {
       if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }, 50);
 
+    const refIds = attachedReferences.map((r) => r.id);
+
     try {
       const response = await createScriptPrevisualization({
         script: scriptId,
@@ -625,38 +941,73 @@ export default function CreativeSpacePage() {
         size: selectedSize,
         character_ids: charIds.length > 0 ? charIds : undefined,
         location_ids:  locIds.length > 0  ? locIds  : undefined,
+        reference_previz_ids: refIds.length > 0 ? refIds : undefined,
       });
 
-      if (response?.image_url) {
-        const resolved = { ...response, isGenerating: false, shot_type: shotType, taggedCharacters: capturedChars, taggedLocations: capturedLocs };
-        setHistory((prev) => prev.map((item) => item.id === tempId ? resolved : item));
-        setSessionGenerations((prev) => prev.map((item) => item.id === tempId ? resolved : item));
-        
+      // STO-1073: stamp the optimistic tile with the real previz_id so a
+      // mid-generation reload can find and resume polling on this row.
+      // Keep `isGenerating: true` until the task completes.
+      const realId = response.id;
+      setHistory((prev) =>
+        prev.map((item) =>
+          item.id === tempId ? { ...item, id: realId, real_id: realId } : item,
+        ),
+      );
+      setSessionGenerations((prev) =>
+        prev.map((item) =>
+          item.id === tempId ? { ...item, id: realId, real_id: realId } : item,
+        ),
+      );
+
+      const finalize = (rowData: any) => {
+        const resolved = {
+          ...rowData,
+          id: realId,
+          isGenerating: false,
+          shot_type: shotType,
+          taggedCharacters: capturedChars,
+          taggedLocations: capturedLocs,
+        };
+        setHistory((prev) => prev.map((item) => (item.id === realId ? resolved : item)));
+        setSessionGenerations((prev) => prev.map((item) => (item.id === realId ? resolved : item)));
         setTimeout(() => {
           if (sessionContainerRef.current) sessionContainerRef.current.scrollTop = sessionContainerRef.current.scrollHeight;
         }, 50);
-
-        // Scroll to bottom after arrival
         if (showHistory) {
           setTimeout(() => {
             if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight;
           }, 50);
         }
-        setPrompt(""); // Success, can clear prompt
+        setPrompt("");
+        setAttachedReferences([]);
+      };
+
+      if (response.task_id) {
+        // Async path — poll until the worker reports completion, then refetch
+        // the previz row to pick up the rendered `image_url`.
+        const cancelledRef = { current: false };
+        await pollTaskUntilComplete(response.task_id, cancelledRef);
+        const finalPreviz = await getPrevisualization(realId);
+        finalize(finalPreviz);
+      } else if (response.image_url) {
+        // Synchronous path — image_file uploads still return the rendered
+        // image inline. Resolve directly without polling.
+        finalize(response);
       } else {
-        const msg = "Failed to generate visual.";
-        const errored = (item: any) => ({ ...item, isGenerating: false, isError: true, errorMessage: msg });
-        setHistory((prev) => prev.map((item) => item.id === tempId ? errored(item) : item));
-        setSessionGenerations((prev) => prev.map((item) => item.id === tempId ? errored(item) : item));
+        // Defensive: backend returned neither a task_id nor an image_url.
+        throw new Error("Backend returned no task_id or image_url");
       }
     } catch (error: any) {
       console.error("Failed to generate script previsualization:", error);
       const msg = extractApiError(error, "Image generation failed. Please try again.");
       toast.error(msg);
-      
+
+      // The optimistic tile may already have been re-keyed from `tempId` to
+      // the real previz_id by the time polling fails — match either.
       const errored = (item: any) => ({ ...item, isGenerating: false, isError: true, errorMessage: msg });
-      setHistory((prev) => prev.map((item) => item.id === tempId ? errored(item) : item));
-      setSessionGenerations((prev) => prev.map((item) => item.id === tempId ? errored(item) : item));
+      const matches = (item: any) => item.id === tempId || item.real_id === tempId || (item as any).__tempId === tempId;
+      setHistory((prev) => prev.map((item) => (matches(item) ? errored(item) : item)));
+      setSessionGenerations((prev) => prev.map((item) => (matches(item) ? errored(item) : item)));
     } finally {
       setIsGenerating(false);
     }
@@ -797,6 +1148,32 @@ export default function CreativeSpacePage() {
                             <div className="text-[var(--text-muted)]"><MonitorPlay className="w-6 h-6" /></div>
                           )}
 
+                          {/* STO-546: User-uploaded reference badge.
+                              Backend writes notes="User-uploaded reference" on the PrevizHistory row,
+                              and the previz row itself carries description="User reference". Match either. */}
+                          {((item.notes || "") + " " + (item.description || "")).toLowerCase().includes("reference") && !item.isGenerating && !item.isError && item.image_url && (
+                            <span className="absolute top-1 left-1 text-[8px] font-bold uppercase bg-blue-500 text-white px-1 py-0.5 rounded z-20">
+                              Reference
+                            </span>
+                          )}
+
+                          {/* STO-546: Hover overlay button to re-attach as reference (no re-upload). */}
+                          {!item.isGenerating && !item.isError && item.image_url && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                attachExistingPreviz(item.id, item.image_url, item.description);
+                                toast.success("Attached as reference");
+                              }}
+                              title="Use as reference"
+                              className="absolute bottom-1 right-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-black/70 hover:bg-emerald-600 text-white text-[9px] font-medium px-1.5 py-1 rounded backdrop-blur"
+                            >
+                              <Paperclip className="w-2.5 h-2.5" />
+                              <span>Use as ref</span>
+                            </button>
+                          )}
+
                           {/* Top Meta Badges overlaid on top */}
                           <div className="absolute top-0 left-0 right-0 p-2 flex flex-wrap gap-1 bg-gradient-to-b from-black/80 to-transparent z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                             {((item.taggedCharacters?.length > 0) || (item.taggedLocations?.length > 0)) && (
@@ -901,10 +1278,140 @@ export default function CreativeSpacePage() {
 
       {/* Floating bottom bar */}
       <div className="absolute bottom-0 left-0 right-0 pb-5 px-4 z-20 pointer-events-none">
-        <div className="w-3/4 mx-auto bg-[var(--surface)]/70 backdrop-blur-xl border border-[#ffffff08] rounded-2xl p-4 lg:p-5 shadow-[0_-4px_48px_rgba(0,0,0,0.8)] flex flex-col gap-3 pointer-events-auto">
+        <div
+          className={`w-3/4 mx-auto bg-[var(--surface)]/70 backdrop-blur-xl border ${
+            dragOver ? "border-emerald-500/60 border-dashed bg-emerald-500/5" : "border-[#ffffff08]"
+          } rounded-2xl p-4 lg:p-5 shadow-[0_-4px_48px_rgba(0,0,0,0.8)] flex flex-col gap-3 pointer-events-auto transition-colors`}
+          onDragOver={(e) => {
+            // STO-546: drag/drop reference attachments
+            e.preventDefault();
+            if (!dragOver) setDragOver(true);
+          }}
+          onDragLeave={(e) => {
+            // Only clear if we're actually leaving the container, not just passing over a child
+            if (e.currentTarget === e.target) setDragOver(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            if (e.dataTransfer.files?.length) {
+              handleAttachFiles(e.dataTransfer.files);
+            }
+          }}
+        >
+
+          {/* STO-546: Hidden file input wired to the paperclip button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files?.length) handleAttachFiles(e.target.files);
+              // reset so re-selecting the same file fires onChange again
+              e.target.value = "";
+            }}
+          />
+
+          {/* STO-546: Reference attachment pills (horizontally scrollable).
+               Pills are numbered "Image 1", "Image 2", etc. so the user can
+               reference them in the prompt as "image 1 walks past image 2"
+               etc. The backend prepends a numbered legend to the prompt so
+               the AI client maps these tags to the ordered reference URLs. */}
+          {(attachedReferences.length > 0 || uploadingReferences > 0) && (
+            <div className="flex gap-2 overflow-x-auto px-1 pb-1 scrollbar-thin">
+              {attachedReferences.map((ref, idx) => {
+                const num = idx + 1;
+                const tag = `Image ${num}`;
+                const isTagged = taggedImageIndices.includes(num);
+                return (
+                <div
+                  key={`ref-${ref.id}`}
+                  className={`flex items-center gap-1.5 rounded-lg pl-1 pr-1.5 py-1 flex-shrink-0 transition-colors border ${
+                    isTagged
+                      ? "bg-amber-500/15 border-amber-500/50 shadow-[0_0_0_1px_rgba(245,158,11,0.25)]"
+                      : "bg-[var(--surface-hover)] border-[var(--border)]"
+                  }`}
+                  title={
+                    isTagged
+                      ? `Tagged as $${num} in your prompt${ref.description ? ` — ${ref.description}` : ""}`
+                      : `Reference as $${num} or "image ${num}"${ref.description ? ` — ${ref.description}` : ""}`
+                  }
+                >
+                  <div className="relative">
+                    <img
+                      src={ref.image_url}
+                      alt={tag}
+                      className={`w-8 h-8 rounded object-cover bg-[var(--background)] ${isTagged ? "ring-2 ring-amber-400/70" : ""}`}
+                    />
+                    {isTagged && (
+                      <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-amber-500 text-black px-1 rounded-full leading-none py-0.5">
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-[10px] font-mono font-semibold ${isTagged ? "text-amber-300" : "text-amber-400/70"}`}>
+                    ${num}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAttachedReferences((prev) => prev.filter((r) => r.id !== ref.id))}
+                    className="p-0.5 rounded hover:bg-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                    aria-label={`Detach ${tag}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+                );
+              })}
+              {Array.from({ length: uploadingReferences }).map((_, i) => (
+                <div
+                  key={`uploading-${i}`}
+                  className="flex items-center gap-1.5 bg-[var(--surface-hover)] border border-[var(--border)] rounded-lg pl-1 pr-2 py-1 flex-shrink-0"
+                >
+                  <div className="w-8 h-8 rounded bg-[var(--background)] flex items-center justify-center">
+                    <Loader2 className="w-3.5 h-3.5 text-emerald-500 animate-spin" />
+                  </div>
+                  <span className="text-[10px] text-[var(--text-muted)]">Uploading…</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {attachedReferences.length > 0 && (
+            <p className="text-[10px] text-[var(--text-muted)] px-1">
+              {taggedImageIndices.length > 0 ? (
+                <>
+                  <span className="text-amber-300 font-medium">
+                    {taggedImageIndices.length} of {attachedReferences.length} tagged
+                  </span>
+                  {" "}— remaining:{" "}
+                </>
+              ) : (
+                <>Tag these in your prompt with{" "}</>
+              )}
+              {attachedReferences.map((_r, i) => {
+                const num = i + 1;
+                const tagged = taggedImageIndices.includes(num);
+                return (
+                  <span key={`hint-${i}`}>
+                    {i > 0 && ", "}
+                    <span
+                      className={`font-mono ${tagged ? "text-amber-300/40 line-through" : "text-amber-400"}`}
+                    >
+                      ${num}
+                    </span>
+                  </span>
+                );
+              })}
+              {" "}— type{" "}
+              <span className="text-amber-400 font-mono">$</span>
+              {" "}for autocomplete.
+            </p>
+          )}
 
           {/* Live tag chips */}
-          {(taggedCharacters.length > 0 || taggedLocations.length > 0) && (
+          {(taggedCharacters.length > 0 || taggedLocations.length > 0 || taggedImageIndices.length > 0) && (
             <div className="flex flex-wrap gap-1.5 px-1">
               {taggedCharacters.map((c) => (
                 <div key={`chip-char-${c.id}`} className="flex items-center gap-1.5 bg-emerald-950/50 border border-emerald-800/40 rounded-full pl-1 pr-1.5 py-0.5">
@@ -922,6 +1429,18 @@ export default function CreativeSpacePage() {
                   <span className="text-[10px] text-sky-300 font-medium">#{l.name}</span>
                 </div>
               ))}
+              {taggedImageIndices.map((idx) => {
+                const ref = attachedReferences[idx - 1];
+                if (!ref) return null;
+                return (
+                  <div key={`chip-img-${idx}`} className="flex items-center gap-1.5 bg-amber-950/50 border border-amber-800/40 rounded-full pl-1 pr-1.5 py-0.5">
+                    <div className="w-4 h-4 rounded overflow-hidden bg-[var(--surface-hover)]">
+                      <img src={ref.image_url} alt={`Image ${idx}`} className="w-full h-full object-cover" />
+                    </div>
+                    <span className="text-[10px] text-amber-300 font-mono font-medium">${idx}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -933,11 +1452,42 @@ export default function CreativeSpacePage() {
                 onChange={setPrompt}
                 characters={characters}
                 locations={locations}
+                images={attachedReferences.map((r, i) => ({
+                  id: r.id,
+                  index: i + 1,
+                  image_url: r.image_url,
+                }))}
                 disabled={isGenerating}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleGenerate(); }
                 }}
+                onPaste={(e) => {
+                  // STO-546: Image paste support — pull image items off the clipboard
+                  const items = e.clipboardData?.items;
+                  if (!items) return;
+                  const files: File[] = [];
+                  for (const item of Array.from(items)) {
+                    if (item.kind === "file" && item.type.startsWith("image/")) {
+                      const f = item.getAsFile();
+                      if (f) files.push(f);
+                    }
+                  }
+                  if (files.length > 0) {
+                    e.preventDefault();
+                    handleAttachFiles(files);
+                  }
+                }}
               />
+              {/* STO-546: Paperclip button opens the hidden file input */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isGenerating || !scriptId}
+                title="Attach reference images"
+                className="ml-1 p-2.5 bg-[var(--surface-hover)] hover:bg-[var(--border)] disabled:opacity-40 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg transition-colors flex items-center justify-center flex-shrink-0"
+              >
+                <Paperclip className="w-5 h-5" />
+              </button>
               <button
                 onClick={handleGenerate}
                 disabled={isGenerating || !prompt.trim()}

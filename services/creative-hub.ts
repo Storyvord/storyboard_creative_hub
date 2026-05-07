@@ -249,12 +249,20 @@ export const deleteCharacter = async (characterId: number): Promise<void> => {
     await api.delete(`/api/creative_hub/characters/${characterId}/`);
 }
 
-export const generateCharacterImage = async (characterId: number, model?: string, provider?: string, quality?: string, size?: string): Promise<{ task_id: string; status: string }> => {
+export const generateCharacterImage = async (
+    characterId: number,
+    model?: string,
+    provider?: string,
+    quality?: string,
+    size?: string,
+    referencePrevizIds?: number[],
+): Promise<{ task_id: string; status: string }> => {
     const response = await api.post(`/api/creative_hub/characters/${characterId}/generate-image/`, {
         model,
         provider,
         quality,
         size,
+        reference_previz_ids: referencePrevizIds && referencePrevizIds.length > 0 ? referencePrevizIds : undefined,
     });
     return response.data;
 }
@@ -315,8 +323,17 @@ export const deleteLocation = async (locationId: number): Promise<void> => {
     await api.delete(`/api/creative_hub/locations/${locationId}/`);
 }
 
-export const generateLocationImage = async (locationId: number, model?: string, provider?: string): Promise<{ task_id: string; status: string }> => {
-    const response = await api.post(`/api/creative_hub/locations/${locationId}/generate-image/`, { model, provider });
+export const generateLocationImage = async (
+    locationId: number,
+    model?: string,
+    provider?: string,
+    referencePrevizIds?: number[],
+): Promise<{ task_id: string; status: string }> => {
+    const response = await api.post(`/api/creative_hub/locations/${locationId}/generate-image/`, {
+        model,
+        provider,
+        reference_previz_ids: referencePrevizIds && referencePrevizIds.length > 0 ? referencePrevizIds : undefined,
+    });
     return response.data;
 }
 
@@ -491,10 +508,57 @@ export const createScriptPrevisualization = async (data: {
   size?: string;
   character_ids?: number[];
   location_ids?: number[];
-}): Promise<any> => {
+  reference_previz_ids?: number[];
+}): Promise<{
+  id: number;
+  image_url: string | null;
+  task_id?: string;
+  kickoff_status?: "queued" | "in_flight";
+  description?: string;
+  aspect_ratio?: string;
+  shot_type?: string;
+  camera_angle?: string;
+  [key: string]: any;
+}> => {
     const response = await api.post(`/api/creative_hub/previsualization/create/`, data);
     return response.data;
 }
+
+// STO-1073: simple GET for a single previz row. Used by Creative Space
+// to refetch the rendered `image_url` after the async previs_generation
+// task completes, since the initial POST returns image_url=null.
+export const getPrevisualization = async (previzId: number): Promise<any> => {
+    const response = await api.get(`/api/creative_hub/previsualization/${previzId}/`);
+    return response.data;
+}
+
+// STO-546: User-uploaded reference image attachment for the Creative Space chat.
+// Uploads the file as a Previsualization row scoped to the script (no AI generation),
+// which the backend then mirrors into the script-wide PrevizHistory feed tagged
+// with notes="User-uploaded reference" so it surfaces in the chat history.
+export interface CreativeSpaceReference {
+  id: number;
+  image_url: string;
+  description?: string | null;
+  created_at?: string;
+}
+
+export const uploadCreativeSpaceReference = async (
+  scriptId: number,
+  file: File,
+): Promise<CreativeSpaceReference> => {
+  const formData = new FormData();
+  formData.append("image_file", file);
+  formData.append("script", String(scriptId));
+  formData.append("generate_ai_image", "false");
+  formData.append("description", "User reference");
+  const response = await api.post(
+    `/api/creative_hub/previsualization/create/`,
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+  return response.data;
+};
 
 export const getImageModels = async (): Promise<ImageModel[]> => {
     const response = await api.get(`/api/creative_hub/image-models/`);
@@ -515,6 +579,53 @@ export const getBulkTaskStatus = async (taskIds: string[]): Promise<any> => {
     const response = await api.post(`/api/project/v2/bulk_taskstatus/`, { task_ids: taskIds });
     return response.data;
 }
+
+// ── Latest TaskStatus lookup ────────────────────────────────────────────────
+// STO-1073: page-mount hook to recover an in-flight Celery task across reloads
+// or device switches. Backed by `GET /api/creative_hub/tasks/latest/` which
+// returns the most recent TaskStatus row for a (content_type, object_id,
+// task_type) tuple, or 404 when none exists.
+export type TaskStatusKind =
+    | "pending"
+    | "processing"
+    | "retrying"
+    | "completed"
+    | "failed";
+
+export interface LatestTaskStatus {
+    task_id: string;
+    status: TaskStatusKind;
+    task_type: string;
+    content_type: string;
+    object_id: number;
+    progress_current: number;
+    progress_total: number;
+    progress_message: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export const getLatestTaskStatus = async (
+    contentType: string,
+    objectId: number,
+    taskType: string,
+): Promise<LatestTaskStatus | null> => {
+    try {
+        const response = await api.get(`/api/creative_hub/tasks/latest/`, {
+            params: {
+                content_type: contentType,
+                object_id: objectId,
+                task_type: taskType,
+            },
+        });
+        return response.data as LatestTaskStatus;
+    } catch (error: any) {
+        // 404 simply means "no task row exists" — surface as null so callers
+        // can branch without a try/catch around every invocation.
+        if (error?.response?.status === 404) return null;
+        throw error;
+    }
+};
 
 // Fetches scenes with nested shots and previsualizations (paginated)
 // Returns { results, count, next } from PrevisualizationListV2APIView
@@ -608,7 +719,27 @@ export const getShotPrevizPage = async (
     }
 }
 
-export const regeneratePreviz = async (previzId: number, editPrompt?: string, model?: string, provider?: string, quality?: string, size?: string): Promise<any> => {
+/**
+ * Kicks off an async regenerate of a previz on the backend.
+ *
+ * STO-1073 (and the matching backend follow-up) moved this endpoint onto
+ * Celery — the request returns within ~200ms with the enqueued task_id, and
+ * callers must poll `getBulkTaskStatus` (or `getLatestTaskStatus`) until the
+ * `previs_generation` row reports `completed` / `failed`. The legacy 5-minute
+ * axios timeout override is no longer needed.
+ *
+ * Response codes:
+ *  - 202 + { status: "queued" }    — fresh enqueue
+ *  - 200 + { status: "in_flight" } — idempotent hit on an already-running task
+ */
+export const regeneratePreviz = async (
+    previzId: number,
+    editPrompt?: string,
+    model?: string,
+    provider?: string,
+    quality?: string,
+    size?: string,
+): Promise<{ task_id: string; status: "queued" | "in_flight"; previz_id: number }> => {
     const response = await api.post(`/api/creative_hub/previsualization/${previzId}/regenerate/`, {
         edit_prompt: editPrompt,
         model,
@@ -620,13 +751,30 @@ export const regeneratePreviz = async (previzId: number, editPrompt?: string, mo
 }
 
 /**
+ * Shape returned by `editPrevizWithPrompt`. Caller is expected to poll on
+ * `task_id` and call `setActivePreviz(shotId, new_previz_id)` only after the
+ * task settles as `completed`.
+ */
+export interface EditPrevizKickoff {
+    task_id: string;
+    status: "queued" | "in_flight";
+    /** ID of the freshly-created Previz row that the Celery task will populate. */
+    new_previz_id: number;
+}
+
+/**
  * Creates a new Previz using the current active Previz image as reference,
- * then applies an edit prompt via image-to-image regeneration.
- * 
+ * then enqueues an async image-to-image regenerate.
+ *
  * Flow:
  * 1. Download the active previz image as a blob
  * 2. Create a new previz via /previsualization/create/ with the image_file
- * 3. Regenerate the new previz with the edit prompt (image-to-image edit)
+ * 3. Kick off `regeneratePreviz` (returns task_id; backend runs on Celery)
+ *
+ * NOTE: this no longer flips the Shot's active_previz. Callers must call
+ * `setActivePreviz` themselves once polling reports the task is completed —
+ * otherwise the UI flips to a still-empty Previz row before the AI image
+ * exists, which is the bug we're fixing.
  */
 export const editPrevizWithPrompt = async (
     shotId: number,
@@ -638,7 +786,7 @@ export const editPrevizWithPrompt = async (
     provider?: string,
     quality?: string,
     size?: string,
-): Promise<any> => {
+): Promise<EditPrevizKickoff> => {
     // Step 1: Download the active previz image
     const imageResponse = await fetch(activePrevizImageUrl);
     if (!imageResponse.ok) throw new Error("Failed to fetch reference image for editing.");
@@ -659,13 +807,18 @@ export const editPrevizWithPrompt = async (
     });
     const newPreviz = createRes.data;
 
-    // Step 3: Regenerate the new previz with the edit prompt (image-to-image)
-    const regeneratedPreviz = await regeneratePreviz(newPreviz.id, editPrompt, model, provider, quality, size);
+    // Step 3: Kick off async regenerate. We return immediately with the task_id
+    // — the caller polls and only then flips the Shot's active_previz.
+    const kickoff = await regeneratePreviz(newPreviz.id, editPrompt, model, provider, quality, size);
 
-    // Step 4: Only after successful regeneration, set it as active for the shot
-    await setActivePreviz(shotId, newPreviz.id);
-
-    return regeneratedPreviz;
+    // Note: `shotId` and `sceneId` remain in the public signature for source-
+    // compatible positional calls, but are no longer used by this function —
+    // the caller owns active-previz flipping and any scene-level refresh.
+    return {
+        task_id: kickoff.task_id,
+        status: kickoff.status,
+        new_previz_id: newPreviz.id,
+    };
 }
 
 // Scene dialogs

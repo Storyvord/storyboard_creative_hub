@@ -6,6 +6,7 @@ import {
   Video, LayoutDashboard, Users, Settings, FileText, Clapperboard,
   UserRound, MapPin, Shirt, Film, ChevronLeft, ChevronRight, Moon, Sun,
   Calendar, CalendarDays, FolderOpen, BarChart2, ListTodo, Bell, Megaphone, BriefcaseBusiness,
+  ScrollText,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useState, useEffect } from "react";
@@ -34,6 +35,7 @@ const CREATIVE_HUB_NAV = [
   { name: "Locations", href: (id: string) => `/projects/${id}/creative-hub/locations`, icon: MapPin },
   { name: "Wardrobe", href: (id: string) => `/projects/${id}/creative-hub/wardrobe`, icon: Shirt },
   { name: "Storyboarding", href: (id: string) => `/projects/${id}/creative-hub/storyboard`, icon: Film },
+  { name: "Scene Reports", href: (id: string) => `/projects/${id}/creative-hub/scene-reports`, icon: ScrollText },
 ];
 
 export default function ProjectLayout({ children }: { children: React.ReactNode }) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, generateShots, getStoryboardDataPaginated, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, updateScene, createShot, reorderShots as reorderShotsApi, getCharacters, updateShotDetails, getShotDetail } from "@/services/creative-hub";
+import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, getStoryboardDataPaginated, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, updateScene, createShot, reorderShots as reorderShotsApi, getCharacters, updateShotDetails, getShotDetail } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { Scene, Shot, Script } from "@/types/creative-hub";
 import { Loader2, Film, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon, CheckCircle, Circle, AlertTriangle, GripVertical, Plus, X } from "lucide-react";
@@ -825,9 +825,9 @@ export default function StoryboardPage() {
                           newTracked[task.object_id] = task.task_id;
                           if (task.status === 'retrying') newRetrying[task.object_id] = true;
                       }
-                      // Restore errors from recently failed tasks so user sees "Failed" + Retry
-                      if (!hasImage && taskAge < maxAgeMs && ['failed','failure'].includes(task.status) && task.error) {
-                          newErrors[task.object_id] = task.error;
+                      // Restore errors from recently failed/revoked tasks so user sees "Failed" + Retry
+                      if (!hasImage && taskAge < maxAgeMs && ['failed','failure','revoked'].includes(task.status)) {
+                          newErrors[task.object_id] = task.error || 'Generation failed.';
                       }
                   });
                   if (Object.keys(newTracked).length > 0) { setTrackedTasks(newTracked); setRetryingTasks(newRetrying); }
@@ -837,6 +837,13 @@ export default function StoryboardPage() {
       };
       initializeActiveTasks();
   }, [activeScriptId, shotsMap, initializedScriptId]);
+
+  // STO-1073 mount-time restore is handled in a single batch above via
+  // `getScriptTasks(activeScriptId)` — that one POST returns every TaskStatus
+  // row for the script, so we don't need per-scene / per-shot fan-out to
+  // /tasks/latest/. Earlier iterations fired N HTTP calls per page load
+  // (one per scene + one per shot, capped at 10 concurrent), which produced
+  // hundreds of 404s on scripts with many shots. Removed.
 
   // Polling with Exponential Backoff
   useEffect(() => {
@@ -1129,17 +1136,32 @@ export default function StoryboardPage() {
     }
   };
 
+  // STO-1075: AI Add Shot flows through the canonical bulk endpoint so the
+  // single-scene path mirrors `handleBulkGenerateShots`. The Celery task_id
+  // is registered with `trackedShotTasks` and the polling loop drives both
+  // completion + the eventual `fetchShots` refresh — we no longer block here
+  // waiting for the synchronous shots endpoint.
   const handleGenerateShots = async (sceneId: number) => {
       setLoadingShotsMap(prev => ({ ...prev, [sceneId]: true }));
-      try { 
-          toast.info("Generating shots..."); 
-          await generateShots(sceneId); 
-          await fetchShots(sceneId); 
+      try {
+          toast.info("Generating shots...");
+          const res = await bulkGenerateShots([sceneId]);
+          const taskId = Array.isArray(res?.task_ids) ? res.task_ids[0] : undefined;
+          if (taskId) {
+              setTrackedShotTasks(prev => ({ ...prev, [sceneId]: taskId }));
+              // `loadingShotsMap` is already true from the optimistic flip
+              // above; keep it true so the polling effect can clear it on
+              // settle and trigger `fetchShots`.
+          } else {
+              // No task came back — bail out of the loading state so the
+              // user isn't stuck on a spinner.
+              setLoadingShotsMap(prev => ({ ...prev, [sceneId]: false }));
+              toast.error("Shot generation request did not return a task.");
+          }
       }
-      catch (error) { 
-          console.error(error); 
-          toast.error(extractApiError(error, "Failed to generate shots.")); 
-      } finally {
+      catch (error) {
+          console.error(error);
+          toast.error(extractApiError(error, "Failed to generate shots."));
           setLoadingShotsMap(prev => ({ ...prev, [sceneId]: false }));
       }
   };

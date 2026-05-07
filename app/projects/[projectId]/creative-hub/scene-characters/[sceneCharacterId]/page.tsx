@@ -12,6 +12,7 @@ import {
     createCloth,
     setActiveSubjectPreviz,
     getScene,
+    getPrevizHistory,
 } from "@/services/creative-hub";
 import { Cloth } from "@/types/creative-hub";
 
@@ -39,13 +40,18 @@ import {
     MapPin,
     Clock,
     X,
+    History,
+    GitCompare,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
+import ScriptHistoryModal from "@/components/creative-hub/ScriptHistoryModal";
+import PrevizCompareView from "@/components/creative-hub/PrevizCompareView";
 import SceneCharacterBuildSheet from "@/components/creative-hub/SceneCharacterBuildSheet";
 import CompactHistoryStrip from "@/components/creative-hub/CompactHistoryStrip";
+import { useRestoreInflightTask } from "@/hooks/useRestoreInflightTask";
 
 type GenStep = "saving" | "queued" | "rendering";
 
@@ -89,6 +95,38 @@ export default function SceneCharacterDetailPage() {
     const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
     const [isModelOpen, setIsModelOpen] = useState(false);
     const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+    const [scriptHistoryOpen, setScriptHistoryOpen] = useState(false);
+    const [compareOpen, setCompareOpen] = useState(false);
+    const [comparePrevizList, setComparePrevizList] = useState<Array<{ id: number; image_url: string | null; aspect_ratio: string | null; created_at: string; added_by: { name?: string | null; email?: string | null } | null; notes: string | null }>>([]);
+    const [compareLoading, setCompareLoading] = useState(false);
+
+    const handleOpenCompare = async () => {
+        if (compareLoading) return;
+        setCompareLoading(true);
+        try {
+            const result = await getPrevizHistory("scene_character", sceneCharacterId, 1, 24);
+            setComparePrevizList(
+                result.results.map((row) => ({
+                    id: row.previsualization.id,
+                    image_url: row.previsualization.image_url ?? null,
+                    aspect_ratio: row.previsualization.aspect_ratio ?? null,
+                    created_at: row.created_at,
+                    added_by: row.added_by,
+                    notes: row.notes ?? null,
+                })),
+            );
+            setCompareOpen(true);
+        } catch (err) {
+            toast.error(extractApiError(err, "Failed to load history for compare."));
+        } finally {
+            setCompareLoading(false);
+        }
+    };
+    // The SceneCharacter detail payload doesn't include a scriptId directly;
+    // we discover it via the linked Scene during init (same path as the
+    // wardrobe loader at line ~157). Stash it so the View Full History modal
+    // can reach it without re-fetching.
+    const [scriptId, setScriptId] = useState<number | null>(null);
     const [activeTab, setActiveTab] = useState<"build" | "wardrobe" | "library">("build");
     // Library sub-tab: "parent" surfaces the global Character's pool (with
     // a secondary "Use for this scene" action), "current" surfaces only
@@ -154,9 +192,12 @@ export default function SceneCharacterDetailPage() {
                             time: (scene as { time?: string | null }).time ?? null,
                             order: scene.order ?? null,
                         });
-                        const scriptId = (scene as { script_id?: number; script?: number }).script_id
+                        const sid = (scene as { script_id?: number; script?: number }).script_id
                             ?? (scene as { script?: number }).script;
-                        if (scriptId) await fetchClothLibrary(Number(scriptId));
+                        if (sid) {
+                            setScriptId(Number(sid));
+                            await fetchClothLibrary(Number(sid));
+                        }
                     } catch (err) {
                         console.error("Failed to derive scriptId for wardrobe", err);
                     }
@@ -205,6 +246,20 @@ export default function SceneCharacterDetailPage() {
             window.clearInterval(id);
         };
     }, [activeTaskId, fetchScene]);
+
+    // STO-1073: mount-time recovery for an in-flight scene-character render
+    // started in another tab/session. Setting `activeTaskId` re-arms the
+    // polling effect above so the spinner and "ready" toast resume cleanly.
+    useRestoreInflightTask({
+        contentType: "scenecharacter",
+        objectId: sceneCharacterId,
+        taskType: "scene_character_generation",
+        onInflight: (taskStatus) => {
+            setActiveTaskId((prev) => prev ?? taskStatus.task_id);
+            setGenerating(true);
+            setGenStep("rendering");
+        },
+    });
 
     const dirty = !!sc && (notes !== (sc.notes || "") || !!imageFile);
 
@@ -294,9 +349,14 @@ export default function SceneCharacterDetailPage() {
         try {
             const payload: Record<string, unknown> = { notes };
             if (imageFile) payload.image_url = imageFile;
+            const hadUpload = !!payload.image_url;
             await updateSceneCharacter(sceneCharacterId, payload);
             toast.success("Saved");
             await fetchScene();
+            // STO-1070: manual upload writes both a SceneCharacter
+            // PrevizHistory row and a parent-Character cross-link row;
+            // bump so both strips (current scene + parent library) refetch.
+            if (hadUpload) setHistoryRefreshKey((k) => k + 1);
         } catch (err) {
             toast.error(extractApiError(err, "Failed to save."));
         } finally {
@@ -896,6 +956,33 @@ export default function SceneCharacterDetailPage() {
 
                         {activeTab === "library" && (
                             <div className="p-4 space-y-3">
+                                {/* Page-level entry point to the script-wide
+                                     previz feed. Single button (per PRD)
+                                     even though the Library tab renders two
+                                     PrevizHistorySection instances below. */}
+                                <div className="flex items-center justify-end gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={handleOpenCompare}
+                                        disabled={compareLoading}
+                                        className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 disabled:text-[var(--text-muted)] disabled:cursor-not-allowed transition-colors"
+                                        title="Compare recent generations side-by-side"
+                                    >
+                                        <GitCompare className="w-3 h-3" />
+                                        {compareLoading ? "Loading…" : "Compare"}
+                                    </button>
+                                    {scriptId !== null && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setScriptHistoryOpen(true)}
+                                            className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 transition-colors"
+                                            title="Browse every previz on this script"
+                                        >
+                                            <History className="w-3 h-3" />
+                                            View Full History
+                                        </button>
+                                    )}
+                                </div>
                                 {/* Sub-tabs: scope the library to either the
                                      parent Character's full pool (default —
                                      shows base portraits + every sibling
@@ -1004,6 +1091,46 @@ export default function SceneCharacterDetailPage() {
                 title="Select Model for Scene Look"
                 confirmLabel="Generate Look"
             />
+
+            {scriptId !== null && (
+                <ScriptHistoryModal
+                    open={scriptHistoryOpen}
+                    onClose={() => setScriptHistoryOpen(false)}
+                    scriptId={scriptId}
+                    currentKind="scene_character"
+                    currentSubjectId={sceneCharacterId}
+                    currentSubjectLabel={
+                        sceneMeta?.order != null
+                            ? `${baseName} (Scene ${String(sceneMeta.order).padStart(2, "0")})`
+                            : baseName
+                    }
+                    currentActivePrevizId={sc.active_previz ?? null}
+                    onApplied={() => {
+                        setHistoryRefreshKey((k) => k + 1);
+                        fetchScene();
+                    }}
+                />
+            )}
+
+            {compareOpen && (
+                <PrevizCompareView
+                    subjectId={sceneCharacterId}
+                    subjectLabel={
+                        sceneMeta?.order != null
+                            ? `${baseName} (Scene ${String(sceneMeta.order).padStart(2, "0")})`
+                            : baseName
+                    }
+                    previzList={comparePrevizList}
+                    activePrevizId={sc.active_previz ?? null}
+                    onClose={() => setCompareOpen(false)}
+                    onSetActive={async (previzId) => {
+                        await setActiveSubjectPreviz("scene_character", sceneCharacterId, previzId);
+                        toast.success("Applied to scene character");
+                        await fetchScene();
+                        setHistoryRefreshKey((k) => k + 1);
+                    }}
+                />
+            )}
         </div>
     );
 }
