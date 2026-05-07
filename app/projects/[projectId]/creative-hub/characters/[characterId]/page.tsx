@@ -6,11 +6,13 @@ import {
   getCharacter, updateCharacter, generateCharacterImage,
   getCloths, updateSceneCharacter, generateSceneCharacterImage,
   getCharacterTasks, setActiveSubjectPreviz,
+  uploadCreativeSpaceReference, CreativeSpaceReference,
 } from "@/services/creative-hub";
 import { Character, Cloth } from "@/types/creative-hub";
 import {
   Loader2, ArrowLeft, Upload, Wand2, Save, Film,
   Shirt, Check, User, ImageOff, MapPin, Clock, Pencil, X, History, GitCompare,
+  Paperclip,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
@@ -530,9 +532,36 @@ export default function CharacterDetailPage() {
   const [trackedSceneTasks, setTrackedSceneTasks] = useState<Record<string, number>>({});
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [scriptHistoryOpen, setScriptHistoryOpen] = useState(false);
+  // STO-546: reference images attached to the next AI generation kickoff.
+  const [genReferences, setGenReferences] = useState<CreativeSpaceReference[]>([]);
+  const [uploadingRefs, setUploadingRefs] = useState(0);
+  const refFileInputRef = useRef<HTMLInputElement | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const [comparePrevizList, setComparePrevizList] = useState<Array<{ id: number; image_url: string | null; aspect_ratio: string | null; created_at: string; added_by: { name?: string | null; email?: string | null } | null; notes: string | null }>>([]);
   const [compareLoading, setCompareLoading] = useState(false);
+
+  // STO-546: upload attached reference images via the creative-space helper
+  // so they get a previz_id we can pass to the generate-image endpoint.
+  const handleAttachRefs = async (files: FileList | File[]) => {
+    if (!character?.script) {
+      toast.error("Open a character with a script first.");
+      return;
+    }
+    const valid = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (valid.length === 0) return;
+    setUploadingRefs((n) => n + valid.length);
+    for (const file of valid) {
+      try {
+        const ref = await uploadCreativeSpaceReference(character.script, file);
+        setGenReferences((prev) => prev.find((r) => r.id === ref.id) ? prev : [...prev, ref]);
+        setHistoryRefreshKey((k) => k + 1);
+      } catch (err) {
+        toast.error(extractApiError(err, `Failed to upload ${file.name}`));
+      } finally {
+        setUploadingRefs((n) => n - 1);
+      }
+    }
+  };
 
   const handleOpenCompare = async () => {
     if (compareLoading) return;
@@ -660,9 +689,13 @@ export default function CharacterDetailPage() {
       // completes (the AI task will bump again on settle).
       if (hadUpload) setHistoryRefreshKey((k) => k + 1);
       setPortraitGenStep("queued");
-      const result = await generateCharacterImage(characterId, model, provider);
+      const refIds = genReferences.map((r) => r.id);
+      const result = await generateCharacterImage(characterId, model, provider, undefined, undefined, refIds);
       setTrackedPortraitTasks(prev => ({ ...prev, [result.task_id]: characterId }));
       setPortraitGenStep("rendering");
+      // STO-546: clear references after a successful kickoff so the next
+      // generation doesn't silently re-use them. Mirrors creative-space.
+      setGenReferences([]);
       // Backend deducts up-front when the Celery task is dispatched.
       refreshCredits();
       toast.success("Portrait rendering — will update when ready…");
@@ -939,6 +972,47 @@ export default function CharacterDetailPage() {
                 <><Wand2 className="h-3 w-3" /> AI Generate</>
               )}
             </button>
+          </div>
+
+          {/* STO-546: attach reference images for the next AI generation. */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => refFileInputRef.current?.click()}
+              disabled={!character?.script || generating}
+              className="flex items-center gap-1 text-[10px] text-emerald-400 hover:text-emerald-300 disabled:text-[var(--text-muted)] disabled:cursor-not-allowed transition-colors px-2 py-1 border border-dashed border-[var(--border)] rounded-md"
+              title="Attach reference images for the next generation"
+            >
+              <Paperclip className="w-3 h-3" /> Add reference
+            </button>
+            <input
+              ref={refFileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => { if (e.target.files) handleAttachRefs(e.target.files); e.target.value = ""; }}
+            />
+            {genReferences.map((ref, i) => (
+              <div key={`gen-ref-${ref.id}`} className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg pl-1 pr-1.5 py-0.5">
+                <img src={ref.image_url} alt={`Image ${i + 1}`} className="w-6 h-6 rounded object-cover" />
+                <span className="text-[10px] font-mono text-amber-300">${i + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => setGenReferences((prev) => prev.filter((r) => r.id !== ref.id))}
+                  className="p-0.5 rounded hover:bg-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  aria-label={`Remove image ${i + 1}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+            {Array.from({ length: uploadingRefs }).map((_, i) => (
+              <div key={`up-${i}`} className="flex items-center gap-1 bg-[var(--surface-hover)] border border-[var(--border)] rounded-lg px-2 py-1">
+                <Loader2 className="w-3 h-3 animate-spin text-emerald-500" />
+                <span className="text-[10px] text-[var(--text-muted)]">Uploading…</span>
+              </div>
+            ))}
           </div>
 
           {/* Character name */}
