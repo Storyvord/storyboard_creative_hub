@@ -796,10 +796,27 @@ export default function StoryboardPage() {
               const now = new Date().getTime();
               const maxAgeMs = 60 * 60 * 1000;
 
+              // Restore must consider only the MOST RECENT task per object_id —
+              // otherwise an older failed task shadows a newer in-flight one
+              // (user clicks Retry, new task is queued, but the stale failed
+              // row from the previous attempt also matches and shotErrors[shotId]
+              // gets re-populated, making the shot card look like it failed
+              // again instantly).
+              const onlyLatestPerObject = (rows: any[]): any[] => {
+                  const seen = new Set<number>();
+                  return [...rows]
+                      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+                      .filter((task) => {
+                          if (seen.has(task.object_id)) return false;
+                          seen.add(task.object_id);
+                          return true;
+                      });
+              };
+
               if (shots && shots.length > 0) {
                   const newLoadingShots: Record<number, boolean> = {};
                   const newTrackedShots: Record<number, string> = {};
-                  shots.forEach((task: any) => {
+                  onlyLatestPerObject(shots).forEach((task: any) => {
                       const taskAge = now - new Date(task.created_at || new Date()).getTime();
                       if (taskAge < maxAgeMs && ['processing','pending','retrying','started'].includes(task.status)) {
                           newLoadingShots[task.object_id] = true;
@@ -815,7 +832,7 @@ export default function StoryboardPage() {
                   const newTracked: Record<number, string> = {};
                   const newRetrying: Record<number, boolean> = {};
                   const newErrors: Record<number, string> = {};
-                  previs.forEach((task: any) => {
+                  onlyLatestPerObject(previs).forEach((task: any) => {
                       let hasImage = false;
                       for (const sceneShots of Object.values(shotsMap)) {
                           if (sceneShots.find(s => s.id === task.object_id && s.image_url)) { hasImage = true; break; }
