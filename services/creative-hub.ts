@@ -249,12 +249,20 @@ export const deleteCharacter = async (characterId: number): Promise<void> => {
     await api.delete(`/api/creative_hub/characters/${characterId}/`);
 }
 
-export const generateCharacterImage = async (characterId: number, model?: string, provider?: string, quality?: string, size?: string): Promise<{ task_id: string; status: string }> => {
+export const generateCharacterImage = async (
+    characterId: number,
+    model?: string,
+    provider?: string,
+    quality?: string,
+    size?: string,
+    referencePrevizIds?: number[],
+): Promise<{ task_id: string; status: string }> => {
     const response = await api.post(`/api/creative_hub/characters/${characterId}/generate-image/`, {
         model,
         provider,
         quality,
         size,
+        reference_previz_ids: referencePrevizIds && referencePrevizIds.length > 0 ? referencePrevizIds : undefined,
     });
     return response.data;
 }
@@ -315,8 +323,17 @@ export const deleteLocation = async (locationId: number): Promise<void> => {
     await api.delete(`/api/creative_hub/locations/${locationId}/`);
 }
 
-export const generateLocationImage = async (locationId: number, model?: string, provider?: string): Promise<{ task_id: string; status: string }> => {
-    const response = await api.post(`/api/creative_hub/locations/${locationId}/generate-image/`, { model, provider });
+export const generateLocationImage = async (
+    locationId: number,
+    model?: string,
+    provider?: string,
+    referencePrevizIds?: number[],
+): Promise<{ task_id: string; status: string }> => {
+    const response = await api.post(`/api/creative_hub/locations/${locationId}/generate-image/`, {
+        model,
+        provider,
+        reference_previz_ids: referencePrevizIds && referencePrevizIds.length > 0 ? referencePrevizIds : undefined,
+    });
     return response.data;
 }
 
