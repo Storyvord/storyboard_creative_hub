@@ -999,16 +999,29 @@ export const getScriptPrevizHistory = async (
     };
 };
 
-// ─── Backfill-row filter ───────────────────────────────────────────────────
-// STO-1073 migration 0070 marked older stuck-in-flight TaskStatus rows as
-// `failed` so the new partial unique index could be created. Those rows
-// carry a stable error prefix; mount-time restore must NOT surface them as
-// fresh failures or every user sees the migration message in their UI.
-export const TASK_BACKFILL_ERROR_PREFIX =
-    "Marked failed by STO-1073 partial-unique-index precheck";
+// ─── Backfill / reaped-row filter ───────────────────────────────────────────
+// Three sources mark TaskStatus rows `failed` for housekeeping rather than
+// real generation failures. Mount-time restore must hide all three so users
+// don't see stale "Failed" labels for tasks that never actually ran for them:
+//
+//   1. STO-1073 migration 0070 precheck — marked older duplicates failed so
+//      the new partial unique index could be created.
+//   2. enqueue_or_existing self-heal — reaps orphan in-flight rows when
+//      Celery's AsyncResult says terminal but DB still says in-flight.
+//   3. reap_orphan_tasks management command — same idea, scanned in bulk.
+//
+// All three carry stable error prefixes we can match on.
+export const TASK_BACKFILL_ERROR_PREFIXES = [
+    "Marked failed by STO-1073 partial-unique-index precheck",
+    "Reaped by enqueue_or_existing self-heal",
+    "Reaped by reap_orphan_tasks management command",
+];
+
+// Kept for backward-compat with existing imports.
+export const TASK_BACKFILL_ERROR_PREFIX = TASK_BACKFILL_ERROR_PREFIXES[0];
 
 export const isTaskBackfillRow = (task: { error?: string | null } | null | undefined): boolean => {
     if (!task) return false;
     const err = (task.error || "").trim();
-    return err.startsWith(TASK_BACKFILL_ERROR_PREFIX);
+    return TASK_BACKFILL_ERROR_PREFIXES.some((prefix) => err.startsWith(prefix));
 };
