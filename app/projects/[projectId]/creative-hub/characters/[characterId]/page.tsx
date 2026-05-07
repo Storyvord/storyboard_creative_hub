@@ -5,18 +5,21 @@ import { useParams, useRouter } from "next/navigation";
 import {
   getCharacter, updateCharacter, generateCharacterImage,
   getCloths, updateSceneCharacter, generateSceneCharacterImage,
-  getCharacterTasks,
+  getCharacterTasks, setActiveSubjectPreviz,
 } from "@/services/creative-hub";
 import { Character, Cloth } from "@/types/creative-hub";
 import {
   Loader2, ArrowLeft, Upload, Wand2, Save, Film,
-  Shirt, Check, User, ImageOff, MapPin, Clock, Pencil, X, History,
+  Shirt, Check, User, ImageOff, MapPin, Clock, Pencil, X, History, GitCompare,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
 import ScriptHistoryModal from "@/components/creative-hub/ScriptHistoryModal";
+import PrevizCompareView from "@/components/creative-hub/PrevizCompareView";
+import { getPrevizHistory } from "@/services/creative-hub";
+
 import { useGenerationTasks } from "@/hooks/useGenerationTasks";
 import { useRestoreInflightTask } from "@/hooks/useRestoreInflightTask";
 import { useUserInfo } from "@/hooks/useUserInfo";
@@ -527,6 +530,32 @@ export default function CharacterDetailPage() {
   const [trackedSceneTasks, setTrackedSceneTasks] = useState<Record<string, number>>({});
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [scriptHistoryOpen, setScriptHistoryOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [comparePrevizList, setComparePrevizList] = useState<Array<{ id: number; image_url: string | null; aspect_ratio: string | null; created_at: string; added_by: { name?: string | null; email?: string | null } | null; notes: string | null }>>([]);
+  const [compareLoading, setCompareLoading] = useState(false);
+
+  const handleOpenCompare = async () => {
+    if (compareLoading) return;
+    setCompareLoading(true);
+    try {
+      const result = await getPrevizHistory("character", characterId, 1, 24);
+      setComparePrevizList(
+        result.results.map((row) => ({
+          id: row.previsualization.id,
+          image_url: row.previsualization.image_url ?? null,
+          aspect_ratio: row.previsualization.aspect_ratio ?? null,
+          created_at: row.created_at,
+          added_by: row.added_by,
+          notes: row.notes ?? null,
+        })),
+      );
+      setCompareOpen(true);
+    } catch (err) {
+      toast.error(extractApiError(err, "Failed to load history for compare."));
+    } finally {
+      setCompareLoading(false);
+    }
+  };
 
   const fetchCharacter = useCallback(async (): Promise<CharacterDetail> => {
     const data = await getCharacter(characterId) as CharacterDetail;
@@ -990,8 +1019,18 @@ export default function CharacterDetailPage() {
 
           {/* Portrait history */}
           <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border)] p-4">
-            {character.script ? (
-              <div className="flex items-center justify-end mb-2">
+            <div className="flex items-center justify-end gap-3 mb-2">
+              <button
+                type="button"
+                onClick={handleOpenCompare}
+                disabled={compareLoading}
+                className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 disabled:text-[var(--text-muted)] disabled:cursor-not-allowed transition-colors"
+                title="Compare recent generations side-by-side"
+              >
+                <GitCompare className="w-3 h-3" />
+                {compareLoading ? "Loading…" : "Compare"}
+              </button>
+              {character.script ? (
                 <button
                   type="button"
                   onClick={() => setScriptHistoryOpen(true)}
@@ -1001,8 +1040,8 @@ export default function CharacterDetailPage() {
                   <History className="w-3 h-3" />
                   View Full History
                 </button>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
             <PrevizHistorySection
               kind="character"
               subjectId={characterId}
@@ -1214,6 +1253,22 @@ export default function CharacterDetailPage() {
           onApplied={() => {
             setHistoryRefreshKey((k) => k + 1);
             fetchCharacter();
+          }}
+        />
+      )}
+
+      {compareOpen && (
+        <PrevizCompareView
+          subjectId={characterId}
+          subjectLabel={`Character: ${character.name}`}
+          previzList={comparePrevizList}
+          activePrevizId={(character as Character).active_previz ?? null}
+          onClose={() => setCompareOpen(false)}
+          onSetActive={async (previzId) => {
+            await setActiveSubjectPreviz("character", characterId, previzId);
+            toast.success("Applied to character");
+            await fetchCharacter();
+            setHistoryRefreshKey((k) => k + 1);
           }}
         />
       )}

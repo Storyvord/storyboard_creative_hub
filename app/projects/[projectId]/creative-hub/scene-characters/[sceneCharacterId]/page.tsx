@@ -12,6 +12,7 @@ import {
     createCloth,
     setActiveSubjectPreviz,
     getScene,
+    getPrevizHistory,
 } from "@/services/creative-hub";
 import { Cloth } from "@/types/creative-hub";
 
@@ -40,12 +41,14 @@ import {
     Clock,
     X,
     History,
+    GitCompare,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
 import ScriptHistoryModal from "@/components/creative-hub/ScriptHistoryModal";
+import PrevizCompareView from "@/components/creative-hub/PrevizCompareView";
 import SceneCharacterBuildSheet from "@/components/creative-hub/SceneCharacterBuildSheet";
 import CompactHistoryStrip from "@/components/creative-hub/CompactHistoryStrip";
 import { useRestoreInflightTask } from "@/hooks/useRestoreInflightTask";
@@ -93,6 +96,32 @@ export default function SceneCharacterDetailPage() {
     const [isModelOpen, setIsModelOpen] = useState(false);
     const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
     const [scriptHistoryOpen, setScriptHistoryOpen] = useState(false);
+    const [compareOpen, setCompareOpen] = useState(false);
+    const [comparePrevizList, setComparePrevizList] = useState<Array<{ id: number; image_url: string | null; aspect_ratio: string | null; created_at: string; added_by: { name?: string | null; email?: string | null } | null; notes: string | null }>>([]);
+    const [compareLoading, setCompareLoading] = useState(false);
+
+    const handleOpenCompare = async () => {
+        if (compareLoading) return;
+        setCompareLoading(true);
+        try {
+            const result = await getPrevizHistory("scene_character", sceneCharacterId, 1, 24);
+            setComparePrevizList(
+                result.results.map((row) => ({
+                    id: row.previsualization.id,
+                    image_url: row.previsualization.image_url ?? null,
+                    aspect_ratio: row.previsualization.aspect_ratio ?? null,
+                    created_at: row.created_at,
+                    added_by: row.added_by,
+                    notes: row.notes ?? null,
+                })),
+            );
+            setCompareOpen(true);
+        } catch (err) {
+            toast.error(extractApiError(err, "Failed to load history for compare."));
+        } finally {
+            setCompareLoading(false);
+        }
+    };
     // The SceneCharacter detail payload doesn't include a scriptId directly;
     // we discover it via the linked Scene during init (same path as the
     // wardrobe loader at line ~157). Stash it so the View Full History modal
@@ -931,8 +960,18 @@ export default function SceneCharacterDetailPage() {
                                      previz feed. Single button (per PRD)
                                      even though the Library tab renders two
                                      PrevizHistorySection instances below. */}
-                                {scriptId !== null && (
-                                    <div className="flex items-center justify-end">
+                                <div className="flex items-center justify-end gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={handleOpenCompare}
+                                        disabled={compareLoading}
+                                        className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 disabled:text-[var(--text-muted)] disabled:cursor-not-allowed transition-colors"
+                                        title="Compare recent generations side-by-side"
+                                    >
+                                        <GitCompare className="w-3 h-3" />
+                                        {compareLoading ? "Loading…" : "Compare"}
+                                    </button>
+                                    {scriptId !== null && (
                                         <button
                                             type="button"
                                             onClick={() => setScriptHistoryOpen(true)}
@@ -942,8 +981,8 @@ export default function SceneCharacterDetailPage() {
                                             <History className="w-3 h-3" />
                                             View Full History
                                         </button>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                                 {/* Sub-tabs: scope the library to either the
                                      parent Character's full pool (default —
                                      shows base portraits + every sibling
@@ -1069,6 +1108,26 @@ export default function SceneCharacterDetailPage() {
                     onApplied={() => {
                         setHistoryRefreshKey((k) => k + 1);
                         fetchScene();
+                    }}
+                />
+            )}
+
+            {compareOpen && (
+                <PrevizCompareView
+                    subjectId={sceneCharacterId}
+                    subjectLabel={
+                        sceneMeta?.order != null
+                            ? `${baseName} (Scene ${String(sceneMeta.order).padStart(2, "0")})`
+                            : baseName
+                    }
+                    previzList={comparePrevizList}
+                    activePrevizId={sc.active_previz ?? null}
+                    onClose={() => setCompareOpen(false)}
+                    onSetActive={async (previzId) => {
+                        await setActiveSubjectPreviz("scene_character", sceneCharacterId, previzId);
+                        toast.success("Applied to scene character");
+                        await fetchScene();
+                        setHistoryRefreshKey((k) => k + 1);
                     }}
                 />
             )}
