@@ -150,6 +150,7 @@ export default function LocationDetailPage() {
             return;
         }
         setSaving(true);
+        const hadUpload = !!imageFile;
         try {
             await updateLocation(locationId, {
                 name,
@@ -160,6 +161,9 @@ export default function LocationDetailPage() {
             toast.success("Location saved");
             await fetchLocation();
             setEditingInfo(false);
+            // STO-1070: manual upload writes a PrevizHistory row — refetch
+            // the per-subject strip so it surfaces immediately.
+            if (hadUpload) setHistoryRefreshKey((k) => k + 1);
         } catch (err) {
             toast.error(extractApiError(err, "Failed to save location."));
         } finally {
@@ -173,6 +177,7 @@ export default function LocationDetailPage() {
         setIsModelOpen(false);
         setGenerating(true);
         setGenStep("saving");
+        const hadUpload = dirty && !!imageFile;
         try {
             if (dirty) {
                 await updateLocation(locationId, {
@@ -182,6 +187,9 @@ export default function LocationDetailPage() {
                     ...(imageFile ? { image_url: imageFile } : {}),
                 });
             }
+            // STO-1070: surface the manual-upload PrevizHistory row in the
+            // per-subject strip even before the AI generation completes.
+            if (hadUpload) setHistoryRefreshKey((k) => k + 1);
             setGenStep("queued");
             const result = await generateLocationImage(locationId, model, provider);
             setTrackedTasks((prev) => ({ ...prev, [result.task_id]: locationId }));

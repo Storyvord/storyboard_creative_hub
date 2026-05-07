@@ -305,9 +305,14 @@ export default function SceneCharacterDetailPage() {
         try {
             const payload: Record<string, unknown> = { notes };
             if (imageFile) payload.image_url = imageFile;
+            const hadUpload = !!payload.image_url;
             await updateSceneCharacter(sceneCharacterId, payload);
             toast.success("Saved");
             await fetchScene();
+            // STO-1070: manual upload writes both a SceneCharacter
+            // PrevizHistory row and a parent-Character cross-link row;
+            // bump so both strips (current scene + parent library) refetch.
+            if (hadUpload) setHistoryRefreshKey((k) => k + 1);
         } catch (err) {
             toast.error(extractApiError(err, "Failed to save."));
         } finally {

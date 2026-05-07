@@ -599,12 +599,17 @@ export default function CharacterDetailPage() {
   const handleSave = async () => {
     if (!name.trim()) return toast.error("Name is required");
     setSaving(true);
+    const hadUpload = !!imageFile;
     try {
       await updateCharacter(characterId, { name, description, ...(imageFile ? { image_url: imageFile } : {}) });
       toast.success("Saved");
       setImageFile(null);
       setEditingInfo(false);
       await fetchCharacter();
+      // STO-1070: a manual upload now writes a PrevizHistory row backend-side,
+      // so the per-subject strip needs to refetch to surface it without a
+      // page reload.
+      if (hadUpload) setHistoryRefreshKey((k) => k + 1);
     } catch (e) {
       toast.error(extractApiError(e, "Failed to save."));
     } finally {
@@ -616,9 +621,14 @@ export default function CharacterDetailPage() {
     setIsModelOpen(false);
     setGenerating(true);
     setPortraitGenStep("saving");
+    const hadUpload = !!imageFile;
     try {
       await updateCharacter(characterId, { name, description, ...(imageFile ? { image_url: imageFile } : {}) });
       setImageFile(null);
+      // STO-1070: bump so the manual-upload PrevizHistory row appears in
+      // the per-subject strip even before the subsequent AI generation
+      // completes (the AI task will bump again on settle).
+      if (hadUpload) setHistoryRefreshKey((k) => k + 1);
       setPortraitGenStep("queued");
       const result = await generateCharacterImage(characterId, model, provider);
       setTrackedPortraitTasks(prev => ({ ...prev, [result.task_id]: characterId }));
