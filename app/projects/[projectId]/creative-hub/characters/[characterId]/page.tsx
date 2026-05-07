@@ -17,6 +17,7 @@ import { extractApiError } from "@/lib/extract-api-error";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
 import { useGenerationTasks } from "@/hooks/useGenerationTasks";
+import { useRestoreInflightTask } from "@/hooks/useRestoreInflightTask";
 import { useUserInfo } from "@/hooks/useUserInfo";
 
 type GenStep = "saving" | "queued" | "rendering";
@@ -694,6 +695,25 @@ export default function CharacterDetailPage() {
         setGeneratingScenes(prev => { const m = new Map(prev); m.delete(objectId); return m; });
         toast.error("Scene look generation failed. Please try again.");
       }
+    },
+  });
+
+  // STO-1073: canonical mount-time recovery for portrait jobs. The legacy
+  // getCharacterTasks scan in the init effect above still seeds scene-look
+  // restores; this hook covers the portrait task in a content-type-agnostic
+  // way and is the path other pages adopt going forward.
+  useRestoreInflightTask({
+    contentType: "character",
+    objectId: characterId,
+    taskType: "character_portrait_generation",
+    onInflight: (taskStatus) => {
+      setTrackedPortraitTasks(prev =>
+        prev[taskStatus.task_id] !== undefined
+          ? prev
+          : { ...prev, [taskStatus.task_id]: characterId }
+      );
+      setGenerating(true);
+      setPortraitGenStep("rendering");
     },
   });
 

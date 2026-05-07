@@ -26,6 +26,7 @@ import { extractApiError } from "@/lib/extract-api-error";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection";
 import { useGenerationTasks } from "@/hooks/useGenerationTasks";
+import { useRestoreInflightTask } from "@/hooks/useRestoreInflightTask";
 
 type GenStep = "saving" | "queued" | "rendering";
 
@@ -124,6 +125,24 @@ export default function LocationDetailPage() {
             setGenerating(false);
             setGenStep(null);
             toast.error("Location image generation failed. Please try again.");
+        },
+    });
+
+    // STO-1073: mount-time recovery via the canonical TaskStatus endpoint.
+    // Re-seeds trackedTasks so useGenerationTasks above resumes polling
+    // after a reload or a different-device load.
+    useRestoreInflightTask({
+        contentType: "location",
+        objectId: locationId,
+        taskType: "location_image_generation",
+        onInflight: (taskStatus) => {
+            setTrackedTasks((prev) =>
+                prev[taskStatus.task_id] !== undefined
+                    ? prev
+                    : { ...prev, [taskStatus.task_id]: locationId }
+            );
+            setGenerating(true);
+            setGenStep("rendering");
         },
     });
 
