@@ -4,8 +4,9 @@
 // Research Deck (`reports/page.tsx`) but operates on a single scene at a
 // time and renders the STO-1066 envelope shape via DeckRenderer.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useRestoreInflightTask } from "@/hooks/useRestoreInflightTask";
 import {
   BookOpen,
   BarChart2,
@@ -124,7 +125,23 @@ function SceneReportDocument({
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function SceneReportsPage() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const projectId = params.projectId as string;
+
+  // URL-driven state — `?scene=<id>&report=<name>` lets a refresh land back
+  // on the same scene + report. We seed local selection from the URL on
+  // mount and keep them in sync with `router.replace` afterwards so the
+  // back button doesn't pile up history entries.
+  const urlSceneIdRaw = searchParams?.get("scene") ?? null;
+  const urlReportName = searchParams?.get("report") ?? null;
+  const urlSceneId = useMemo(() => {
+    if (!urlSceneIdRaw) return null;
+    const n = Number(urlSceneIdRaw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }, [urlSceneIdRaw]);
+  // Guard: only seed once per page-load.
+  const seededSelectionRef = useRef(false);
 
   const [scripts, setScripts] = useState<Script[]>([]);
   const [selectedScript, setSelectedScript] = useState<Script | null>(null);
@@ -173,6 +190,8 @@ export default function SceneReportsPage() {
         setSystemTypes(sysTypes);
         setCustomTypes(custTypes);
         if (scriptList.length > 0) setSelectedScript(scriptList[0]);
+        // Note: scene selection (from `?scene=`) happens once `scenes`
+        // loads in the next effect — we can't validate the id until then.
       } catch (e) {
         console.error("[SceneReportsPage] initial load failed:", e);
         if (!cancelled) toast.error("Failed to load scripts.");
@@ -195,7 +214,23 @@ export default function SceneReportsPage() {
     setScenesLoading(true);
     getScenes(selectedScript.id)
       .then((s) => {
-        if (!cancelled) setScenes(s ?? []);
+        if (cancelled) return;
+        const list = s ?? [];
+        setScenes(list);
+        // Mount-time seed from `?scene=…&report=…`. Falls back to the empty
+        // selection state if the URL points at a scene that isn't part of
+        // the active script (deleted, wrong project, hand-edited URL).
+        if (!seededSelectionRef.current && urlSceneId !== null) {
+          const match = list.find((sc) => sc.id === urlSceneId) ?? null;
+          if (match) {
+            setSelectedScene(match);
+            // Tab seeding for `?report=` happens once reports load.
+          }
+          seededSelectionRef.current = true;
+        } else if (!seededSelectionRef.current) {
+          // No URL scene → mark seeded so we don't try to re-seed later.
+          seededSelectionRef.current = true;
+        }
       })
       .catch((e) => {
         console.error("[SceneReportsPage] getScenes failed:", e);
@@ -204,13 +239,18 @@ export default function SceneReportsPage() {
       .finally(() => {
         if (!cancelled) setScenesLoading(false);
       });
-    // Reset scene selection when script changes
-    setSelectedScene(null);
-    setGeneratedReports([]);
-    setActiveTab("overview");
+    // Reset scene selection when script changes (but only if we've already
+    // gone past the initial URL-driven seed — otherwise we'd clobber the
+    // seeded scene before the load finishes).
+    if (seededSelectionRef.current) {
+      setSelectedScene(null);
+      setGeneratedReports([]);
+      setActiveTab("overview");
+    }
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedScript]);
 
   // ── Generated reports + per-scene available types ──────────────────────────
@@ -245,6 +285,129 @@ export default function SceneReportsPage() {
       setGeneratedReports([]);
     }
   }, [selectedScene, refreshSceneReports]);
+
+  // ── URL sync: scene selection ──────────────────────────────────────────────
+  // Push `?scene=<id>` whenever the user picks a scene (and preserve the
+  // existing `?report=` IF the URL still points at the same scene). When the
+  // user clears the selection, drop both params. We use `router.replace` so
+  // selecting a different report doesn't pile up history entries.
+  useEffect(() => {
+    if (!seededSelectionRef.current) return;
+    const sp = new URLSearchParams(searchParams?.toString() ?? "");
+    if (selectedScene?.id) {
+      const prevScene = sp.get("scene");
+      sp.set("scene", String(selectedScene.id));
+      // Drop a stale `?report=` if scene changed underneath it.
+      if (prevScene !== String(selectedScene.id)) sp.delete("report");
+    } else {
+      sp.delete("scene");
+      sp.delete("report");
+    }
+    const next = sp.toString();
+    const current = searchParams?.toString() ?? "";
+    if (next !== current) {
+      router.replace(next ? `?${next}` : "?", { scroll: false });
+    }
+    // searchParams is intentionally omitted — we only push when local state
+    // changes; when the URL changes externally we don't loop back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedScene?.id]);
+
+  // ── Seed `activeTab` from `?report=<name>` once reports have loaded ──────
+  // The URL carries the report_name (human-readable, stable across tabs/devices).
+  // Map it to the matching report id; gracefully fall back to "overview" if no
+  // match (deleted, regenerated under a different name, etc.).
+  const reportTabSeededRef = useRef(false);
+  useEffect(() => {
+    if (reportTabSeededRef.current) return;
+    if (!selectedScene?.id) return;
+    if (reportsLoading) return;
+    if (!urlReportName) {
+      reportTabSeededRef.current = true;
+      return;
+    }
+    const match = generatedReports.find((r) => r.report_name === urlReportName);
+    if (match) {
+      setActiveTab(`report-${match.id}`);
+    }
+    reportTabSeededRef.current = true;
+  }, [selectedScene?.id, reportsLoading, generatedReports, urlReportName]);
+
+  // Reset the tab-seed guard when the user switches scenes so a future scene
+  // can also honour `?report=` if present.
+  useEffect(() => {
+    reportTabSeededRef.current = false;
+  }, [selectedScene?.id]);
+
+  // ── URL sync: report tab selection ─────────────────────────────────────────
+  // Push `?report=<name>` whenever the user clicks a generated-report tab.
+  // Overview / unknown tabs drop the param.
+  useEffect(() => {
+    if (!seededSelectionRef.current) return;
+    if (!selectedScene?.id) return;
+    const sp = new URLSearchParams(searchParams?.toString() ?? "");
+    if (activeTab.startsWith("report-")) {
+      const id = Number(activeTab.slice("report-".length));
+      const matched = generatedReports.find((r) => r.id === id);
+      if (matched?.report_name) {
+        sp.set("report", matched.report_name);
+      } else {
+        sp.delete("report");
+      }
+    } else {
+      sp.delete("report");
+    }
+    const next = sp.toString();
+    const current = searchParams?.toString() ?? "";
+    if (next !== current) {
+      router.replace(next ? `?${next}` : "?", { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, generatedReports, selectedScene?.id]);
+
+  // ── STO-1073: restore in-flight scene_report_generation on refresh ────────
+  // Looks up the most recent TaskStatus for (scene, scene_report_generation)
+  // and, if pending/processing/retrying, re-adds the row to `pendingTasks`
+  // so the existing skeleton + 5s polling effect resumes. Only the most
+  // recent task_id is restored — if the user kicked off several reports in
+  // one bulk call the polling loop on the report list will surface the
+  // remainder once they finish.
+  useRestoreInflightTask({
+    contentType: "scene",
+    objectId: selectedScene?.id ?? null,
+    taskType: "scene_report_generation",
+    onInflight: (taskStatus) => {
+      setPendingTasks((prev) => {
+        if (prev.some((p) => p.task_id === taskStatus.task_id)) return prev;
+        return [
+          ...prev,
+          {
+            task_id: taskStatus.task_id,
+            // We don't know whether this was system or custom from the
+            // task row alone — default to "system" so the skeleton renders.
+            // The polling refresh will replace the skeleton with the real
+            // card as soon as the task settles.
+            report_type: "system",
+            report_name: "Restoring report…",
+            enqueued_at: new Date(taskStatus.created_at).getTime(),
+          },
+        ];
+      });
+      setPendingReports((prev) => {
+        const skeleton: GenerateSelection = {
+          report_type: "system",
+          report_name: "Restoring report…",
+        };
+        if (
+          prev.some(
+            (p) => p.report_type === skeleton.report_type && p.report_name === skeleton.report_name,
+          )
+        )
+          return prev;
+        return [...prev, skeleton];
+      });
+    },
+  });
 
   // ── Generation handlers ────────────────────────────────────────────────────
   // STO-1071: backend now returns 202 + task_ids immediately; we enqueue the
