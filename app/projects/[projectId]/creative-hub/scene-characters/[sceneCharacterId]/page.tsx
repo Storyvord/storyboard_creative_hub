@@ -48,6 +48,7 @@ import PrevizHistorySection from "@/components/creative-hub/PrevizHistorySection
 import ScriptHistoryModal from "@/components/creative-hub/ScriptHistoryModal";
 import SceneCharacterBuildSheet from "@/components/creative-hub/SceneCharacterBuildSheet";
 import CompactHistoryStrip from "@/components/creative-hub/CompactHistoryStrip";
+import { useRestoreInflightTask } from "@/hooks/useRestoreInflightTask";
 
 type GenStep = "saving" | "queued" | "rendering";
 
@@ -216,6 +217,20 @@ export default function SceneCharacterDetailPage() {
             window.clearInterval(id);
         };
     }, [activeTaskId, fetchScene]);
+
+    // STO-1073: mount-time recovery for an in-flight scene-character render
+    // started in another tab/session. Setting `activeTaskId` re-arms the
+    // polling effect above so the spinner and "ready" toast resume cleanly.
+    useRestoreInflightTask({
+        contentType: "scenecharacter",
+        objectId: sceneCharacterId,
+        taskType: "scene_character_generation",
+        onInflight: (taskStatus) => {
+            setActiveTaskId((prev) => prev ?? taskStatus.task_id);
+            setGenerating(true);
+            setGenStep("rendering");
+        },
+    });
 
     const dirty = !!sc && (notes !== (sc.notes || "") || !!imageFile);
 

@@ -516,6 +516,53 @@ export const getBulkTaskStatus = async (taskIds: string[]): Promise<any> => {
     return response.data;
 }
 
+// ── Latest TaskStatus lookup ────────────────────────────────────────────────
+// STO-1073: page-mount hook to recover an in-flight Celery task across reloads
+// or device switches. Backed by `GET /api/creative_hub/tasks/latest/` which
+// returns the most recent TaskStatus row for a (content_type, object_id,
+// task_type) tuple, or 404 when none exists.
+export type TaskStatusKind =
+    | "pending"
+    | "processing"
+    | "retrying"
+    | "completed"
+    | "failed";
+
+export interface LatestTaskStatus {
+    task_id: string;
+    status: TaskStatusKind;
+    task_type: string;
+    content_type: string;
+    object_id: number;
+    progress_current: number;
+    progress_total: number;
+    progress_message: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export const getLatestTaskStatus = async (
+    contentType: string,
+    objectId: number,
+    taskType: string,
+): Promise<LatestTaskStatus | null> => {
+    try {
+        const response = await api.get(`/api/creative_hub/tasks/latest/`, {
+            params: {
+                content_type: contentType,
+                object_id: objectId,
+                task_type: taskType,
+            },
+        });
+        return response.data as LatestTaskStatus;
+    } catch (error: any) {
+        // 404 simply means "no task row exists" — surface as null so callers
+        // can branch without a try/catch around every invocation.
+        if (error?.response?.status === 404) return null;
+        throw error;
+    }
+};
+
 // Fetches scenes with nested shots and previsualizations (paginated)
 // Returns { results, count, next } from PrevisualizationListV2APIView
 export interface StoryboardPageResponse {
