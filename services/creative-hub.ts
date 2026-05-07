@@ -656,13 +656,16 @@ export const getShotPrevizPage = async (
 }
 
 export const regeneratePreviz = async (previzId: number, editPrompt?: string, model?: string, provider?: string, quality?: string, size?: string): Promise<any> => {
+    // Backend regenerate runs the AI image-edit synchronously inline, so a
+    // 30s axios default times out for any non-trivial edit. Bump to 5 min
+    // until /previsualization/<id>/regenerate/ is moved onto Celery.
     const response = await api.post(`/api/creative_hub/previsualization/${previzId}/regenerate/`, {
         edit_prompt: editPrompt,
         model,
         provider,
         quality,
         size,
-    });
+    }, { timeout: 5 * 60 * 1000 });
     return response.data;
 }
 
