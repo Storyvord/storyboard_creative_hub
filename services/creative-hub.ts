@@ -655,28 +655,62 @@ export const getShotPrevizPage = async (
     }
 }
 
-export const regeneratePreviz = async (previzId: number, editPrompt?: string, model?: string, provider?: string, quality?: string, size?: string): Promise<any> => {
-    // Backend regenerate runs the AI image-edit synchronously inline, so a
-    // 30s axios default times out for any non-trivial edit. Bump to 5 min
-    // until /previsualization/<id>/regenerate/ is moved onto Celery.
+/**
+ * Kicks off an async regenerate of a previz on the backend.
+ *
+ * STO-1073 (and the matching backend follow-up) moved this endpoint onto
+ * Celery — the request returns within ~200ms with the enqueued task_id, and
+ * callers must poll `getBulkTaskStatus` (or `getLatestTaskStatus`) until the
+ * `previs_generation` row reports `completed` / `failed`. The legacy 5-minute
+ * axios timeout override is no longer needed.
+ *
+ * Response codes:
+ *  - 202 + { status: "queued" }    — fresh enqueue
+ *  - 200 + { status: "in_flight" } — idempotent hit on an already-running task
+ */
+export const regeneratePreviz = async (
+    previzId: number,
+    editPrompt?: string,
+    model?: string,
+    provider?: string,
+    quality?: string,
+    size?: string,
+): Promise<{ task_id: string; status: "queued" | "in_flight"; previz_id: number }> => {
     const response = await api.post(`/api/creative_hub/previsualization/${previzId}/regenerate/`, {
         edit_prompt: editPrompt,
         model,
         provider,
         quality,
         size,
-    }, { timeout: 5 * 60 * 1000 });
+    });
     return response.data;
 }
 
 /**
+ * Shape returned by `editPrevizWithPrompt`. Caller is expected to poll on
+ * `task_id` and call `setActivePreviz(shotId, new_previz_id)` only after the
+ * task settles as `completed`.
+ */
+export interface EditPrevizKickoff {
+    task_id: string;
+    status: "queued" | "in_flight";
+    /** ID of the freshly-created Previz row that the Celery task will populate. */
+    new_previz_id: number;
+}
+
+/**
  * Creates a new Previz using the current active Previz image as reference,
- * then applies an edit prompt via image-to-image regeneration.
- * 
+ * then enqueues an async image-to-image regenerate.
+ *
  * Flow:
  * 1. Download the active previz image as a blob
  * 2. Create a new previz via /previsualization/create/ with the image_file
- * 3. Regenerate the new previz with the edit prompt (image-to-image edit)
+ * 3. Kick off `regeneratePreviz` (returns task_id; backend runs on Celery)
+ *
+ * NOTE: this no longer flips the Shot's active_previz. Callers must call
+ * `setActivePreviz` themselves once polling reports the task is completed —
+ * otherwise the UI flips to a still-empty Previz row before the AI image
+ * exists, which is the bug we're fixing.
  */
 export const editPrevizWithPrompt = async (
     shotId: number,
@@ -688,7 +722,7 @@ export const editPrevizWithPrompt = async (
     provider?: string,
     quality?: string,
     size?: string,
-): Promise<any> => {
+): Promise<EditPrevizKickoff> => {
     // Step 1: Download the active previz image
     const imageResponse = await fetch(activePrevizImageUrl);
     if (!imageResponse.ok) throw new Error("Failed to fetch reference image for editing.");
@@ -709,13 +743,18 @@ export const editPrevizWithPrompt = async (
     });
     const newPreviz = createRes.data;
 
-    // Step 3: Regenerate the new previz with the edit prompt (image-to-image)
-    const regeneratedPreviz = await regeneratePreviz(newPreviz.id, editPrompt, model, provider, quality, size);
+    // Step 3: Kick off async regenerate. We return immediately with the task_id
+    // — the caller polls and only then flips the Shot's active_previz.
+    const kickoff = await regeneratePreviz(newPreviz.id, editPrompt, model, provider, quality, size);
 
-    // Step 4: Only after successful regeneration, set it as active for the shot
-    await setActivePreviz(shotId, newPreviz.id);
-
-    return regeneratedPreviz;
+    // Note: `shotId` and `sceneId` remain in the public signature for source-
+    // compatible positional calls, but are no longer used by this function —
+    // the caller owns active-previz flipping and any scene-level refresh.
+    return {
+        task_id: kickoff.task_id,
+        status: kickoff.status,
+        new_previz_id: newPreviz.id,
+    };
 }
 
 // Scene dialogs
