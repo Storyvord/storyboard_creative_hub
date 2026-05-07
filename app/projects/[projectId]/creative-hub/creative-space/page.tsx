@@ -18,6 +18,9 @@ import {
   ShotType,
   uploadCreativeSpaceReference,
   CreativeSpaceReference,
+  getBulkTaskStatus,
+  getLatestTaskStatus,
+  getPrevisualization,
 } from "@/services/creative-hub";
 import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
@@ -412,6 +415,49 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
   );
 }
 
+// ─── Task polling ─────────────────────────────────────────────────────────────
+// STO-1073: Creative Space `/previsualization/create/` is now async — POST
+// returns 201 immediately with a task_id, the rendered `image_url` arrives
+// later via a Celery worker. Poll `getBulkTaskStatus` until the task lands.
+//
+// Copied verbatim from ShotDetailModal (commit 2e942ae) so both surfaces
+// share semantics — same 2s tick, same 5min ceiling, same status sets.
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const COMPLETE_TASK_STATUSES = new Set<string>(["completed", "success"]);
+const FAILED_TASK_STATUSES = new Set<string>(["failed", "failure", "revoked"]);
+const INFLIGHT_TASK_STATUSES = new Set<string>(["pending", "processing", "retrying", "started"]);
+
+async function pollTaskUntilComplete(
+    taskId: string,
+    cancelledRef: { current: boolean },
+    intervalMs: number = POLL_INTERVAL_MS,
+    timeoutMs: number = POLL_TIMEOUT_MS,
+): Promise<void> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (cancelledRef.current) return;
+        try {
+            const data = await getBulkTaskStatus([taskId]);
+            const tasks: any[] = data?.tasks || [];
+            const row = tasks.find((t: any) => t.task_id === taskId);
+            if (!row) {
+                throw new Error("Task status disappeared");
+            }
+            if (COMPLETE_TASK_STATUSES.has(row.status)) return;
+            if (FAILED_TASK_STATUSES.has(row.status)) {
+                throw new Error(row.error || row.error_message || "Image generation failed");
+            }
+            // pending / processing / retrying / started → keep polling.
+        } catch (err: any) {
+            if (err?.message === "Task status disappeared" || err?.message === "Image generation failed") throw err;
+            if (typeof err?.message === "string" && err.message.length > 0 && !err?.isAxiosError) throw err;
+        }
+        await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    throw new Error("Image generation timed out after 5 minutes");
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CreativeSpacePage() {
@@ -570,6 +616,122 @@ export default function CreativeSpacePage() {
       .catch(console.error);
   }, [projectId]);
 
+  // ── STO-1073: restore in-flight previs_generation tasks on reload ─────
+  // The first page of history may include rows whose AI render is still in
+  // flight (`image_url=null`, recent `updated_at`). On the originating tab
+  // the optimistic tile carried `isGenerating: true`; on a fresh load that
+  // state is gone. We fan out one `getLatestTaskStatus` per candidate row,
+  // capped at 5 concurrent requests, and whichever come back as inflight
+  // get marked `isGenerating: true` and polled to completion.
+  //
+  // Mirrors the storyboard restore in commit 2b2ff76 — same set of inflight
+  // statuses, same ref-guard pattern so a re-render doesn't re-run this.
+  const restorePrevizScriptIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!scriptId) return;
+    if (history.length === 0) return;
+    if (restorePrevizScriptIdRef.current === scriptId) return;
+    restorePrevizScriptIdRef.current = scriptId;
+
+    const RECENT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+    const now = Date.now();
+    const candidates = history.filter((row) => {
+      if (!row || row.image_url) return false;
+      if (typeof row.id !== "number") return false;
+      // Skip optimistic tiles that haven't been swapped yet (id == Date.now()-ish);
+      // they're already being polled by the active handleGenerate call.
+      if (row.isGenerating) return false;
+      const ts = row.updated_at || row.created_at;
+      if (!ts) return false;
+      const age = now - new Date(ts).getTime();
+      return age >= 0 && age <= RECENT_WINDOW_MS;
+    });
+    if (candidates.length === 0) return;
+
+    let cancelled = false;
+    const cancelledRef = { current: false };
+
+    // Tiny inline concurrency limiter — at most `limit` workers in flight.
+    const runWithConcurrency = async <T,>(items: T[], limit: number, worker: (item: T) => Promise<void>) => {
+      let cursor = 0;
+      const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (cursor < items.length) {
+          const idx = cursor++;
+          try {
+            await worker(items[idx]);
+          } catch {
+            /* best-effort restore */
+          }
+        }
+      });
+      await Promise.allSettled(runners);
+    };
+
+    const resolveRow = async (previzId: number) => {
+      try {
+        const finalPreviz = await getPrevisualization(previzId);
+        if (cancelled) return;
+        const resolved = { ...finalPreviz, isGenerating: false };
+        setHistory((prev) => prev.map((item) => (item.id === previzId ? { ...item, ...resolved } : item)));
+        setSessionGenerations((prev) =>
+          prev.map((item) => (item.id === previzId ? { ...item, ...resolved } : item)),
+        );
+      } catch (err) {
+        if (cancelled) return;
+        // Refetch failed — leave the spinner alone rather than misreporting.
+        console.error("Failed to refetch previz after restore poll:", err);
+      }
+    };
+
+    const markErrored = (previzId: number, msg: string) => {
+      const errored = (item: any) =>
+        item.id === previzId ? { ...item, isGenerating: false, isError: true, errorMessage: msg } : item;
+      setHistory((prev) => prev.map(errored));
+      setSessionGenerations((prev) => prev.map(errored));
+    };
+
+    (async () => {
+      await runWithConcurrency(candidates, 5, async (row: any) => {
+        const previzId = row.id as number;
+        const status = await getLatestTaskStatus("previsualization", previzId, "previs_generation");
+        if (!status || cancelled) return;
+        if (COMPLETE_TASK_STATUSES.has(status.status)) {
+          // Worker finished while we were away — pull the populated row.
+          await resolveRow(previzId);
+          return;
+        }
+        if (FAILED_TASK_STATUSES.has(status.status)) {
+          // Surface the failure as an errored tile so the user isn't left
+          // staring at a silent spinner.
+          markErrored(previzId, "Image generation failed");
+          return;
+        }
+        if (!INFLIGHT_TASK_STATUSES.has(status.status)) return;
+
+        // Re-spin the tile and resume polling.
+        setHistory((prev) => prev.map((item) => (item.id === previzId ? { ...item, isGenerating: true } : item)));
+        setSessionGenerations((prev) =>
+          prev.map((item) => (item.id === previzId ? { ...item, isGenerating: true } : item)),
+        );
+        try {
+          await pollTaskUntilComplete(status.task_id, cancelledRef);
+          if (cancelled) return;
+          await resolveRow(previzId);
+        } catch (err: any) {
+          if (cancelled) return;
+          const msg = err?.message || "Image generation failed";
+          markErrored(previzId, msg);
+        }
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      cancelledRef.current = true;
+    };
+  }, [scriptId, history]);
+
   // Maintain scroll position when compiling new older history
   useEffect(() => {
     if (!containerRef.current) return;
@@ -637,6 +799,7 @@ export default function CreativeSpacePage() {
 
     const newGen = {
         id: tempId,
+        __tempId: tempId,
         isGenerating: true,
         prompt: capturedPrompt,
         aspect_ratio: aspectRatio,
@@ -677,37 +840,70 @@ export default function CreativeSpacePage() {
         reference_previz_ids: refIds.length > 0 ? refIds : undefined,
       });
 
-      if (response?.image_url) {
-        const resolved = { ...response, isGenerating: false, shot_type: shotType, taggedCharacters: capturedChars, taggedLocations: capturedLocs };
-        setHistory((prev) => prev.map((item) => item.id === tempId ? resolved : item));
-        setSessionGenerations((prev) => prev.map((item) => item.id === tempId ? resolved : item));
-        
+      // STO-1073: stamp the optimistic tile with the real previz_id so a
+      // mid-generation reload can find and resume polling on this row.
+      // Keep `isGenerating: true` until the task completes.
+      const realId = response.id;
+      setHistory((prev) =>
+        prev.map((item) =>
+          item.id === tempId ? { ...item, id: realId, real_id: realId } : item,
+        ),
+      );
+      setSessionGenerations((prev) =>
+        prev.map((item) =>
+          item.id === tempId ? { ...item, id: realId, real_id: realId } : item,
+        ),
+      );
+
+      const finalize = (rowData: any) => {
+        const resolved = {
+          ...rowData,
+          id: realId,
+          isGenerating: false,
+          shot_type: shotType,
+          taggedCharacters: capturedChars,
+          taggedLocations: capturedLocs,
+        };
+        setHistory((prev) => prev.map((item) => (item.id === realId ? resolved : item)));
+        setSessionGenerations((prev) => prev.map((item) => (item.id === realId ? resolved : item)));
         setTimeout(() => {
           if (sessionContainerRef.current) sessionContainerRef.current.scrollTop = sessionContainerRef.current.scrollHeight;
         }, 50);
-
-        // Scroll to bottom after arrival
         if (showHistory) {
           setTimeout(() => {
             if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight;
           }, 50);
         }
-        setPrompt(""); // Success, can clear prompt
-        setAttachedReferences([]); // STO-546: refs were used, give the user a fresh slate
+        setPrompt("");
+        setAttachedReferences([]);
+      };
+
+      if (response.task_id) {
+        // Async path — poll until the worker reports completion, then refetch
+        // the previz row to pick up the rendered `image_url`.
+        const cancelledRef = { current: false };
+        await pollTaskUntilComplete(response.task_id, cancelledRef);
+        const finalPreviz = await getPrevisualization(realId);
+        finalize(finalPreviz);
+      } else if (response.image_url) {
+        // Synchronous path — image_file uploads still return the rendered
+        // image inline. Resolve directly without polling.
+        finalize(response);
       } else {
-        const msg = "Failed to generate visual.";
-        const errored = (item: any) => ({ ...item, isGenerating: false, isError: true, errorMessage: msg });
-        setHistory((prev) => prev.map((item) => item.id === tempId ? errored(item) : item));
-        setSessionGenerations((prev) => prev.map((item) => item.id === tempId ? errored(item) : item));
+        // Defensive: backend returned neither a task_id nor an image_url.
+        throw new Error("Backend returned no task_id or image_url");
       }
     } catch (error: any) {
       console.error("Failed to generate script previsualization:", error);
       const msg = extractApiError(error, "Image generation failed. Please try again.");
       toast.error(msg);
-      
+
+      // The optimistic tile may already have been re-keyed from `tempId` to
+      // the real previz_id by the time polling fails — match either.
       const errored = (item: any) => ({ ...item, isGenerating: false, isError: true, errorMessage: msg });
-      setHistory((prev) => prev.map((item) => item.id === tempId ? errored(item) : item));
-      setSessionGenerations((prev) => prev.map((item) => item.id === tempId ? errored(item) : item));
+      const matches = (item: any) => item.id === tempId || item.real_id === tempId || (item as any).__tempId === tempId;
+      setHistory((prev) => prev.map((item) => (matches(item) ? errored(item) : item)));
+      setSessionGenerations((prev) => prev.map((item) => (matches(item) ? errored(item) : item)));
     } finally {
       setIsGenerating(false);
     }
