@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, Send, LayoutPanelTop, MonitorPlay, AlertTriangle, User, MapPin, History } from "lucide-react";
+import { Loader2, Send, LayoutPanelTop, MonitorPlay, AlertTriangle, User, MapPin, History, Paperclip, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import {
   getScripts,
@@ -16,6 +16,8 @@ import {
   CameraAngle,
   getShotTypes,
   ShotType,
+  uploadCreativeSpaceReference,
+  CreativeSpaceReference,
 } from "@/services/creative-hub";
 import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
@@ -81,6 +83,7 @@ interface MentionInputProps {
   locations: TaggedLocation[];
   disabled?: boolean;
   onKeyDown?: React.KeyboardEventHandler<HTMLTextAreaElement>;
+  onPaste?: React.ClipboardEventHandler<HTMLTextAreaElement>;
 }
 
 type DropdownItem =
@@ -99,7 +102,7 @@ function rankByQuery<T extends { name: string }>(items: T[], query: string): T[]
   });
 }
 
-function MentionInput({ value, onChange, characters, locations, disabled, onKeyDown }: MentionInputProps) {
+function MentionInput({ value, onChange, characters, locations, disabled, onKeyDown, onPaste }: MentionInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -399,6 +402,7 @@ function MentionInput({ value, onChange, characters, locations, disabled, onKeyD
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onPaste={onPaste}
         onScroll={syncScroll}
         disabled={disabled}
         rows={1}
@@ -449,6 +453,12 @@ export default function CreativeSpacePage() {
   const [taggedCharacters, setTaggedCharacters] = useState<TaggedCharacter[]>([]);
   const [taggedLocations,  setTaggedLocations]  = useState<TaggedLocation[]>([]);
 
+  // STO-546: User-attached reference images (ChatGPT-style attachments)
+  const [attachedReferences, setAttachedReferences] = useState<CreativeSpaceReference[]>([]);
+  const [uploadingReferences, setUploadingReferences] = useState(0); // count of in-flight uploads
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const fetchHistory = async (sid: number, page: number, isInitial: boolean = false) => {
     if (isFetchingHistory) return;
     setIsFetchingHistory(true);
@@ -483,6 +493,43 @@ export default function CreativeSpacePage() {
     } finally {
       setIsFetchingHistory(false);
     }
+  };
+
+  // STO-546: Upload one or more files as Creative Space reference images.
+  // Uploads run sequentially to keep things simple, but the in-flight count
+  // increments up-front so all "Uploading..." pills appear immediately.
+  const handleAttachFiles = async (files: FileList | File[]) => {
+    if (!scriptId) {
+      toast.error("Open a script first.");
+      return;
+    }
+    const valid = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (valid.length === 0) return;
+    setUploadingReferences((n) => n + valid.length);
+    for (const file of valid) {
+      try {
+        const ref = await uploadCreativeSpaceReference(scriptId, file);
+        setAttachedReferences((prev) =>
+          prev.some((r) => r.id === ref.id) ? prev : [...prev, ref],
+        );
+        // Refresh script-wide history so the upload appears in the feed
+        fetchHistory(scriptId, 1, true);
+      } catch (err) {
+        toast.error(extractApiError(err, `Failed to upload ${file.name}`));
+      } finally {
+        setUploadingReferences((n) => n - 1);
+      }
+    }
+  };
+
+  // Add a previously-uploaded previz back as a reference without re-uploading.
+  const attachExistingPreviz = (previzId: number, imageUrl?: string | null, description?: string | null) => {
+    if (!previzId || !imageUrl) return;
+    setAttachedReferences((prev) =>
+      prev.some((r) => r.id === previzId)
+        ? prev
+        : [...prev, { id: previzId, image_url: imageUrl, description: description ?? null }],
+    );
   };
 
   useEffect(() => {
@@ -611,6 +658,8 @@ export default function CreativeSpacePage() {
       if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }, 50);
 
+    const refIds = attachedReferences.map((r) => r.id);
+
     try {
       const response = await createScriptPrevisualization({
         script: scriptId,
@@ -625,6 +674,7 @@ export default function CreativeSpacePage() {
         size: selectedSize,
         character_ids: charIds.length > 0 ? charIds : undefined,
         location_ids:  locIds.length > 0  ? locIds  : undefined,
+        reference_previz_ids: refIds.length > 0 ? refIds : undefined,
       });
 
       if (response?.image_url) {
@@ -643,6 +693,7 @@ export default function CreativeSpacePage() {
           }, 50);
         }
         setPrompt(""); // Success, can clear prompt
+        setAttachedReferences([]); // STO-546: refs were used, give the user a fresh slate
       } else {
         const msg = "Failed to generate visual.";
         const errored = (item: any) => ({ ...item, isGenerating: false, isError: true, errorMessage: msg });
@@ -797,6 +848,32 @@ export default function CreativeSpacePage() {
                             <div className="text-[var(--text-muted)]"><MonitorPlay className="w-6 h-6" /></div>
                           )}
 
+                          {/* STO-546: User-uploaded reference badge.
+                              Backend writes notes="User-uploaded reference" on the PrevizHistory row,
+                              and the previz row itself carries description="User reference". Match either. */}
+                          {((item.notes || "") + " " + (item.description || "")).toLowerCase().includes("reference") && !item.isGenerating && !item.isError && item.image_url && (
+                            <span className="absolute top-1 left-1 text-[8px] font-bold uppercase bg-blue-500 text-white px-1 py-0.5 rounded z-20">
+                              Reference
+                            </span>
+                          )}
+
+                          {/* STO-546: Hover overlay button to re-attach as reference (no re-upload). */}
+                          {!item.isGenerating && !item.isError && item.image_url && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                attachExistingPreviz(item.id, item.image_url, item.description);
+                                toast.success("Attached as reference");
+                              }}
+                              title="Use as reference"
+                              className="absolute bottom-1 right-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-black/70 hover:bg-emerald-600 text-white text-[9px] font-medium px-1.5 py-1 rounded backdrop-blur"
+                            >
+                              <Paperclip className="w-2.5 h-2.5" />
+                              <span>Use as ref</span>
+                            </button>
+                          )}
+
                           {/* Top Meta Badges overlaid on top */}
                           <div className="absolute top-0 left-0 right-0 p-2 flex flex-wrap gap-1 bg-gradient-to-b from-black/80 to-transparent z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                             {((item.taggedCharacters?.length > 0) || (item.taggedLocations?.length > 0)) && (
@@ -901,7 +978,82 @@ export default function CreativeSpacePage() {
 
       {/* Floating bottom bar */}
       <div className="absolute bottom-0 left-0 right-0 pb-5 px-4 z-20 pointer-events-none">
-        <div className="w-3/4 mx-auto bg-[var(--surface)]/70 backdrop-blur-xl border border-[#ffffff08] rounded-2xl p-4 lg:p-5 shadow-[0_-4px_48px_rgba(0,0,0,0.8)] flex flex-col gap-3 pointer-events-auto">
+        <div
+          className={`w-3/4 mx-auto bg-[var(--surface)]/70 backdrop-blur-xl border ${
+            dragOver ? "border-emerald-500/60 border-dashed bg-emerald-500/5" : "border-[#ffffff08]"
+          } rounded-2xl p-4 lg:p-5 shadow-[0_-4px_48px_rgba(0,0,0,0.8)] flex flex-col gap-3 pointer-events-auto transition-colors`}
+          onDragOver={(e) => {
+            // STO-546: drag/drop reference attachments
+            e.preventDefault();
+            if (!dragOver) setDragOver(true);
+          }}
+          onDragLeave={(e) => {
+            // Only clear if we're actually leaving the container, not just passing over a child
+            if (e.currentTarget === e.target) setDragOver(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            if (e.dataTransfer.files?.length) {
+              handleAttachFiles(e.dataTransfer.files);
+            }
+          }}
+        >
+
+          {/* STO-546: Hidden file input wired to the paperclip button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files?.length) handleAttachFiles(e.target.files);
+              // reset so re-selecting the same file fires onChange again
+              e.target.value = "";
+            }}
+          />
+
+          {/* STO-546: Reference attachment pills (horizontally scrollable). */}
+          {(attachedReferences.length > 0 || uploadingReferences > 0) && (
+            <div className="flex gap-2 overflow-x-auto px-1 pb-1 scrollbar-thin">
+              {attachedReferences.map((ref) => (
+                <div
+                  key={`ref-${ref.id}`}
+                  className="flex items-center gap-1.5 bg-[var(--surface-hover)] border border-[var(--border)] rounded-lg pl-1 pr-1.5 py-1 flex-shrink-0"
+                  title={ref.description || "Reference"}
+                >
+                  <img
+                    src={ref.image_url}
+                    alt="Reference"
+                    className="w-8 h-8 rounded object-cover bg-[var(--background)]"
+                  />
+                  <span className="text-[10px] text-[var(--text-secondary)] max-w-[100px] truncate">
+                    {ref.description || "Reference"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAttachedReferences((prev) => prev.filter((r) => r.id !== ref.id))}
+                    className="p-0.5 rounded hover:bg-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                    aria-label="Detach reference"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              {Array.from({ length: uploadingReferences }).map((_, i) => (
+                <div
+                  key={`uploading-${i}`}
+                  className="flex items-center gap-1.5 bg-[var(--surface-hover)] border border-[var(--border)] rounded-lg pl-1 pr-2 py-1 flex-shrink-0"
+                >
+                  <div className="w-8 h-8 rounded bg-[var(--background)] flex items-center justify-center">
+                    <Loader2 className="w-3.5 h-3.5 text-emerald-500 animate-spin" />
+                  </div>
+                  <span className="text-[10px] text-[var(--text-muted)]">Uploading…</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Live tag chips */}
           {(taggedCharacters.length > 0 || taggedLocations.length > 0) && (
@@ -937,7 +1089,33 @@ export default function CreativeSpacePage() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleGenerate(); }
                 }}
+                onPaste={(e) => {
+                  // STO-546: Image paste support — pull image items off the clipboard
+                  const items = e.clipboardData?.items;
+                  if (!items) return;
+                  const files: File[] = [];
+                  for (const item of Array.from(items)) {
+                    if (item.kind === "file" && item.type.startsWith("image/")) {
+                      const f = item.getAsFile();
+                      if (f) files.push(f);
+                    }
+                  }
+                  if (files.length > 0) {
+                    e.preventDefault();
+                    handleAttachFiles(files);
+                  }
+                }}
               />
+              {/* STO-546: Paperclip button opens the hidden file input */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isGenerating || !scriptId}
+                title="Attach reference images"
+                className="ml-1 p-2.5 bg-[var(--surface-hover)] hover:bg-[var(--border)] disabled:opacity-40 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg transition-colors flex items-center justify-center flex-shrink-0"
+              >
+                <Paperclip className="w-5 h-5" />
+              </button>
               <button
                 onClick={handleGenerate}
                 disabled={isGenerating || !prompt.trim()}
