@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, getStoryboardDataPaginated, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, updateScene, createShot, reorderShots as reorderShotsApi, getCharacters, updateShotDetails, getShotDetail, getLatestTaskStatus } from "@/services/creative-hub";
+import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, getStoryboardDataPaginated, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, updateScene, createShot, reorderShots as reorderShotsApi, getCharacters, updateShotDetails, getShotDetail } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
 import { Scene, Shot, Script } from "@/types/creative-hub";
 import { Loader2, Film, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon, CheckCircle, Circle, AlertTriangle, GripVertical, Plus, X } from "lucide-react";
@@ -838,116 +838,12 @@ export default function StoryboardPage() {
       initializeActiveTasks();
   }, [activeScriptId, shotsMap, initializedScriptId]);
 
-  // ── STO-1073: targeted mount-time restore of in-flight Celery tasks ────
-  // The legacy `getScriptTasks` flow above is kept for safety, but the new
-  // `getLatestTaskStatus` endpoint is the authoritative source for the
-  // (content_type, object_id, task_type) tuple. We fan out one fetch per
-  // scene (for `shot_generation`) and one per shot (for `previs_generation`),
-  // capped at 10 concurrent requests to avoid hammering the API on big
-  // scripts. The ref guard prevents a second run on re-renders; we do allow
-  // a re-run when `activeScriptId` changes (script switch).
-  const restoreShotGenScriptIdRef = useRef<number | null>(null);
-  const restorePrevizScriptIdRef = useRef<number | null>(null);
-
-  // Tiny inline concurrency limiter — runs `tasks` with at most `limit`
-  // promises in flight. Avoids pulling in p-limit just for this.
-  const runWithConcurrency = useCallback(
-    async <T,>(items: T[], limit: number, worker: (item: T) => Promise<void>) => {
-      let cursor = 0;
-      const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-        while (cursor < items.length) {
-          const idx = cursor++;
-          try {
-            await worker(items[idx]);
-          } catch {
-            /* swallow — restore is best-effort */
-          }
-        }
-      });
-      await Promise.allSettled(runners);
-    },
-    [],
-  );
-
-  // Per-scene shot_generation restore — runs once after scenes load.
-  useEffect(() => {
-    if (!activeScriptId) return;
-    if (scenes.length === 0) return;
-    if (restoreShotGenScriptIdRef.current === activeScriptId) return;
-    restoreShotGenScriptIdRef.current = activeScriptId;
-
-    const sceneIds = scenes.map((s) => s.id).filter((id): id is number => typeof id === "number");
-    if (sceneIds.length === 0) return;
-
-    const inflight = new Set(["pending", "processing", "retrying"]);
-    let cancelled = false;
-
-    (async () => {
-      const newTracked: Record<number, string> = {};
-      const newLoading: Record<number, boolean> = {};
-      await runWithConcurrency(sceneIds, 10, async (sceneId) => {
-        const status = await getLatestTaskStatus("scene", sceneId, "shot_generation");
-        if (!status) return;
-        if (!inflight.has(status.status)) return;
-        newTracked[sceneId] = status.task_id;
-        newLoading[sceneId] = true;
-      });
-      if (cancelled) return;
-      if (Object.keys(newTracked).length > 0) {
-        setTrackedShotTasks((prev) => ({ ...prev, ...newTracked }));
-        setLoadingShotsMap((prev) => ({ ...prev, ...newLoading }));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeScriptId, scenes, runWithConcurrency]);
-
-  // Per-shot previs_generation restore — runs once after shots load.
-  useEffect(() => {
-    if (!activeScriptId) return;
-    if (Object.keys(shotsMap).length === 0) return;
-    if (restorePrevizScriptIdRef.current === activeScriptId) return;
-    restorePrevizScriptIdRef.current = activeScriptId;
-
-    const shotIds: number[] = [];
-    for (const sceneShots of Object.values(shotsMap)) {
-      for (const sh of sceneShots) {
-        // Skip shots that already have a rendered image; those tasks are
-        // settled even if the row is stale.
-        if (sh?.image_url) continue;
-        if (typeof sh?.id === "number") shotIds.push(sh.id);
-      }
-    }
-    if (shotIds.length === 0) return;
-
-    const inflight = new Set(["pending", "processing", "retrying"]);
-    let cancelled = false;
-
-    (async () => {
-      const newTracked: Record<number, string> = {};
-      const newRetrying: Record<number, boolean> = {};
-      await runWithConcurrency(shotIds, 10, async (shotId) => {
-        const status = await getLatestTaskStatus("shot", shotId, "previs_generation");
-        if (!status) return;
-        if (!inflight.has(status.status)) return;
-        newTracked[shotId] = status.task_id;
-        if (status.status === "retrying") newRetrying[shotId] = true;
-      });
-      if (cancelled) return;
-      if (Object.keys(newTracked).length > 0) {
-        setTrackedTasks((prev) => ({ ...prev, ...newTracked }));
-        if (Object.keys(newRetrying).length > 0) {
-          setRetryingTasks((prev) => ({ ...prev, ...newRetrying }));
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeScriptId, shotsMap, runWithConcurrency]);
+  // STO-1073 mount-time restore is handled in a single batch above via
+  // `getScriptTasks(activeScriptId)` — that one POST returns every TaskStatus
+  // row for the script, so we don't need per-scene / per-shot fan-out to
+  // /tasks/latest/. Earlier iterations fired N HTTP calls per page load
+  // (one per scene + one per shot, capped at 10 concurrent), which produced
+  // hundreds of 404s on scripts with many shots. Removed.
 
   // Polling with Exponential Backoff
   useEffect(() => {
