@@ -825,9 +825,9 @@ export default function StoryboardPage() {
                           newTracked[task.object_id] = task.task_id;
                           if (task.status === 'retrying') newRetrying[task.object_id] = true;
                       }
-                      // Restore errors from recently failed tasks so user sees "Failed" + Retry
-                      if (!hasImage && taskAge < maxAgeMs && ['failed','failure'].includes(task.status) && task.error) {
-                          newErrors[task.object_id] = task.error;
+                      // Restore errors from recently failed/revoked tasks so user sees "Failed" + Retry
+                      if (!hasImage && taskAge < maxAgeMs && ['failed','failure','revoked'].includes(task.status)) {
+                          newErrors[task.object_id] = task.error || 'Generation failed.';
                       }
                   });
                   if (Object.keys(newTracked).length > 0) { setTrackedTasks(newTracked); setRetryingTasks(newRetrying); }

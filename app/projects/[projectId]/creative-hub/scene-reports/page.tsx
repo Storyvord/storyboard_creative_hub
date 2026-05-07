@@ -531,7 +531,7 @@ export default function SceneReportsPage() {
 
     const sceneId = selectedScene.id;
     const HARD_CAP_MS = 15 * 60 * 1000;
-    const SETTLED = new Set(["completed", "success", "failed", "failure"]);
+    const SETTLED = new Set(["completed", "success", "failed", "failure", "revoked"]);
     let cancelled = false;
 
     const tick = async () => {
@@ -572,7 +572,7 @@ export default function SceneReportsPage() {
       if (settled.length === 0) return;
 
       const successes = settled.filter((t) => ["completed", "success"].includes((t.status ?? "").toLowerCase()));
-      const failures = settled.filter((t) => ["failed", "failure"].includes((t.status ?? "").toLowerCase()));
+      const failures = settled.filter((t) => ["failed", "failure", "revoked"].includes((t.status ?? "").toLowerCase()));
 
       // Refetch report list — the new cards will appear and the matching
       // skeleton will drop in the same render via the setPendingReports below.
