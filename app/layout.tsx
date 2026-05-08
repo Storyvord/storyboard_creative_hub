@@ -27,12 +27,11 @@ const themeScript = `
     }
 
     // Theme respects the user's choice regardless of Viewfinder mode.
-    // Viewfinder has both dark and light palettes.
+    // Default to dark for first-time visitors, regardless of the OS
+    // prefers-color-scheme setting; users can opt into light via the toggle.
     var stored = localStorage.getItem('ch-theme');
     if (stored === 'light' || stored === 'dark') {
       document.documentElement.setAttribute('data-theme', stored);
-    } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
-      document.documentElement.setAttribute('data-theme', 'light');
     } else {
       document.documentElement.setAttribute('data-theme', 'dark');
     }
