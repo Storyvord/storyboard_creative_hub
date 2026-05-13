@@ -131,6 +131,13 @@ export interface RiskScene {
   severity_breakdown: RiskSeverityBreakdown;
   findings: RiskFinding[];
   mitigations: RiskMitigation[];
+  /**
+   * Backend hint (optional during rollout): False when the scene has no
+   * non-deleted findings. When the field is missing we derive it client-side
+   * from `findings`. Lets the UI render a "No risk identified" affordance
+   * rather than a misleading max-score for empty/cancelled analyses.
+   */
+  has_findings?: boolean;
 }
 
 // ── Summary stats / category breakdown ──────────────────────────────────────
@@ -140,6 +147,22 @@ export interface RiskSummaryStats {
   scenes_approved: number;
   total_risks_found: number;
   severity_distribution: RiskSeverityBreakdown;
+  /**
+   * Backend hint (optional during rollout): True when the envelope has zero
+   * non-deleted findings. Drives the empty-state UI on Overview / donut /
+   * KPI strip — replaces the "every scene = max_score" misleading default.
+   */
+  is_empty?: boolean;
+}
+
+/**
+ * Present only when `status == "CANCELLED"`. Tells the UI whether finalize
+ * is still available (the backend now accepts CANCELLED-with-findings) and
+ * how much partial data was captured before cancellation.
+ */
+export interface CancelledContext {
+  findings_count: number;
+  finalize_available_from_cancelled: boolean;
 }
 
 export interface RiskCategoryBreakdown {
@@ -257,6 +280,11 @@ export interface RiskAnalysis {
   credits_consumed_by_phase?: Record<string, number>;
   drift_warnings?: DriftWarning[];
   registry_version?: string;
+  /** Top-level findings counters (optional during backend rollout). */
+  total_findings_count?: number;
+  scenes_with_findings_count?: number;
+  /** Only populated when `status == "CANCELLED"`. */
+  cancelled_context?: CancelledContext | null;
 }
 
 // ── Typed API error returns for component-level handling ───────────────────

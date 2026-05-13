@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, ShieldAlert, ChevronRight } from "lucide-react";
+import { ExternalLink, Loader2, ShieldAlert, ChevronRight } from "lucide-react";
 import { getSceneFindings } from "@/services/risk-analyzer";
 import { RiskFinding } from "@/types/risk-analyzer";
 
@@ -76,10 +76,18 @@ export default function SceneRiskFindingsCallout({
   }
   return (
     <section>
-      <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]">
-        <ShieldAlert className="h-5 w-5 text-emerald-400" />
-        Risk findings {findings ? `(${findings.length})` : ""}
-      </h2>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]">
+          <ShieldAlert className="h-5 w-5 text-emerald-400" />
+          Risk findings {findings ? `(${findings.length})` : ""}
+        </h2>
+        <Link
+          href={`/projects/${projectId}/creative-hub/risk-analyzer`}
+          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)] hover:border-emerald-500/40 hover:text-emerald-500"
+        >
+          <ExternalLink className="h-3 w-3" /> Open in Risk Analyzer
+        </Link>
+      </div>
       {loading ? (
         <div className="flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)]/40 px-4 py-3 text-xs text-[var(--text-muted)]">
           <Loader2 size={12} className="animate-spin" /> Loading findings…

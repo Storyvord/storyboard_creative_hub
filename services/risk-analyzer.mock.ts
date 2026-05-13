@@ -161,6 +161,107 @@ export const MOCK_RESULTS_AWAITING_APPROVAL: RiskAnalysis = {
   drift_warnings: [],
 };
 
+/**
+ * Sample CANCELLED envelope with partial findings retained. Exercises the
+ * new producer-facing UX: the cancelled-state banner offers a "Finalize
+ * partial analysis" CTA because
+ * `cancelled_context.finalize_available_from_cancelled` is true, and the
+ * Overview panel reports the real (non-zero) counts rather than the old
+ * "every-scene-equals-max-score" misleading default.
+ */
+export const MOCK_STATUS_CANCELLED_WITH_FINDINGS: RiskAnalysis = {
+  status: "cancelled",
+  score: 745,
+  score_band: "Medium",
+  insurance: {
+    tier: "Elevated",
+    multiplier: 1.31,
+    premium_low_k: 11.5,
+    premium_high_k: 17.8,
+    tier_riders: "stunt waiver",
+    risk_level: 0.18,
+  },
+  edit_summary: {
+    ai_findings_count: 4,
+    user_added_count: 0,
+    user_modified_count: 0,
+    user_deleted_count: 0,
+    ai_only_score: 745,
+    current_score: 745,
+    delta: 0,
+  },
+  scenes: [
+    {
+      scene_id: 91,
+      heading: "EXT. ROOFTOP - DAY",
+      order: 1,
+      cumulative_deduction: 9.4,
+      projected_score: 805,
+      exposure_contribution: 9.4,
+      severity_breakdown: { Critical: 0, High: 1, Medium: 1, Low: 0 },
+      has_findings: true,
+      findings: [
+        {
+          id: 901,
+          category: "Rigging / Scaffolding / Heights",
+          category_slug: "rigging_scaffolding_heights",
+          severity: "High",
+          reason: "Actor traversing a 12-storey rooftop edge.",
+          evidence_quote: "JACK leaps to the next building",
+          confidence: "high",
+          source: "ai",
+          audit_flags: [],
+          approval_state: "none",
+          deleted_by_user: false,
+        },
+        {
+          id: 902,
+          category: "Crowd Scenes / Extras Control",
+          category_slug: "crowd_scenes_extras_control",
+          severity: "Medium",
+          reason: "Street-level extras observe the stunt.",
+          evidence_quote: "the crowd below gasps",
+          confidence: "medium",
+          source: "ai",
+          audit_flags: [],
+          approval_state: "none",
+          deleted_by_user: false,
+        },
+      ],
+      mitigations: [],
+    },
+    {
+      scene_id: 92,
+      heading: "INT. LOBBY - DAY",
+      order: 2,
+      cumulative_deduction: 0,
+      projected_score: 745,
+      exposure_contribution: 0,
+      severity_breakdown: { Critical: 0, High: 0, Medium: 0, Low: 0 },
+      has_findings: false,
+      findings: [],
+      mitigations: [],
+    },
+  ],
+  summary_stats: {
+    total_scenes_parsed: 24,
+    scenes_analysed: 6,
+    scenes_approved: 0,
+    total_risks_found: 3,
+    severity_distribution: { Critical: 0, High: 1, Medium: 2, Low: 0 },
+    is_empty: false,
+  },
+  graph: { nodes: [], edges: [], legend: [], score_band: "Medium" },
+  finalized_pdf_url: null,
+  drift_warnings: [],
+  total_findings_count: 3,
+  scenes_with_findings_count: 1,
+  cancelled_context: {
+    findings_count: 3,
+    finalize_available_from_cancelled: true,
+  },
+};
+
 export const MOCK_ANALYSES: RiskAnalysisListItem[] = [
   {
     id: 42,

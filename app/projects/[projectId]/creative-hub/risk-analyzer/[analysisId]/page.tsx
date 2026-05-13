@@ -1,17 +1,25 @@
 "use client";
 
-// Risk Analyzer dashboard — Overview / Graph / Compliance tabs over a single
-// analysis. Drives status polling (FRONTEND_INTEGRATION.md §4) and routes
-// every edit through the typed API client so 402/409/422/413/415/429 are
-// surfaced as inline UI rather than thrown errors.
+// Risk Analyzer dashboard — Overview / Scenes / Hazards / Compliance tabs
+// over a single analysis. Producer-oriented redesign (May 2026):
+//   - "Graph" tab replaced with "Hazards" (bar chart + heatmap, no node graph).
+//   - "Scenes" tab promoted from a drill-down to a top-level surface so
+//     producers can sort/filter without scrolling through the entire script.
+//   - Cancelled-with-findings state now offers a "Finalize partial" CTA.
+//   - Empty-state UX: when `summary_stats.is_empty` we render an explicit
+//     "No findings yet" panel rather than the old all-zero charts + every
+//     scene at max_score.
+//   - Compliance tab explains *why* it's empty per status; no more silent
+//     blank tab when an analysis is mid-pipeline.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  AlertTriangle,
   BarChart2,
   ChevronLeft,
-  GitGraph,
+  Film,
   Loader2,
   ShieldAlert,
   ShieldCheck,
@@ -43,21 +51,26 @@ import {
 } from "@/types/risk-analyzer";
 import { listAnalyses } from "@/services/risk-analyzer";
 import { useRiskAnalysisPolling } from "@/hooks/useRiskAnalysisPolling";
+import { invalidateScriptRiskCache } from "@/hooks/useScriptRiskByScene";
 
 import StatusBanner from "../_components/StatusBanner";
 import StalledBanner from "../_components/StalledBanner";
 import CancelDialog from "../_components/CancelDialog";
+import CancelledStateBanner from "../_components/CancelledStateBanner";
 import ScoreGauge from "../_components/ScoreGauge";
 import CumulativeExposureChart from "../_components/CumulativeExposureChart";
 import SeverityDistributionDonut from "../_components/SeverityDistributionDonut";
-import SceneDrillDownList from "../_components/SceneDrillDownList";
-import RiskGraph from "../_components/RiskGraph";
-import ComplianceSection from "../_components/ComplianceSection";
+import KpiStrip from "../_components/KpiStrip";
+import TopRiskScenes from "../_components/TopRiskScenes";
+import TopHazards from "../_components/TopHazards";
+import ScenesTable from "../_components/ScenesTable";
+import HazardsView from "../_components/HazardsView";
+import ComplianceTab from "../_components/ComplianceTab";
 import EditTransparencyTable from "../_components/EditTransparencyTable";
 import FindingEditModal from "../_components/FindingEditModal";
 import FinalizeDialog from "../_components/FinalizeDialog";
 
-type TabKey = "overview" | "graph" | "compliance";
+type TabKey = "overview" | "scenes" | "hazards" | "compliance";
 
 interface ModalState {
   open: boolean;
@@ -76,6 +89,13 @@ export default function RiskAnalyzerDashboardPage() {
   const [scriptId, setScriptId] = useState<number | null>(null);
   const [resolvingScript, setResolvingScript] = useState(true);
   const [tab, setTab] = useState<TabKey>("overview");
+  const [scenesFilterCategory, setScenesFilterCategory] = useState<
+    string | null
+  >(null);
+  const [scenesExpandedSceneId, setScenesExpandedSceneId] = useState<
+    number | null
+  >(null);
+  const [showEditHistory, setShowEditHistory] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [showFinalize, setShowFinalize] = useState(false);
@@ -100,14 +120,15 @@ export default function RiskAnalyzerDashboardPage() {
         const { getScripts } = await import("@/services/creative-hub");
         const scripts = await getScripts(projectId);
         for (const s of scripts) {
-          const items: RiskAnalysisListItem[] = await listAnalyses(s.id).catch(() => []);
+          const items: RiskAnalysisListItem[] = await listAnalyses(s.id).catch(
+            () => [],
+          );
           if (items.some((it) => it.id === analysisId)) {
             if (!cancelled) setScriptId(s.id);
             return;
           }
         }
         if (!cancelled) {
-          // Couldn't find — bounce back to index.
           toast.error("Analysis not found for this project.");
           router.replace(`/projects/${projectId}/creative-hub/risk-analyzer`);
         }
@@ -133,6 +154,15 @@ export default function RiskAnalyzerDashboardPage() {
   const norm = normaliseStatus(status?.status ?? analysis?.status);
   const isFinalized = norm === "FINALIZED";
   const readOnly = isFinalized;
+  const isCancelled = norm === "CANCELLED";
+  const cancelledContext = analysis?.cancelled_context ?? null;
+  const isEmpty =
+    analysis?.summary_stats?.is_empty === true ||
+    (analysis?.summary_stats?.is_empty === undefined &&
+      (analysis?.total_findings_count === 0 ||
+        (analysis?.scenes ?? []).every(
+          (s) => !s.findings.some((f) => !f.deleted_by_user),
+        )));
 
   // ── Helpers: handle a RiskApiResult uniformly with toasts ────────────────
   const handleApiError = useCallback((err: RiskApiError) => {
@@ -150,9 +180,6 @@ export default function RiskAnalyzerDashboardPage() {
         toast.error("Unsupported file type. Use PNG, JPG, or PDF.");
         return;
       case "content_type_mismatch":
-        // Backend's magic-byte check rejected the file. Surface its
-        // verbatim `detail` so the user knows whether to re-export or pick
-        // a different attachment.
         toast.error(err.message, { autoClose: 7000 });
         return;
       case "not_cancellable":
@@ -187,7 +214,8 @@ export default function RiskAnalyzerDashboardPage() {
       }
       toast.info("Finalizing — generating compliance report…");
       setShowFinalize(false);
-      // Re-fetch via polling refresh — backend will move status to FINALIZING then FINALIZED.
+      // Script-page risk badges may now read from a fresh FINALIZED envelope.
+      invalidateScriptRiskCache(scriptId);
       await polling.refresh();
     } finally {
       setFinalizing(false);
@@ -219,8 +247,6 @@ export default function RiskAnalyzerDashboardPage() {
         if (!res.ok) {
           if (res.code === "not_cancellable") {
             toast.warn("Analysis is not in a cancellable state.");
-            // Pull the latest status so the UI catches up with whatever
-            // terminal state the backend already moved to.
             await polling.refresh();
           } else if (res.code === "forbidden") {
             toast.error("You don't have permission to cancel this analysis.");
@@ -231,8 +257,6 @@ export default function RiskAnalyzerDashboardPage() {
         }
         toast.success("Analysis cancelled.");
         setShowCancel(false);
-        // The polling hook will see the new CANCELLED status on the next
-        // tick and stop polling (CANCELLED is terminal).
         await polling.refresh();
       } finally {
         setCancelling(false);
@@ -248,7 +272,6 @@ export default function RiskAnalyzerDashboardPage() {
   const handleDownloadPdf = useCallback(() => {
     if (scriptId === null) return;
     if (!analysis?.finalized_pdf_url) {
-      // Server-side presigned URL is the preferred path; fall back to API URL.
       window.open(getReportPdfUrl(scriptId, analysisId), "_blank");
       return;
     }
@@ -320,7 +343,11 @@ export default function RiskAnalyzerDashboardPage() {
 
   const handlePatchMitigation = async (
     mitigationId: number,
-    body: { recommendation?: string; equipment_needed?: string; personnel_required?: string },
+    body: {
+      recommendation?: string;
+      equipment_needed?: string;
+      personnel_required?: string;
+    },
   ) => {
     const res = await patchMitigation(mitigationId, body);
     if (!res.ok) return handleApiError(res);
@@ -330,7 +357,11 @@ export default function RiskAnalyzerDashboardPage() {
 
   const handleCreateMitigation = async (
     findingId: number,
-    body: { recommendation: string; equipment_needed?: string; personnel_required?: string },
+    body: {
+      recommendation: string;
+      equipment_needed?: string;
+      personnel_required?: string;
+    },
   ) => {
     const res = await createMitigationForFinding(findingId, body);
     if (!res.ok) return handleApiError(res);
@@ -352,6 +383,19 @@ export default function RiskAnalyzerDashboardPage() {
     await polling.refresh();
   };
 
+  // ── Click-throughs between tabs ──────────────────────────────────────────
+  const openSceneInScenesTab = useCallback((sceneId: number) => {
+    setScenesExpandedSceneId(sceneId);
+    setScenesFilterCategory(null);
+    setTab("scenes");
+  }, []);
+
+  const filterScenesByCategory = useCallback((slug: string) => {
+    setScenesFilterCategory(slug);
+    setScenesExpandedSceneId(null);
+    setTab("scenes");
+  }, []);
+
   // ── Render ───────────────────────────────────────────────────────────────
   if (resolvingScript) {
     return (
@@ -363,7 +407,8 @@ export default function RiskAnalyzerDashboardPage() {
 
   const tabs: Array<{ id: TabKey; label: string; icon: React.ReactNode }> = [
     { id: "overview", label: "Overview", icon: <BarChart2 size={13} /> },
-    { id: "graph", label: "Graph", icon: <GitGraph size={13} /> },
+    { id: "scenes", label: "Scenes", icon: <Film size={13} /> },
+    { id: "hazards", label: "Hazards", icon: <AlertTriangle size={13} /> },
     { id: "compliance", label: "Compliance", icon: <ShieldCheck size={13} /> },
   ];
 
@@ -418,19 +463,40 @@ export default function RiskAnalyzerDashboardPage() {
           />
         )}
 
-        {/* Status banner */}
-        <div className="mb-4">
-          <StatusBanner
-            status={status}
-            analysis={analysis}
-            onFinalize={() => setShowFinalize(true)}
-            onResume={handleResume}
-            onDownloadPdf={handleDownloadPdf}
-            onCancel={() => setShowCancel(true)}
-            onStartNewAnalysis={handleStartNewAnalysis}
-            finalizing={finalizing || resuming}
-          />
-        </div>
+        {/* Cancelled-state banner — replaces the StatusBanner CANCELLED copy
+            with a producer-actionable variant when there's partial data we
+            can still finalize. */}
+        {isCancelled && analysis ? (
+          <div className="mb-4">
+            <CancelledStateBanner
+              analysis={analysis}
+              cancelledContext={cancelledContext}
+              scenesProcessed={
+                status?.scenes_processed ??
+                analysis.summary_stats?.scenes_analysed
+              }
+              onFinalize={
+                cancelledContext?.finalize_available_from_cancelled
+                  ? () => setShowFinalize(true)
+                  : undefined
+              }
+              onStartNewAnalysis={handleStartNewAnalysis}
+            />
+          </div>
+        ) : (
+          <div className="mb-4">
+            <StatusBanner
+              status={status}
+              analysis={analysis}
+              onFinalize={() => setShowFinalize(true)}
+              onResume={handleResume}
+              onDownloadPdf={handleDownloadPdf}
+              onCancel={() => setShowCancel(true)}
+              onStartNewAnalysis={handleStartNewAnalysis}
+              finalizing={finalizing || resuming}
+            />
+          </div>
+        )}
 
         {/* Tabs — only useful once results exist */}
         {analysis ? (
@@ -456,30 +522,51 @@ export default function RiskAnalyzerDashboardPage() {
               })}
             </nav>
 
-            {tab === "overview" && <OverviewTab
-              analysis={analysis}
-              readOnly={readOnly}
-              onEditFinding={openEdit}
-              onAddFinding={openCreate}
-              onDeleteFinding={handleDelete}
-              onRestoreFinding={handleRestore}
-              onRevertFinding={handleRevert}
-              onApproveFinding={handleApprove}
-              onPatchMitigation={handlePatchMitigation}
-              onCreateMitigation={handleCreateMitigation}
-              onRevertMitigation={handleRevertMitigation}
-              onUploadEvidence={handleUploadEvidence}
-            />}
+            {tab === "overview" && (
+              <OverviewTab
+                analysis={analysis}
+                isEmpty={isEmpty}
+                isCancelled={isCancelled}
+                onOpenEditHistory={() => setShowEditHistory(true)}
+                onSelectScene={openSceneInScenesTab}
+                onSelectCategory={filterScenesByCategory}
+                onStartNewAnalysis={handleStartNewAnalysis}
+              />
+            )}
 
-            {tab === "graph" && (
-              <RiskGraph graph={analysis.graph} />
+            {tab === "scenes" && (
+              <ScenesTable
+                scenes={analysis.scenes}
+                projectId={projectId}
+                readOnly={readOnly}
+                initialCategoryFilter={scenesFilterCategory}
+                initialExpandedSceneId={scenesExpandedSceneId}
+                onEditFinding={openEdit}
+                onAddFinding={openCreate}
+                onDeleteFinding={handleDelete}
+                onRestoreFinding={handleRestore}
+                onRevertFinding={handleRevert}
+                onApproveFinding={handleApprove}
+                onPatchMitigation={handlePatchMitigation}
+                onCreateMitigation={handleCreateMitigation}
+                onRevertMitigation={handleRevertMitigation}
+                onUploadEvidence={handleUploadEvidence}
+              />
+            )}
+
+            {tab === "hazards" && (
+              <HazardsView
+                analysis={analysis}
+                onSelectCategory={filterScenesByCategory}
+              />
             )}
 
             {tab === "compliance" && (
-              <ComplianceSection
-                report={analysis.compliance_report ?? null}
-                pdfUrl={analysis.finalized_pdf_url}
+              <ComplianceTab
+                analysis={analysis}
+                onFinalize={() => setShowFinalize(true)}
                 onDownloadPdf={handleDownloadPdf}
+                onStartNewAnalysis={handleStartNewAnalysis}
               />
             )}
           </>
@@ -489,6 +576,32 @@ export default function RiskAnalyzerDashboardPage() {
           </div>
         ) : null}
       </div>
+
+      {/* Edit-history modal — opened from Overview's "View edit history" link. */}
+      {showEditHistory && analysis?.edit_summary && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setShowEditHistory(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1"
+          >
+            <EditTransparencyTable summary={analysis.edit_summary} />
+            <div className="flex justify-end px-4 pb-3">
+              <button
+                type="button"
+                onClick={() => setShowEditHistory(false)}
+                className="rounded-md border border-[var(--border)] px-3 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <FindingEditModal
         open={modal.open}
@@ -518,45 +631,69 @@ export default function RiskAnalyzerDashboardPage() {
 
 interface OverviewTabProps {
   analysis: NonNullable<ReturnType<typeof useRiskAnalysisPolling>["analysis"]>;
-  readOnly: boolean;
-  onEditFinding: (sceneId: number, f: RiskFinding) => void;
-  onAddFinding: (sceneId: number) => void;
-  onDeleteFinding: (f: RiskFinding) => void;
-  onRestoreFinding: (f: RiskFinding) => void;
-  onRevertFinding: (f: RiskFinding) => void;
-  onApproveFinding: (f: RiskFinding, approve: boolean) => void;
-  onPatchMitigation: (mitigationId: number, body: { recommendation?: string; equipment_needed?: string; personnel_required?: string }) => Promise<void>;
-  onCreateMitigation: (findingId: number, body: { recommendation: string; equipment_needed?: string; personnel_required?: string }) => Promise<void>;
-  onRevertMitigation: (mitigationId: number) => Promise<void>;
-  onUploadEvidence: (findingId: number, file: File) => Promise<void>;
+  isEmpty: boolean;
+  isCancelled: boolean;
+  onOpenEditHistory: () => void;
+  onSelectScene: (sceneId: number) => void;
+  onSelectCategory: (slug: string) => void;
+  onStartNewAnalysis: () => void;
 }
 
 function OverviewTab({
   analysis,
-  readOnly,
-  onEditFinding,
-  onAddFinding,
-  onDeleteFinding,
-  onRestoreFinding,
-  onRevertFinding,
-  onApproveFinding,
-  onPatchMitigation,
-  onCreateMitigation,
-  onRevertMitigation,
-  onUploadEvidence,
+  isEmpty,
+  isCancelled,
+  onOpenEditHistory,
+  onSelectScene,
+  onSelectCategory,
+  onStartNewAnalysis,
 }: OverviewTabProps) {
-  const totalFindings = useMemo(
-    () =>
-      (analysis.summary_stats?.severity_distribution
-        ? Object.values(analysis.summary_stats.severity_distribution).reduce(
-            (acc, n) => acc + (typeof n === "number" ? n : 0),
-            0,
-          )
-        : 0),
-    [analysis.summary_stats?.severity_distribution],
-  );
+  const totalFindings = useMemo(() => {
+    if (typeof analysis.total_findings_count === "number") {
+      return analysis.total_findings_count;
+    }
+    return analysis.summary_stats?.severity_distribution
+      ? Object.values(analysis.summary_stats.severity_distribution).reduce(
+          (acc, n) => acc + (typeof n === "number" ? n : 0),
+          0,
+        )
+      : 0;
+  }, [
+    analysis.total_findings_count,
+    analysis.summary_stats?.severity_distribution,
+  ]);
+
+  if (isEmpty) {
+    return (
+      <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-6">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <ShieldAlert size={24} className="text-[var(--text-muted)]" />
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+            No findings to show
+          </h3>
+          <p className="max-w-md text-xs text-[var(--text-muted)]">
+            {isCancelled
+              ? "The analysis was cancelled before any hazards were classified. The score and insurance tier shown above are defaults — they don't reflect a completed assessment."
+              : "We didn't surface any risks for this analysis. If the script is complete, that's a clean read; otherwise check that the run finished without errors."}
+          </p>
+          {isCancelled && (
+            <button
+              type="button"
+              onClick={onStartNewAnalysis}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500"
+            >
+              Start new analysis
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      <KpiStrip analysis={analysis} />
+
       <div className="grid gap-4 lg:grid-cols-2">
         <ScoreGauge
           score={analysis.score}
@@ -564,29 +701,40 @@ function OverviewTab({
           editSummary={analysis.edit_summary}
         />
         <SeverityDistributionDonut
-          distribution={analysis.summary_stats?.severity_distribution ?? { Critical: 0, High: 0, Medium: 0, Low: 0 }}
+          distribution={
+            analysis.summary_stats?.severity_distribution ?? {
+              Critical: 0,
+              High: 0,
+              Medium: 0,
+              Low: 0,
+            }
+          }
           totalLabel={totalFindings === 1 ? "finding" : "findings"}
         />
       </div>
 
       <CumulativeExposureChart scenes={analysis.scenes} />
 
-      <EditTransparencyTable summary={analysis.edit_summary} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <TopRiskScenes
+          scenes={analysis.scenes}
+          onSelectScene={onSelectScene}
+        />
+        <TopHazards
+          analysis={analysis}
+          onSelectCategory={onSelectCategory}
+        />
+      </div>
 
-      <SceneDrillDownList
-        scenes={analysis.scenes}
-        readOnly={readOnly}
-        onEditFinding={onEditFinding}
-        onAddFinding={onAddFinding}
-        onDeleteFinding={onDeleteFinding}
-        onRestoreFinding={onRestoreFinding}
-        onRevertFinding={onRevertFinding}
-        onApproveFinding={onApproveFinding}
-        onPatchMitigation={onPatchMitigation}
-        onCreateMitigation={onCreateMitigation}
-        onRevertMitigation={onRevertMitigation}
-        onUploadEvidence={onUploadEvidence}
-      />
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={onOpenEditHistory}
+          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-secondary)] hover:border-emerald-500/40 hover:text-emerald-500"
+        >
+          View edit history
+        </button>
+      </div>
     </div>
   );
 }
