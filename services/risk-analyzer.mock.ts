@@ -16,6 +16,22 @@ export const MOCK_STATUS_CLASSIFYING: RiskAnalysisStatusPayload = {
   task_status: "STARTED",
 };
 
+/**
+ * Sample stalled status — the analysis row is still in PENDING but the
+ * watchdog has flagged it because no progress has been observed for over
+ * 2 minutes. Reviewers can wire this into the dashboard to verify the
+ * `<StalledBanner>` renders.
+ */
+export const MOCK_STATUS_STALLED: RiskAnalysisStatusPayload = {
+  status: "pending",
+  progress: 0.0,
+  scenes_processed: 0,
+  scenes_total: 24,
+  task_status: "PENDING",
+  is_stalled: true,
+  stalled_seconds: 187,
+};
+
 export const MOCK_STATUS_FAILED: RiskAnalysisStatusPayload = {
   status: "failed",
   progress: 0.0,

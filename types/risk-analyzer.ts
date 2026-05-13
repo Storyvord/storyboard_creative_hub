@@ -204,6 +204,15 @@ export interface RiskAnalysisStatusPayload {
   scenes_total: number;
   task_status?: string;
   drift_warnings?: DriftWarning[];
+  /**
+   * Optional server-side stalled hint emitted by the backend watchdog
+   * (~2 min cadence). When `true`, the dashboard should surface a recovery
+   * banner. The frontend also computes its own stalled signal as a fallback
+   * for when this field is missing — see `useRiskAnalysisPolling`.
+   */
+  is_stalled?: boolean;
+  /** Seconds the analysis has been without observable progress (server-reported). */
+  stalled_seconds?: number;
 }
 
 // ── List entry (GET /scripts/<id>/risk-analyses/) ───────────────────────────

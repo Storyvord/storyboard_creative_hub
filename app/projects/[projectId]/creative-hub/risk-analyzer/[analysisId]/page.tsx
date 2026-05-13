@@ -25,6 +25,7 @@ import {
   deleteFinding,
   finalize,
   getReportPdfUrl,
+  markAnalysisFailedAndResume,
   patchFinding,
   patchMitigation,
   restoreFinding,
@@ -44,6 +45,7 @@ import { listAnalyses } from "@/services/risk-analyzer";
 import { useRiskAnalysisPolling } from "@/hooks/useRiskAnalysisPolling";
 
 import StatusBanner from "../_components/StatusBanner";
+import StalledBanner from "../_components/StalledBanner";
 import ScoreGauge from "../_components/ScoreGauge";
 import CumulativeExposureChart from "../_components/CumulativeExposureChart";
 import SeverityDistributionDonut from "../_components/SeverityDistributionDonut";
@@ -75,6 +77,7 @@ export default function RiskAnalyzerDashboardPage() {
   const [tab, setTab] = useState<TabKey>("overview");
   const [finalizing, setFinalizing] = useState(false);
   const [resuming, setResuming] = useState(false);
+  const [retryingStalled, setRetryingStalled] = useState(false);
   const [showFinalize, setShowFinalize] = useState(false);
   const [modal, setModal] = useState<ModalState>({
     open: false,
@@ -192,6 +195,37 @@ export default function RiskAnalyzerDashboardPage() {
       setResuming(false);
     }
   }, [scriptId, analysisId, polling, handleApiError]);
+
+  const handleMarkFailedAndRetry = useCallback(async () => {
+    if (scriptId === null) return;
+    setRetryingStalled(true);
+    try {
+      const res = await markAnalysisFailedAndResume(scriptId, analysisId);
+      if (!res.ok) {
+        if (res.status === 409) {
+          // Backend rejected because the row is still PENDING — watchdog
+          // hasn't promoted it to FAILED yet. Show the documented copy.
+          toast.warn(
+            "Backend hasn't marked this analysis as failed yet — the watchdog runs every 2 minutes. Try again shortly.",
+            { autoClose: 7000 },
+          );
+        } else {
+          handleApiError(res);
+        }
+        return;
+      }
+      toast.info("Re-queued — pipeline restarting.");
+      // Navigate to the same URL — the analysis is now back in PENDING with
+      // a fresh task dispatched, and we want the hook to reset its stall
+      // timer + attempt counter.
+      router.replace(
+        `/projects/${projectId}/creative-hub/risk-analyzer/${analysisId}`,
+      );
+      await polling.refresh();
+    } finally {
+      setRetryingStalled(false);
+    }
+  }, [scriptId, analysisId, projectId, polling, router, handleApiError]);
 
   const handleDownloadPdf = useCallback(() => {
     if (scriptId === null) return;
@@ -345,6 +379,25 @@ export default function RiskAnalyzerDashboardPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto px-6 py-4">
+        {/* Stalled banner — overlays the regular status banner when the
+            backend (or the client fallback) signals no progress. */}
+        {polling.isStalled && (
+          <StalledBanner
+            stalledSeconds={polling.stalledSeconds}
+            onRefresh={() => {
+              void polling.refresh();
+            }}
+            onMarkFailedAndRetry={() => {
+              void handleMarkFailedAndRetry();
+            }}
+            paused={polling.paused}
+            onPause={polling.pause}
+            onResume={polling.resume}
+            retryDisabled={norm === "FAILED"}
+            retrying={retryingStalled}
+          />
+        )}
+
         {/* Status banner */}
         <div className="mb-4">
           <StatusBanner

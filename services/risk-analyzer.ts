@@ -172,7 +172,32 @@ export const getStatus = async (
   const res = await api.get(
     `${BASE}/scripts/${scriptId}/risk-analyzer/${analysisId}/status/`,
   );
-  return res.data as RiskAnalysisStatusPayload;
+  const raw = (res.data ?? {}) as Record<string, unknown>;
+
+  // Defensive parsing: `is_stalled` / `stalled_seconds` were added by the
+  // backend watchdog rollout and may not be present on older deployments.
+  // Coerce only when the keys are actually present so callers can distinguish
+  // "server says not stalled" from "server didn't tell us".
+  const payload: RiskAnalysisStatusPayload = {
+    status: raw.status as RiskAnalysisStatusPayload["status"],
+    progress: typeof raw.progress === "number" ? raw.progress : 0,
+    scenes_processed:
+      typeof raw.scenes_processed === "number" ? raw.scenes_processed : 0,
+    scenes_total:
+      typeof raw.scenes_total === "number" ? raw.scenes_total : 0,
+    task_status:
+      typeof raw.task_status === "string" ? raw.task_status : undefined,
+    drift_warnings: Array.isArray(raw.drift_warnings)
+      ? (raw.drift_warnings as RiskAnalysisStatusPayload["drift_warnings"])
+      : undefined,
+  };
+  if (typeof raw.is_stalled === "boolean") {
+    payload.is_stalled = raw.is_stalled;
+  }
+  if (typeof raw.stalled_seconds === "number") {
+    payload.stalled_seconds = raw.stalled_seconds;
+  }
+  return payload;
 };
 
 export const getResults = async (
@@ -204,6 +229,29 @@ export const resume = async (
       .post(`${BASE}/scripts/${scriptId}/risk-analyzer/${analysisId}/resume/`)
       .then((r) => r.data as StartAnalysisResponse),
   );
+};
+
+/**
+ * Soft-recovery affordance for an analysis the UI has detected as stalled.
+ *
+ * Today the backend has no explicit "force-fail" endpoint — failed
+ * transitions only happen via the watchdog (~2 min cadence) or terminal
+ * errors thrown inside the task. From the client we can only ask `resume()`
+ * to re-enqueue. If the analysis row is still in a non-terminal status,
+ * the backend will reject with 409 (`finalized_readonly` is the code we map
+ * for that family; the resume endpoint reuses 409 for "wrong state"). The
+ * caller is expected to surface a "watchdog hasn't run yet" toast for that
+ * case.
+ *
+ * The proper fix lives on the backend watchdog (auto-mark stuck PENDING
+ * tasks as FAILED) — this helper exists so the user has *something* to
+ * click instead of a permanent spinner.
+ */
+export const markAnalysisFailedAndResume = async (
+  scriptId: number,
+  analysisId: number,
+): Promise<RiskApiResult<StartAnalysisResponse>> => {
+  return resume(scriptId, analysisId);
 };
 
 export const finalize = async (
