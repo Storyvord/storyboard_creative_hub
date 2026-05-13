@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, AlertTriangle, CheckCircle2, ShieldAlert, RefreshCw, FileText, Lock } from "lucide-react";
+import { Loader2, AlertTriangle, CheckCircle2, ShieldAlert, RefreshCw, FileText, Lock, XCircle, Plus } from "lucide-react";
 import { clsx } from "clsx";
 import {
   CreditEstimate,
@@ -25,6 +25,12 @@ interface StatusBannerProps {
   onFinalize?: () => void;
   onResume?: () => void;
   onDownloadPdf?: () => void;
+  /** Opens the shared <CancelDialog> for in-flight analyses. */
+  onCancel?: () => void;
+  /** From the CANCELLED state — bounces back to the index to start fresh. */
+  onStartNewAnalysis?: () => void;
+  /** Optional actor name shown in CANCELLED copy ("cancelled by {actor}"). */
+  cancelledBy?: string | null;
   finalizing?: boolean;
 }
 
@@ -47,6 +53,9 @@ export default function StatusBanner({
   onFinalize,
   onResume,
   onDownloadPdf,
+  onCancel,
+  onStartNewAnalysis,
+  cancelledBy,
   finalizing,
 }: StatusBannerProps) {
   // No analysis yet — empty state.
@@ -135,6 +144,31 @@ export default function StatusBanner({
     );
   }
 
+  if (norm === "CANCELLED") {
+    return (
+      <Banner tone="cancelled" icon={<XCircle size={18} />}>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-[var(--text-primary)]">
+            Analysis was cancelled{cancelledBy ? ` by ${cancelledBy}` : ""}.
+          </p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            Credits already consumed were not refunded. Start a new analysis
+            when you&apos;re ready.
+          </p>
+        </div>
+        {onStartNewAnalysis && (
+          <button
+            type="button"
+            onClick={onStartNewAnalysis}
+            className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+          >
+            <Plus size={14} /> Start new analysis
+          </button>
+        )}
+      </Banner>
+    );
+  }
+
   if (norm === "AWAITING_APPROVAL") {
     const score = analysis?.score ?? "—";
     const band = analysis?.score_band ?? "Medium";
@@ -191,7 +225,18 @@ export default function StatusBanner({
           />
         </div>
       </div>
-      <span className="ml-3 text-xs font-medium text-[var(--text-muted)]">{pct}%</span>
+      <div className="ml-3 flex flex-col items-end gap-2">
+        <span className="text-xs font-medium text-[var(--text-muted)]">{pct}%</span>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)] hover:border-red-500/40 hover:text-red-500"
+          >
+            <XCircle size={11} /> Cancel
+          </button>
+        )}
+      </div>
     </Banner>
   );
 }
@@ -202,7 +247,7 @@ function Banner({
   icon,
   children,
 }: {
-  tone: "neutral" | "info" | "success" | "danger" | "progress";
+  tone: "neutral" | "info" | "success" | "danger" | "progress" | "cancelled";
   icon: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -212,6 +257,7 @@ function Banner({
     success: "border-emerald-500/40 bg-emerald-500/10",
     danger: "border-red-500/40 bg-red-500/10",
     progress: "border-amber-500/30 bg-amber-500/5",
+    cancelled: "border-red-500/30 bg-[var(--surface)]",
   };
   const iconToneClass: Record<typeof tone, string> = {
     neutral: "text-[var(--text-muted)]",
@@ -219,6 +265,7 @@ function Banner({
     success: "text-emerald-500",
     danger: "text-red-500",
     progress: "text-amber-500",
+    cancelled: "text-red-500",
   };
   return (
     <div

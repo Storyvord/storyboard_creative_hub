@@ -248,6 +248,7 @@ function AnalysisRow({
   const status = normaliseStatus(analysis.status);
   const isFinal = status === "FINALIZED";
   const isFailed = status === "FAILED";
+  const isCancelled = status === "CANCELLED";
   const inProgress =
     status === "PENDING" ||
     status === "CLASSIFYING" ||
@@ -298,9 +299,11 @@ function AnalysisRow({
                 ? "bg-emerald-500/10 text-emerald-500"
                 : isFailed
                   ? "bg-red-500/10 text-red-500"
-                  : inProgress
-                    ? "bg-amber-500/10 text-amber-500"
-                    : "bg-[var(--surface-hover)] text-[var(--text-muted)]"
+                  : isCancelled
+                    ? "bg-[var(--surface-hover)] text-[var(--text-muted)]"
+                    : inProgress
+                      ? "bg-amber-500/10 text-amber-500"
+                      : "bg-[var(--surface-hover)] text-[var(--text-muted)]"
             }`}
           >
             {status?.replace("_", " ").toLowerCase() ?? "unknown"}

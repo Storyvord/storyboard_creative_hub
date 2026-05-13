@@ -32,6 +32,19 @@ export const MOCK_STATUS_STALLED: RiskAnalysisStatusPayload = {
   stalled_seconds: 187,
 };
 
+/**
+ * Sample terminal-CANCELLED status — the user (or an admin) hit the
+ * `POST cancel/` endpoint while the run was in CLASSIFYING. Credits already
+ * consumed are NOT refunded per Plan §8.10.
+ */
+export const MOCK_STATUS_CANCELLED: RiskAnalysisStatusPayload = {
+  status: "cancelled",
+  progress: 0.32,
+  scenes_processed: 8,
+  scenes_total: 24,
+  task_status: "REVOKED",
+};
+
 export const MOCK_STATUS_FAILED: RiskAnalysisStatusPayload = {
   status: "failed",
   progress: 0.0,

@@ -1,6 +1,7 @@
 import axios from "axios";
 import api from "./api";
 import {
+  CancelResponse,
   CreateFindingBody,
   CreateMitigationBody,
   PatchFindingBody,
@@ -79,7 +80,25 @@ function toRiskApiError(error: unknown): RiskApiError {
         message: getMessage(data, "File is too large (max 25 MB)."),
         detail,
       };
-    case 415:
+    case 415: {
+      // Backend distinguishes "wrong declared MIME" (generic 415) from
+      // "magic-byte mismatch" via the `detail` string. We surface the
+      // mismatch as its own code so the UI can show the specific message
+      // verbatim — see backend production-hardening PR.
+      const rawDetail = typeof data === "object" && data !== null
+        ? (data as Record<string, unknown>).detail
+        : undefined;
+      const detailStr = typeof rawDetail === "string" ? rawDetail : "";
+      const isMismatch = /do not match declared type/i.test(detailStr);
+      if (isMismatch) {
+        return {
+          ok: false,
+          code: "content_type_mismatch",
+          status,
+          message: detailStr || "File contents do not match declared type.",
+          detail,
+        };
+      }
       return {
         ok: false,
         code: "unsupported_media",
@@ -87,6 +106,7 @@ function toRiskApiError(error: unknown): RiskApiError {
         message: getMessage(data, "Unsupported file type. Use PNG, JPG, or PDF."),
         detail,
       };
+    }
     case 422:
       return {
         ok: false,
@@ -232,26 +252,61 @@ export const resume = async (
 };
 
 /**
- * Soft-recovery affordance for an analysis the UI has detected as stalled.
+ * Cancel an in-flight analysis. Per the backend contract:
+ *   - 200 → `{status: "CANCELLED", credits_refunded: 0}` (no refunds on
+ *     cancel; credits already consumed are gone — Plan §8.10).
+ *   - 409 if the row is not in {PENDING, CLASSIFYING, MITIGATING, FINALIZING}
+ *     → mapped to typed code `not_cancellable`.
+ *   - 403 if the caller is not an editor → mapped to `forbidden`.
  *
- * Today the backend has no explicit "force-fail" endpoint — failed
- * transitions only happen via the watchdog (~2 min cadence) or terminal
- * errors thrown inside the task. From the client we can only ask `resume()`
- * to re-enqueue. If the analysis row is still in a non-terminal status,
- * the backend will reject with 409 (`finalized_readonly` is the code we map
- * for that family; the resume endpoint reuses 409 for "wrong state"). The
- * caller is expected to surface a "watchdog hasn't run yet" toast for that
- * case.
- *
- * The proper fix lives on the backend watchdog (auto-mark stuck PENDING
- * tasks as FAILED) — this helper exists so the user has *something* to
- * click instead of a permanent spinner.
+ * Replaces the previous `markAnalysisFailedAndResume()` resume-hack: the
+ * `GET /status/` endpoint now fails stalled analyses inline, so the user's
+ * "give up on this run" affordance is a real cancel rather than a re-enqueue.
  */
-export const markAnalysisFailedAndResume = async (
+export const cancelAnalysis = async (
   scriptId: number,
   analysisId: number,
-): Promise<RiskApiResult<StartAnalysisResponse>> => {
-  return resume(scriptId, analysisId);
+  reason?: string,
+): Promise<RiskApiResult<CancelResponse>> => {
+  try {
+    const body = reason && reason.trim().length > 0 ? { reason } : {};
+    const res = await api.post(
+      `${BASE}/scripts/${scriptId}/risk-analyzer/${analysisId}/cancel/`,
+      body,
+    );
+    return { ok: true, data: res.data as CancelResponse };
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status;
+      const data = err.response?.data;
+      const detail = getDetail(data);
+      if (status === 409) {
+        return {
+          ok: false,
+          code: "not_cancellable",
+          status,
+          message: getMessage(
+            data,
+            "Analysis is not in a cancellable state.",
+          ),
+          detail,
+        };
+      }
+      if (status === 403) {
+        return {
+          ok: false,
+          code: "forbidden",
+          status,
+          message: getMessage(
+            data,
+            "You don't have permission to cancel this analysis.",
+          ),
+          detail,
+        };
+      }
+    }
+    return toRiskApiError(err);
+  }
 };
 
 export const finalize = async (

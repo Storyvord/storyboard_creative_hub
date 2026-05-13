@@ -10,7 +10,8 @@ export type RiskAnalysisStatus =
   | "AWAITING_APPROVAL"
   | "FINALIZING"
   | "FINALIZED"
-  | "FAILED";
+  | "FAILED"
+  | "CANCELLED";
 
 /** Lowercase variant used by some backend status payloads (`/status/`). */
 export type RiskAnalysisStatusLower =
@@ -20,7 +21,8 @@ export type RiskAnalysisStatusLower =
   | "awaiting_approval"
   | "finalizing"
   | "finalized"
-  | "failed";
+  | "failed"
+  | "cancelled";
 
 export type Severity = "Low" | "Medium" | "High" | "Critical";
 
@@ -264,7 +266,10 @@ export type RiskApiErrorCode =
   | "finalized_readonly"
   | "payload_too_large"
   | "unsupported_media"
+  | "content_type_mismatch"
   | "throttled"
+  | "not_cancellable"
+  | "forbidden"
   | "unknown";
 
 export interface RiskApiError {
@@ -312,6 +317,21 @@ export interface CreateMitigationBody {
   personnel_required?: string;
 }
 
+/**
+ * Response payload for `POST .../cancel/`. Per Plan §8.10, credits already
+ * consumed on a cancel are NOT refunded — `credits_refunded` is always 0
+ * today, but the field is kept so a future refund policy can populate it
+ * without a contract bump.
+ */
+export interface CancelResponse {
+  status: "CANCELLED";
+  credits_refunded: number;
+}
+
+export interface CancelAnalysisBody {
+  reason?: string;
+}
+
 export interface StartAnalysisBody {
   mitigations_text?: string;
   /** Optional pre-flight evidence docs — multipart only. */
@@ -331,6 +351,7 @@ export const TERMINAL_STATUSES: RiskAnalysisStatus[] = [
   "FINALIZED",
   "FAILED",
   "AWAITING_APPROVAL",
+  "CANCELLED",
 ];
 
 export function isTerminal(

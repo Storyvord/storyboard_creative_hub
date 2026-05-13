@@ -20,12 +20,12 @@ import { toast } from "react-toastify";
 
 import {
   approveFinding,
+  cancelAnalysis,
   createFinding,
   createMitigationForFinding,
   deleteFinding,
   finalize,
   getReportPdfUrl,
-  markAnalysisFailedAndResume,
   patchFinding,
   patchMitigation,
   restoreFinding,
@@ -46,6 +46,7 @@ import { useRiskAnalysisPolling } from "@/hooks/useRiskAnalysisPolling";
 
 import StatusBanner from "../_components/StatusBanner";
 import StalledBanner from "../_components/StalledBanner";
+import CancelDialog from "../_components/CancelDialog";
 import ScoreGauge from "../_components/ScoreGauge";
 import CumulativeExposureChart from "../_components/CumulativeExposureChart";
 import SeverityDistributionDonut from "../_components/SeverityDistributionDonut";
@@ -77,8 +78,9 @@ export default function RiskAnalyzerDashboardPage() {
   const [tab, setTab] = useState<TabKey>("overview");
   const [finalizing, setFinalizing] = useState(false);
   const [resuming, setResuming] = useState(false);
-  const [retryingStalled, setRetryingStalled] = useState(false);
   const [showFinalize, setShowFinalize] = useState(false);
+  const [showCancel, setShowCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [modal, setModal] = useState<ModalState>({
     open: false,
     mode: "edit",
@@ -147,6 +149,18 @@ export default function RiskAnalyzerDashboardPage() {
       case "unsupported_media":
         toast.error("Unsupported file type. Use PNG, JPG, or PDF.");
         return;
+      case "content_type_mismatch":
+        // Backend's magic-byte check rejected the file. Surface its
+        // verbatim `detail` so the user knows whether to re-export or pick
+        // a different attachment.
+        toast.error(err.message, { autoClose: 7000 });
+        return;
+      case "not_cancellable":
+        toast.warn("Analysis is not in a cancellable state.");
+        return;
+      case "forbidden":
+        toast.error(err.message || "You don't have permission for that.");
+        return;
       case "throttled":
         toast.warn(
           err.retry_after
@@ -196,36 +210,40 @@ export default function RiskAnalyzerDashboardPage() {
     }
   }, [scriptId, analysisId, polling, handleApiError]);
 
-  const handleMarkFailedAndRetry = useCallback(async () => {
-    if (scriptId === null) return;
-    setRetryingStalled(true);
-    try {
-      const res = await markAnalysisFailedAndResume(scriptId, analysisId);
-      if (!res.ok) {
-        if (res.status === 409) {
-          // Backend rejected because the row is still PENDING — watchdog
-          // hasn't promoted it to FAILED yet. Show the documented copy.
-          toast.warn(
-            "Backend hasn't marked this analysis as failed yet — the watchdog runs every 2 minutes. Try again shortly.",
-            { autoClose: 7000 },
-          );
-        } else {
-          handleApiError(res);
+  const handleCancel = useCallback(
+    async (reason: string) => {
+      if (scriptId === null) return;
+      setCancelling(true);
+      try {
+        const res = await cancelAnalysis(scriptId, analysisId, reason);
+        if (!res.ok) {
+          if (res.code === "not_cancellable") {
+            toast.warn("Analysis is not in a cancellable state.");
+            // Pull the latest status so the UI catches up with whatever
+            // terminal state the backend already moved to.
+            await polling.refresh();
+          } else if (res.code === "forbidden") {
+            toast.error("You don't have permission to cancel this analysis.");
+          } else {
+            handleApiError(res);
+          }
+          return;
         }
-        return;
+        toast.success("Analysis cancelled.");
+        setShowCancel(false);
+        // The polling hook will see the new CANCELLED status on the next
+        // tick and stop polling (CANCELLED is terminal).
+        await polling.refresh();
+      } finally {
+        setCancelling(false);
       }
-      toast.info("Re-queued — pipeline restarting.");
-      // Navigate to the same URL — the analysis is now back in PENDING with
-      // a fresh task dispatched, and we want the hook to reset its stall
-      // timer + attempt counter.
-      router.replace(
-        `/projects/${projectId}/creative-hub/risk-analyzer/${analysisId}`,
-      );
-      await polling.refresh();
-    } finally {
-      setRetryingStalled(false);
-    }
-  }, [scriptId, analysisId, projectId, polling, router, handleApiError]);
+    },
+    [scriptId, analysisId, polling, handleApiError],
+  );
+
+  const handleStartNewAnalysis = useCallback(() => {
+    router.push(`/projects/${projectId}/creative-hub/risk-analyzer`);
+  }, [router, projectId]);
 
   const handleDownloadPdf = useCallback(() => {
     if (scriptId === null) return;
@@ -387,14 +405,16 @@ export default function RiskAnalyzerDashboardPage() {
             onRefresh={() => {
               void polling.refresh();
             }}
-            onMarkFailedAndRetry={() => {
-              void handleMarkFailedAndRetry();
-            }}
+            onCancel={() => setShowCancel(true)}
             paused={polling.paused}
             onPause={polling.pause}
             onResume={polling.resume}
-            retryDisabled={norm === "FAILED"}
-            retrying={retryingStalled}
+            cancelDisabled={
+              norm === "FAILED" ||
+              norm === "FINALIZED" ||
+              norm === "CANCELLED" ||
+              norm === "AWAITING_APPROVAL"
+            }
           />
         )}
 
@@ -406,6 +426,8 @@ export default function RiskAnalyzerDashboardPage() {
             onFinalize={() => setShowFinalize(true)}
             onResume={handleResume}
             onDownloadPdf={handleDownloadPdf}
+            onCancel={() => setShowCancel(true)}
+            onStartNewAnalysis={handleStartNewAnalysis}
             finalizing={finalizing || resuming}
           />
         </div>
@@ -482,6 +504,13 @@ export default function RiskAnalyzerDashboardPage() {
         onClose={() => setShowFinalize(false)}
         onConfirm={handleFinalize}
         submitting={finalizing}
+      />
+
+      <CancelDialog
+        open={showCancel}
+        onClose={() => setShowCancel(false)}
+        onConfirm={(reason) => handleCancel(reason)}
+        submitting={cancelling}
       />
     </div>
   );

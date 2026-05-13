@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ExternalLink, PauseCircle, PlayCircle, RefreshCw, RotateCcw } from "lucide-react";
+import { AlertTriangle, ExternalLink, PauseCircle, PlayCircle, RefreshCw, XCircle } from "lucide-react";
 import { clsx } from "clsx";
 
 /**
@@ -9,41 +9,38 @@ import { clsx } from "clsx";
  * (server-hinted via `is_stalled`, or client-detected after 2 min).
  *
  * The banner gives the user three escape hatches:
- *   1. Force a manual `refresh()` poll.
- *   2. Mark the analysis failed and re-queue (client-side: just calls
- *      `resume()` — the backend watchdog is the real authority).
+ *   1. Force a manual `refresh()` poll. The backend's `GET /status/`
+ *      endpoint now fails stalled analyses inline, so a refresh is also
+ *      what triggers the recovery flip from PENDING → FAILED.
+ *   2. Cancel the analysis outright (opens the shared `<CancelDialog>`).
+ *      Replaces the old "Mark as failed and retry" resume-hack — the
+ *      backend now has a real cancel endpoint and we send the user to a
+ *      clean restart.
  *   3. Pause polling so the page stops hammering the API.
- *
- * Background: a silently-dropped Celery task (unregistered name, dead
- * pool, etc.) used to leave the dashboard polling forever with a
- * spinner. This banner is the user-visible escape valve.
  */
 
 interface StalledBannerProps {
   stalledSeconds: number;
   /** Force a status/results poll right now. */
   onRefresh: () => void;
-  /** Re-queue the analysis (soft "mark failed" affordance). */
-  onMarkFailedAndRetry: () => void;
+  /** Opens the shared `<CancelDialog>` (parent owns the dialog). */
+  onCancel: () => void;
   /** Toggle the polling loop on/off. */
   paused: boolean;
   onPause: () => void;
   onResume: () => void;
-  /** True when the underlying status is already FAILED (no-op for retry). */
-  retryDisabled?: boolean;
-  /** Loading flag for the retry button. */
-  retrying?: boolean;
+  /** Disable the cancel button (e.g. status already terminal). */
+  cancelDisabled?: boolean;
 }
 
 export default function StalledBanner({
   stalledSeconds,
   onRefresh,
-  onMarkFailedAndRetry,
+  onCancel,
   paused,
   onPause,
   onResume,
-  retryDisabled,
-  retrying,
+  cancelDisabled,
 }: StalledBannerProps) {
   const mins = Math.max(0, Math.floor(stalledSeconds / 60));
   const minuteLabel = mins === 1 ? "minute" : "minutes";
@@ -62,11 +59,11 @@ export default function StalledBanner({
       </div>
       <div className="flex-1">
         <p className="text-sm font-semibold text-[var(--text-primary)]">
-          Analysis appears stalled — no progress for {mins} {minuteLabel}.
+          No progress for {mins} {minuteLabel} — the worker may be down.
         </p>
         <p className="text-xs text-[var(--text-muted)] mt-1">
-          The worker may be down or the task wasn&apos;t registered. You can
-          force a refresh, re-queue the analysis, or pause polling.
+          Refreshing will trigger the backend to mark this as failed
+          automatically. You can also cancel and start fresh.
         </p>
         <p className="text-[11px] text-[var(--text-muted)] mt-1">
           <a
@@ -89,12 +86,11 @@ export default function StalledBanner({
         </button>
         <button
           type="button"
-          onClick={onMarkFailedAndRetry}
-          disabled={retryDisabled || retrying}
-          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={onCancel}
+          disabled={cancelDisabled}
+          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <RotateCcw size={12} />
-          {retrying ? "Retrying…" : "Mark as failed and retry"}
+          <XCircle size={12} /> Cancel analysis
         </button>
         {paused ? (
           <button
@@ -110,7 +106,7 @@ export default function StalledBanner({
             onClick={onPause}
             className="inline-flex items-center justify-center gap-1.5 rounded-md border border-amber-500/40 bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text-primary)] hover:bg-amber-500/10"
           >
-            <PauseCircle size={12} /> Cancel polling
+            <PauseCircle size={12} /> Pause polling
           </button>
         )}
       </div>

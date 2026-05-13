@@ -16,8 +16,8 @@ import {
  * envelope when the run enters a terminal state.
  *
  * Spec: FRONTEND_INTEGRATION.md §4. Terminal states are
- * `FINALIZED`, `FAILED`, `AWAITING_APPROVAL` — the hook stops polling
- * on those (the consumer can still call `refresh()` to re-pull the
+ * `FINALIZED`, `FAILED`, `AWAITING_APPROVAL`, `CANCELLED` — the hook stops
+ * polling on those (the consumer can still call `refresh()` to re-pull the
  * full envelope after an edit).
  *
  * The hook also surfaces stalled-task detection. A worker can silently
@@ -286,4 +286,5 @@ export const RISK_TERMINAL_STATUSES: RiskAnalysisStatus[] = [
   "FINALIZED",
   "FAILED",
   "AWAITING_APPROVAL",
+  "CANCELLED",
 ];
