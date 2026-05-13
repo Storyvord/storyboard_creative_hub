@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
+import SceneRiskFindingsCallout from "@/components/creative-hub/SceneRiskFindingsCallout";
 
 export default function SceneDetailPage() {
   const params = useParams();
@@ -304,6 +305,9 @@ export default function SceneDetailPage() {
             </p>
           )}
         </section>
+
+        {/* Risk findings (read-only summary; full edit lives on /risk-analyzer) */}
+        <SceneRiskFindingsCallout sceneId={scene.id} projectId={projectId} />
 
         {/* Characters */}
         <section>
