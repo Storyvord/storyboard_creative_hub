@@ -17,8 +17,12 @@
 //     finalize will generate.
 
 import { useMemo, useState } from "react";
-import { FileText, Loader2, Lock, ShieldCheck, XCircle } from "lucide-react";
-import { RiskAnalysis, normaliseStatus } from "@/types/risk-analyzer";
+import { FileText, Loader2, Lock, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
+import {
+  RiskAnalysis,
+  RiskAnalysisStatus,
+  normaliseStatus,
+} from "@/types/risk-analyzer";
 import InsuranceReport from "./InsuranceReport";
 import ProducerReport from "./ProducerReport";
 
@@ -26,22 +30,43 @@ type SubTab = "insurance" | "producer";
 
 interface ReportsTabProps {
   analysis: RiskAnalysis | null;
+  /**
+   * Live status from the polling hook. Preferred over `analysis.status`
+   * for picking the empty-state copy — the results envelope can lag the
+   * live pipeline phase (e.g. status flipped to FINALIZING but envelope
+   * still shows AWAITING_APPROVAL). When omitted we fall back to the
+   * envelope's status.
+   */
+  liveStatus?: RiskAnalysisStatus | null;
   onFinalize?: () => void;
   onDownloadInsurancePdf?: () => void;
   onDownloadProducerPdf?: () => void;
   onStartNewAnalysis?: () => void;
   onSelectScene?: (sceneId: number) => void;
+  /**
+   * Manual envelope refresh. Surfaced to the user via the defensive
+   * FINALIZED-but-empty loader so they can recover from a stale-cache
+   * edge case without a full page reload.
+   */
+  onRefresh?: () => void;
 }
 
 export default function ReportsTab({
   analysis,
+  liveStatus,
   onFinalize,
   onDownloadInsurancePdf,
   onDownloadProducerPdf,
   onStartNewAnalysis,
   onSelectScene,
+  onRefresh,
 }: ReportsTabProps) {
-  const norm = normaliseStatus(analysis?.status);
+  const envelopeNorm = normaliseStatus(analysis?.status);
+  // Use the live status when provided so the in-flight loader reflects the
+  // *current* pipeline phase, not the stale envelope phase. We still use
+  // the envelope status for the FINALIZED render branch since the envelope
+  // is the source of truth for the report payloads.
+  const norm: RiskAnalysisStatus | null = liveStatus ?? envelopeNorm;
 
   const hasInsurance = useMemo(
     () => !!(analysis?.insurance_report ?? analysis?.compliance_report),
@@ -56,81 +81,102 @@ export default function ReportsTab({
   // producers are used to), otherwise show whichever report exists.
   const [subTab, setSubTab] = useState<SubTab>("insurance");
 
-  // Derive the *effective* sub-tab during render rather than setState'ing
-  // inside an effect: if the user has selected a sub-tab that the envelope
-  // doesn't actually carry (e.g. they picked Producer on an old finalized
-  // analysis that only has insurance), fall back to whichever report exists.
-  // Pure derivation here avoids the cascading-render lint and keeps the
-  // displayed tab in sync with envelope changes from polling.
-  const effectiveSubTab: SubTab =
-    subTab === "producer" && !hasProducer && hasInsurance
-      ? "insurance"
-      : subTab === "insurance" && !hasInsurance && hasProducer
-        ? "producer"
-        : subTab;
+  // Honor the user's selection — do NOT silently coerce when their picked
+  // report isn't yet available. The render branch below shows a
+  // "report will appear when finalize completes" affordance inside the
+  // missing-report panel, and the toggle button surfaces aria-disabled
+  // when its report is absent so the click feedback is unambiguous.
+  const effectiveSubTab: SubTab = subTab;
 
   // FINALIZED is a terminal state — the envelope is frozen and the
-  // backend hardening in results.build_results_envelope guarantees both
+  // backend hardening in `results.build_results_envelope` guarantees both
   // report keys are present (producer_report may be null on legacy
   // snapshots). Render the report view UNCONDITIONALLY here so a
-  // post-finalize poll race can't flash the "Reports not generated
-  // yet" loader. The single-report fallback is handled inside —
-  // InsuranceReport reuses compliance_report when insurance_report is
-  // absent, and ProducerReport draws its own empty state when null.
-  if (norm === "FINALIZED") {
-    const showToggle = hasInsurance && hasProducer;
-    // Pick a sensible default sub-tab when only one report exists, so
-    // the legacy single-report path lands on the correct view.
-    const renderInsurance =
-      effectiveSubTab === "insurance" && (hasInsurance || !hasProducer);
+  // post-finalize poll race can't flash the "Reports not generated yet"
+  // loader. We branch on `envelopeNorm` (the envelope's own status) rather
+  // than `norm` because the live status may briefly show FINALIZING after
+  // a resumed task even while the envelope is already FINALIZED — and
+  // we want the report view as soon as the envelope is good.
+  if (envelopeNorm === "FINALIZED") {
+    // Defensive: backend says FINALIZED but the envelope hasn't been
+    // populated yet (cache race, or stale read between status flip and
+    // envelope write). Show a recoverable loader, NOT the empty report
+    // shell — the user can click "Refresh now" or the polling loop's
+    // next tick will hydrate it.
+    if (!hasInsurance && !hasProducer) {
+      return (
+        <EmptyShell
+          icon={<Loader2 size={20} className="animate-spin text-amber-500" />}
+          title="Loading reports…"
+          body="Finalize is complete on the server but we haven't received the report payloads yet. They usually appear within a few seconds — if not, refresh."
+        >
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="inline-flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:border-emerald-500/40 hover:text-emerald-500"
+            >
+              <RefreshCw size={14} /> Refresh now
+            </button>
+          )}
+        </EmptyShell>
+      );
+    }
     return (
       <div className="space-y-3">
-        {showToggle && (
-          // ``role="tablist"`` + ``role="tab"`` + ``aria-pressed`` on
-          // each button so screen readers announce which sub-tab is
-          // active. We use aria-pressed (not just aria-selected) so the
-          // toggle behaves identically to a paired button group even
-          // when the parent ``role="tablist"`` is missing in older
-          // assistive tech.
-          <div
-            role="tablist"
-            aria-label="Reports — Insurance or Producer"
-            className="inline-flex rounded-md border border-[var(--border)] bg-[var(--surface)] p-0.5"
-          >
-            <SubTabButton
-              active={effectiveSubTab === "insurance"}
-              onClick={() => setSubTab("insurance")}
-              label="Insurance"
-              icon={<ShieldCheck size={12} />}
-            />
-            <SubTabButton
-              active={effectiveSubTab === "producer"}
-              onClick={() => setSubTab("producer")}
-              label="Producer"
-              icon={<FileText size={12} />}
-            />
-          </div>
-        )}
-
-        {renderInsurance ? (
-          <InsuranceReport
-            analysis={analysis}
-            onDownloadPdf={onDownloadInsurancePdf}
+        {/* Toggle is always rendered on FINALIZED so the user can switch
+            between reports. When a side's report isn't present yet we
+            mark its button `aria-disabled` (purely visual — clicks still
+            work and surface the "report will appear" affordance below)
+            so screen readers and keyboard users get unambiguous feedback. */}
+        <div
+          role="tablist"
+          aria-label="Reports — Insurance or Producer"
+          className="inline-flex rounded-md border border-[var(--border)] bg-[var(--surface)] p-0.5"
+        >
+          <SubTabButton
+            active={effectiveSubTab === "insurance"}
+            unavailable={!hasInsurance}
+            onClick={() => setSubTab("insurance")}
+            label="Insurance"
+            icon={<ShieldCheck size={12} />}
           />
-        ) : (
+          <SubTabButton
+            active={effectiveSubTab === "producer"}
+            unavailable={!hasProducer}
+            onClick={() => setSubTab("producer")}
+            label="Producer"
+            icon={<FileText size={12} />}
+          />
+        </div>
+
+        {effectiveSubTab === "insurance" ? (
+          hasInsurance ? (
+            <InsuranceReport
+              analysis={analysis}
+              onDownloadPdf={onDownloadInsurancePdf}
+            />
+          ) : (
+            <EmptyShell
+              icon={<Loader2 size={20} className="animate-spin text-amber-500" />}
+              title="Insurance report will appear when finalize completes"
+              body="The Insurance Risk Analysis is generated alongside the Producer report when finalize finishes (compliance LLM + PDF render takes 1-3 min). This page refreshes automatically — switch to the Producer tab in the meantime if it's already available."
+            />
+          )
+        ) : hasProducer ? (
           <ProducerReport
             report={analysis?.producer_report ?? null}
-            // The download button only needs *some* truthy URL hint; the
-            // actual endpoint is resolved by the page handler (it falls
-            // back to `getProducerPdfUrl` when the envelope doesn't carry
-            // a presigned URL). Passing the envelope URL when present
-            // keeps direct presigned links working; otherwise we signal
-            // "endpoint available" so the button renders.
             pdfUrl={
               analysis?.producer_pdf_url ?? (hasProducer ? "endpoint" : null)
             }
             onDownloadPdf={onDownloadProducerPdf}
             onSelectScene={onSelectScene}
+          />
+        ) : (
+          <EmptyShell
+            icon={<Loader2 size={20} className="animate-spin text-amber-500" />}
+            title="Producer report will appear when finalize completes"
+            body="The Producer Risk Analysis (scene-by-scene action items, crew calls, pre-production prep) is generated alongside the Insurance report. This page refreshes automatically — switch to the Insurance tab in the meantime if it's already available."
           />
         )}
       </div>
@@ -141,8 +187,8 @@ export default function ReportsTab({
     return (
       <EmptyShell
         icon={<ShieldCheck size={20} className="text-emerald-500" />}
-        title="Finalize this analysis to generate both reports"
-        body="Once you finalize, the score is locked and two reports are produced: an Insurance Risk Analysis (broker-facing, signed PDF) and a Producer Risk Analysis (operational checklist with scene-by-scene action items, crew calls, and pre-production prep)."
+        title="Finalize this analysis to generate the reports"
+        body="Finalize locks the score and produces two reports: an Insurance Risk Analysis (broker-facing, signed PDF) and a Producer Risk Analysis (operational checklist with scene-by-scene action items, crew calls, and pre-production prep)."
       >
         {onFinalize && (
           <button
@@ -154,6 +200,16 @@ export default function ReportsTab({
           </button>
         )}
       </EmptyShell>
+    );
+  }
+
+  if (norm === "FINALIZING") {
+    return (
+      <EmptyShell
+        icon={<Loader2 size={20} className="animate-spin text-emerald-500" />}
+        title="Generating reports — this typically takes 1–3 minutes"
+        body="We're running the compliance LLM for both the insurance and producer reports, then rendering the signed PDFs. The page refreshes automatically; no action needed."
+      />
     );
   }
 
@@ -203,7 +259,7 @@ export default function ReportsTab({
     );
   }
 
-  // In-flight: PENDING / CLASSIFYING / MITIGATING / FINALIZING
+  // In-flight: PENDING / CLASSIFYING / MITIGATING
   return (
     <EmptyShell
       icon={<Loader2 size={20} className="animate-spin text-amber-500" />}
@@ -215,24 +271,44 @@ export default function ReportsTab({
 
 interface SubTabButtonProps {
   active: boolean;
+  /**
+   * True when the corresponding report is not yet present in the envelope
+   * (mid-finalize race). We keep the click handler live so the panel
+   * below renders the "report will appear when finalize completes"
+   * affordance — but surface `aria-disabled` and dim the button so the
+   * unavailability is unambiguous to keyboard / screen-reader users.
+   */
+  unavailable?: boolean;
   onClick: () => void;
   label: string;
   icon: React.ReactNode;
 }
 
-function SubTabButton({ active, onClick, label, icon }: SubTabButtonProps) {
+function SubTabButton({
+  active,
+  unavailable = false,
+  onClick,
+  label,
+  icon,
+}: SubTabButtonProps) {
   return (
     <button
       type="button"
       role="tab"
       aria-pressed={active}
       aria-selected={active}
+      aria-disabled={unavailable || undefined}
+      title={
+        unavailable
+          ? `${label} report will appear when finalize completes`
+          : undefined
+      }
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold transition-colors ${
         active
           ? "bg-emerald-500/15 text-emerald-500"
           : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-      }`}
+      } ${unavailable ? "opacity-60" : ""}`}
     >
       {icon}
       {label}

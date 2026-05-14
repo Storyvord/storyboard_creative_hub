@@ -12,7 +12,7 @@
 //   - Compliance tab explains *why* it's empty per status; no more silent
 //     blank tab when an analysis is mid-pipeline.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -228,11 +228,36 @@ export default function RiskAnalyzerDashboardPage() {
       setShowFinalize(false);
       // Script-page risk badges may now read from a fresh FINALIZED envelope.
       invalidateScriptRiskCache(scriptId);
+      // `POST finalize/` returns 202 immediately and Celery drives the
+      // AWAITING_APPROVAL → FINALIZING → FINALIZED transition asynchronously
+      // (compliance LLM × 2 + PDF render — typically 1-3 min). The single
+      // `refresh()` here is a best-effort first read; the actual envelope
+      // arrives later. To guarantee we observe FINALIZED, re-arm the
+      // polling loop in case it had stopped at AWAITING_APPROVAL.
       await polling.refresh();
+      polling.resumePolling();
     } finally {
       setFinalizing(false);
     }
   }, [scriptId, analysisId, polling, handleApiError]);
+
+  // Defence-in-depth for the FINALIZED transition. The polling hook does
+  // one final `getResults()` on the first tick that sees FINALIZED, but if
+  // that read races the Celery task's envelope write (status flipped but
+  // PDFs not yet linked) we'd render a FINALIZED-but-empty page forever.
+  // Watch the normalised status and re-pull exactly once when we observe
+  // the transition into FINALIZED.
+  const finalizedRefreshedRef = useRef(false);
+  useEffect(() => {
+    if (norm === "FINALIZED" && !finalizedRefreshedRef.current) {
+      finalizedRefreshedRef.current = true;
+      void polling.refresh();
+    } else if (norm !== "FINALIZED") {
+      // Reset so a subsequent FINALIZED transition (e.g. after a resume
+      // from FAILED that eventually finalizes) is also caught.
+      finalizedRefreshedRef.current = false;
+    }
+  }, [norm, polling]);
 
   const handleResume = useCallback(async () => {
     if (scriptId === null) return;
@@ -601,11 +626,19 @@ export default function RiskAnalyzerDashboardPage() {
             {tab === "compliance" && (
               <ReportsTab
                 analysis={analysis}
+                // Pass the merged `norm` so ReportsTab's empty-state copy
+                // reflects the actual pipeline phase (e.g. shows
+                // "Generating reports…" during FINALIZING) rather than
+                // the stale envelope phase.
+                liveStatus={norm}
                 onFinalize={() => setShowFinalize(true)}
                 onDownloadInsurancePdf={handleDownloadPdf}
                 onDownloadProducerPdf={handleDownloadProducerPdf}
                 onStartNewAnalysis={handleStartNewAnalysis}
                 onSelectScene={openSceneInScenesTab}
+                onRefresh={() => {
+                  void polling.refresh();
+                }}
               />
             )}
           </>

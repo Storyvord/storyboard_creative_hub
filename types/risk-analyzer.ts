@@ -420,10 +420,21 @@ export function normaliseStatus(
   return s.toUpperCase() as RiskAnalysisStatus;
 }
 
+/**
+ * Truly terminal pipeline states — these are the ones where the analysis
+ * envelope is frozen and no further backend transitions are expected. Polling
+ * should only consider stopping on these.
+ *
+ * NOTE: ``AWAITING_APPROVAL`` is intentionally NOT here. It's a user-action
+ * waiting state — the user is about to click Finalize, which kicks the
+ * pipeline back into ``FINALIZING → FINALIZED`` asynchronously. If we treat
+ * it as terminal, polling stops and never refreshes the envelope after
+ * finalize completes (the original Bug B). ``FINALIZING`` is also not
+ * terminal — it's an in-flight Celery task that must be polled through.
+ */
 export const TERMINAL_STATUSES: RiskAnalysisStatus[] = [
   "FINALIZED",
   "FAILED",
-  "AWAITING_APPROVAL",
   "CANCELLED",
 ];
 

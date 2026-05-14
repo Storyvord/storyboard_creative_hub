@@ -1,6 +1,45 @@
 // Sample payloads pulled from `creative_hub/risk/FRONTEND_INTEGRATION.md`
 // §9.3 / §9.4. Imported by component tests / Storybook-style smoke harnesses
 // (no runtime usage from the real app).
+//
+// ── Manual QA checklist — Reports tab state flow ───────────────────────────
+// Run these against a dev server with these mocks wired into the page.
+//
+// 1) Toggle test (happy path)
+//    - Import `MOCK_RESULTS_FINALIZED_DUAL_REPORT` as the page's `analysis`.
+//    - Open the Compliance tab. Click "Insurance" then "Producer".
+//    - Expect the panel body to change. Both buttons should be enabled
+//      (no aria-disabled / opacity-60).
+//
+// 2) Stale envelope simulation (post-finalize race)
+//    - In a manual mock, make `getStatus` return FINALIZED but make the
+//      first `getResults` call resolve to a stripped envelope where both
+//      `insurance_report` and `producer_report` are null. The second
+//      `getResults` call should resolve to `MOCK_RESULTS_FINALIZED_DUAL_REPORT`.
+//    - Expect the Reports tab to first show the "Loading reports…" panel
+//      with a "Refresh now" button, then (on the next poll or refresh
+//      click) hydrate to the full reports view within ~10 s.
+//
+// 3) Toggle during mid-finalize (one report present, the other null)
+//    - Use `MOCK_RESULTS_FINALIZED_INSURANCE_ONLY` (producer null).
+//    - Click "Producer" in the toggle.
+//    - Expect the producer panel to render the "Producer report will appear
+//      when finalize completes" affordance (NOT silently revert to
+//      Insurance). The Producer toggle button should have aria-disabled
+//      and a dimmed appearance.
+//
+// 4) Finalize from AWAITING_APPROVAL re-arms polling
+//    - Start with a status of AWAITING_APPROVAL; click "Finalize".
+//    - The handler returns 202 immediately and the page calls
+//      `polling.resumePolling()`. Expect `polling.isPolling` to flip back
+//      to true and subsequent `getStatus` polls to fire (3 s, then 6 s for
+//      FINALIZING) until status reaches FINALIZED.
+//
+// 5) Status-driven empty-state copy
+//    - With `liveStatus="FINALIZING"`, the Reports tab should show
+//      "Generating reports — this typically takes 1–3 minutes."
+//    - With `liveStatus="AWAITING_APPROVAL"`, it should show the Finalize
+//      CTA with explicit copy mentioning both reports.
 
 import {
   RiskAnalysis,
