@@ -262,6 +262,186 @@ export const MOCK_STATUS_CANCELLED_WITH_FINDINGS: RiskAnalysis = {
   },
 };
 
+/**
+ * Sample FINALIZED envelope with BOTH reports populated. Drives the
+ * dual-report Reports tab in component tests / Storybook so reviewers can
+ * verify the Insurance | Producer segmented control and click-throughs
+ * end-to-end without a live backend.
+ */
+export const MOCK_RESULTS_FINALIZED_DUAL_REPORT: RiskAnalysis = {
+  id: 41,
+  status: "finalized",
+  score: 712,
+  score_band: "Medium",
+  insurance: {
+    tier: "Elevated",
+    multiplier: 1.42,
+    premium_low_k: 14.2,
+    premium_high_k: 21.3,
+    tier_riders: "weapons rider, stunt waiver",
+    risk_level: 0.21,
+  },
+  edit_summary: {
+    ai_findings_count: 12,
+    user_added_count: 3,
+    user_modified_count: 1,
+    user_deleted_count: 2,
+    ai_only_score: 690,
+    current_score: 712,
+    delta: 22,
+  },
+  scenes: [
+    {
+      scene_id: 41,
+      heading: "INT. WAREHOUSE - NIGHT",
+      order: 12,
+      cumulative_deduction: 12.6,
+      projected_score: 770,
+      exposure_contribution: 12.6,
+      severity_breakdown: { Critical: 1, High: 0, Medium: 0, Low: 0 },
+      findings: [
+        {
+          id: 555,
+          category: "Explosions / Pyrotechnics",
+          category_slug: "explosions",
+          severity: "Critical",
+          reason: "Practical pyrotechnic charge near actor.",
+          evidence_quote: "the charge detonates as JACK rolls clear",
+          confidence: "high",
+          source: "ai",
+          audit_flags: [],
+          approval_state: "agreed",
+          deleted_by_user: false,
+        },
+      ],
+      mitigations: [],
+    },
+    {
+      scene_id: 42,
+      heading: "EXT. ROOFTOP - NIGHT",
+      order: 24,
+      cumulative_deduction: 9.4,
+      projected_score: 760,
+      exposure_contribution: 9.4,
+      severity_breakdown: { Critical: 0, High: 1, Medium: 0, Low: 0 },
+      findings: [
+        {
+          id: 556,
+          category: "Rigging / Scaffolding / Heights",
+          category_slug: "rigging_scaffolding_heights",
+          severity: "High",
+          reason: "Actor near rooftop edge without harness specified.",
+          evidence_quote: "JACK leaps to the next building",
+          confidence: "high",
+          source: "ai",
+          audit_flags: [],
+          approval_state: "none",
+          deleted_by_user: false,
+        },
+      ],
+      mitigations: [],
+    },
+  ],
+  summary_stats: {
+    total_scenes_parsed: 24,
+    scenes_analysed: 24,
+    scenes_approved: 24,
+    total_risks_found: 2,
+    severity_distribution: { Critical: 1, High: 1, Medium: 0, Low: 0 },
+    is_empty: false,
+  },
+  graph: { nodes: [], edges: [], legend: [], score_band: "Medium" },
+  compliance_report: {
+    executive_summary:
+      "Production risk profile is Elevated, driven by one pyrotechnic charge and one rooftop traversal. All identified hazards have approved mitigations.",
+    compliance_statement:
+      "This analysis confirms the production complies with industry safety expectations for Tier-Elevated coverage. All required riders are in place.",
+    mitigation_verification:
+      "Pyrotechnic charge in Scene 12 will be supervised by a certified pyrotechnician with blast mats and EMS standby. Rooftop traversal in Scene 24 requires harness, safety rigger, and stunt coordinator approval.",
+    residual_risks: [
+      "Weather may impact rooftop scheduling — keep an interior backup.",
+      "Pyro permits subject to local fire marshal sign-off.",
+    ],
+  },
+  insurance_report: {
+    executive_summary:
+      "Production risk profile is Elevated, driven by one pyrotechnic charge and one rooftop traversal. All identified hazards have approved mitigations.",
+    compliance_statement:
+      "This analysis confirms the production complies with industry safety expectations for Tier-Elevated coverage. All required riders are in place.",
+    mitigation_verification:
+      "Pyrotechnic charge in Scene 12 will be supervised by a certified pyrotechnician with blast mats and EMS standby. Rooftop traversal in Scene 24 requires harness, safety rigger, and stunt coordinator approval.",
+    residual_risks: [
+      "Weather may impact rooftop scheduling — keep an interior backup.",
+      "Pyro permits subject to local fire marshal sign-off.",
+    ],
+  },
+  producer_report: {
+    executive_summary:
+      "Two high-severity hazards drive this shoot's risk: a pyrotechnic charge on day 4 and a rooftop traversal on day 8. Both need a dedicated safety coordinator and rehearsal blocks the day before.",
+    top_risks_to_address: [
+      "Pyrotechnic charge in Scene 12 — book pyrotechnician and EMS standby a week ahead.",
+      "Rooftop traversal in Scene 24 — secure harness rigging, lock building permits, schedule weather backup.",
+    ],
+    scene_by_scene_priorities: [
+      {
+        scene_id: 41,
+        scene_order: 12,
+        heading: "Scene 12 · INT. WAREHOUSE - NIGHT",
+        summary:
+          "Practical pyrotechnic charge near actor. Highest-severity item on the schedule.",
+        severity: "Critical",
+        action_items: [
+          "Hire a certified pyrotechnician (confirm SAG/IATSE credentials).",
+          "Position blast mats and class-A fire extinguishers within 5m of the charge.",
+          "Brief EMS standby; confirm radio channel + nearest hospital ETA.",
+          "Rehearse JACK's roll-clear at half speed before live charge.",
+        ],
+      },
+      {
+        scene_id: 42,
+        scene_order: 24,
+        heading: "Scene 24 · EXT. ROOFTOP - NIGHT",
+        summary:
+          "Actor traversing rooftop edge — requires harness rigging and stunt coordinator sign-off.",
+        severity: "High",
+        action_items: [
+          "Engage a certified rigger to set safety lines.",
+          "Stunt coordinator must walk the route + sign off prior to shooting.",
+          "Lock weather backup interior; check forecast 48h ahead.",
+        ],
+      },
+    ],
+    pre_production_checklist: [
+      "Confirm pyrotechnic permits with city fire marshal.",
+      "Walk rooftop location with stunt coordinator and rigger.",
+      "Schedule rehearsal block T-1 day for both high-severity scenes.",
+      "Distribute safety briefing pack to all department heads.",
+    ],
+    equipment_checklist: [
+      "Blast mats (×4) and class-A extinguishers (×6).",
+      "Full-body harnesses + redundant safety lines for rooftop work.",
+      "Two-way radios for safety officer ↔ AD on pyro day.",
+      "First-aid kit + AED on set both days.",
+    ],
+    daily_safety_briefings: [
+      "Day 4 (pyro): 10-minute briefing — clearance distances, abort signal, emergency procedure.",
+      "Day 8 (rooftop): 15-minute briefing — harness inspection, fall-arrest plan, weather call.",
+    ],
+    additional_crew_recommendations: [
+      "+1 dedicated safety officer for the duration of the shoot.",
+      "+1 medic on-set for both high-severity shoot days.",
+      "Stunt coordinator booked for prep + Scene 24 only.",
+    ],
+  },
+  finalized_pdf_url: null,
+  producer_pdf_url: null,
+  finalized_at: "2026-05-10T09:00:00Z",
+  finalized_score: 712,
+  drift_warnings: [],
+  total_findings_count: 2,
+  scenes_with_findings_count: 2,
+};
+
 export const MOCK_ANALYSES: RiskAnalysisListItem[] = [
   {
     id: 42,

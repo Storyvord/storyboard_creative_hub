@@ -332,6 +332,25 @@ export const getReportPdfUrl = (
 ): string =>
   `${BASE}/scripts/${scriptId}/risk-analyzer/${analysisId}/report/pdf/`;
 
+/**
+ * Insurance/broker PDF — backend exposes `report/insurance.pdf/` and keeps
+ * `report/pdf/` as a back-compat alias to the same artifact. We return the
+ * explicit endpoint so older builds remain functional while new deployments
+ * benefit from the disambiguated route.
+ */
+export const getInsurancePdfUrl = (
+  scriptId: number,
+  analysisId: number,
+): string =>
+  `${BASE}/scripts/${scriptId}/risk-analyzer/${analysisId}/report/insurance.pdf/`;
+
+/** Producer (operational) PDF — generated at finalize alongside insurance. */
+export const getProducerPdfUrl = (
+  scriptId: number,
+  analysisId: number,
+): string =>
+  `${BASE}/scripts/${scriptId}/risk-analyzer/${analysisId}/report/producer.pdf/`;
+
 // ── Scene-scoped findings ──────────────────────────────────────────────────
 export const getSceneFindings = async (
   sceneId: number,

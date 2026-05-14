@@ -20,6 +20,7 @@ import {
   BarChart2,
   ChevronLeft,
   Film,
+  GitBranch,
   Loader2,
   ShieldAlert,
   ShieldCheck,
@@ -33,7 +34,8 @@ import {
   createMitigationForFinding,
   deleteFinding,
   finalize,
-  getReportPdfUrl,
+  getInsurancePdfUrl,
+  getProducerPdfUrl,
   patchFinding,
   patchMitigation,
   restoreFinding,
@@ -65,12 +67,22 @@ import TopRiskScenes from "../_components/TopRiskScenes";
 import TopHazards from "../_components/TopHazards";
 import ScenesTable from "../_components/ScenesTable";
 import HazardsView from "../_components/HazardsView";
-import ComplianceTab from "../_components/ComplianceTab";
+import RiskGraph from "../_components/RiskGraph";
+import ReportsTab from "../_components/ReportsTab";
 import EditTransparencyTable from "../_components/EditTransparencyTable";
 import FindingEditModal from "../_components/FindingEditModal";
 import FinalizeDialog from "../_components/FinalizeDialog";
 
-type TabKey = "overview" | "scenes" | "hazards" | "compliance";
+// Reports replaces Compliance (now hosts both insurance + producer sub-views);
+// Graph is the new bipartite category↔scene visualisation. Hazards (bar +
+// heatmap) is kept — it answers the orthogonal "which acts are heavy?"
+// question that the graph deliberately avoids.
+type TabKey =
+  | "overview"
+  | "scenes"
+  | "hazards"
+  | "graph"
+  | "compliance";
 
 interface ModalState {
   open: boolean;
@@ -271,12 +283,26 @@ export default function RiskAnalyzerDashboardPage() {
 
   const handleDownloadPdf = useCallback(() => {
     if (scriptId === null) return;
-    if (!analysis?.finalized_pdf_url) {
-      window.open(getReportPdfUrl(scriptId, analysisId), "_blank");
+    // Insurance PDF — prefer the explicit URL the envelope returns, fall
+    // back to the disambiguated insurance endpoint, then to the legacy
+    // `report/pdf/` alias which older backend builds still expose.
+    if (analysis?.finalized_pdf_url) {
+      window.open(analysis.finalized_pdf_url, "_blank");
       return;
     }
-    window.open(analysis.finalized_pdf_url, "_blank");
+    // Use the new explicit endpoint first; `report/pdf/` is kept as a
+    // back-compat alias and will still work on older deployments.
+    window.open(getInsurancePdfUrl(scriptId, analysisId), "_blank");
   }, [scriptId, analysisId, analysis?.finalized_pdf_url]);
+
+  const handleDownloadProducerPdf = useCallback(() => {
+    if (scriptId === null) return;
+    if (analysis?.producer_pdf_url) {
+      window.open(analysis.producer_pdf_url, "_blank");
+      return;
+    }
+    window.open(getProducerPdfUrl(scriptId, analysisId), "_blank");
+  }, [scriptId, analysisId, analysis?.producer_pdf_url]);
 
   // ── Edit handlers — all re-fetch on success ──────────────────────────────
   const openCreate = (sceneId: number) =>
@@ -409,6 +435,9 @@ export default function RiskAnalyzerDashboardPage() {
     { id: "overview", label: "Overview", icon: <BarChart2 size={13} /> },
     { id: "scenes", label: "Scenes", icon: <Film size={13} /> },
     { id: "hazards", label: "Hazards", icon: <AlertTriangle size={13} /> },
+    { id: "graph", label: "Graph", icon: <GitBranch size={13} /> },
+    // Tab label stays "Compliance" so the producer's bookmarks/URLs don't
+    // 404; the underlying component now renders the dual-report Reports UI.
     { id: "compliance", label: "Compliance", icon: <ShieldCheck size={13} /> },
   ];
 
@@ -561,12 +590,22 @@ export default function RiskAnalyzerDashboardPage() {
               />
             )}
 
+            {tab === "graph" && (
+              <RiskGraph
+                analysis={analysis}
+                onSelectCategory={filterScenesByCategory}
+                onSelectScene={openSceneInScenesTab}
+              />
+            )}
+
             {tab === "compliance" && (
-              <ComplianceTab
+              <ReportsTab
                 analysis={analysis}
                 onFinalize={() => setShowFinalize(true)}
-                onDownloadPdf={handleDownloadPdf}
+                onDownloadInsurancePdf={handleDownloadPdf}
+                onDownloadProducerPdf={handleDownloadProducerPdf}
                 onStartNewAnalysis={handleStartNewAnalysis}
+                onSelectScene={openSceneInScenesTab}
               />
             )}
           </>
