@@ -11,6 +11,15 @@
 // The header above ComplianceSection gives the report a distinct visual
 // identity (cool-blue accent + ShieldCheck icon) so it can never be
 // confused for the amber ProducerReport when the user is mid-scroll.
+//
+// Text-rendering contract (defence-in-depth): every ``report.*`` string —
+// executive_summary, compliance_statement, mitigation_verification,
+// residual_risks[] — flows into JSX text children only via
+// ComplianceSection. We deliberately do NOT use dangerouslySetInnerHTML,
+// do NOT pass any report field into an ``href``, and do NOT pipe report
+// text through a markdown renderer. The upstream LLM is treated as an
+// untrusted source. If a future change adds a markdown renderer here,
+// configure it with disallowedElements / skipHtml and no rehype-raw.
 
 import { Download, ShieldCheck } from "lucide-react";
 import { RiskAnalysis } from "@/types/risk-analyzer";

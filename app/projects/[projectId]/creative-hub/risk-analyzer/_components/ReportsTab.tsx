@@ -86,7 +86,17 @@ export default function ReportsTab({
     return (
       <div className="space-y-3">
         {showToggle && (
-          <div className="inline-flex rounded-md border border-[var(--border)] bg-[var(--surface)] p-0.5">
+          // ``role="tablist"`` + ``role="tab"`` + ``aria-pressed`` on
+          // each button so screen readers announce which sub-tab is
+          // active. We use aria-pressed (not just aria-selected) so the
+          // toggle behaves identically to a paired button group even
+          // when the parent ``role="tablist"`` is missing in older
+          // assistive tech.
+          <div
+            role="tablist"
+            aria-label="Reports — Insurance or Producer"
+            className="inline-flex rounded-md border border-[var(--border)] bg-[var(--surface)] p-0.5"
+          >
             <SubTabButton
               active={effectiveSubTab === "insurance"}
               onClick={() => setSubTab("insurance")}
@@ -214,6 +224,9 @@ function SubTabButton({ active, onClick, label, icon }: SubTabButtonProps) {
   return (
     <button
       type="button"
+      role="tab"
+      aria-pressed={active}
+      aria-selected={active}
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold transition-colors ${
         active

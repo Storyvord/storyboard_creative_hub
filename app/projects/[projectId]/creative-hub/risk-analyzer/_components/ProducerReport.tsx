@@ -8,11 +8,26 @@
 // Visual contract:
 //   - Each section gets its own card with a CheckSquare-iconed header so the
 //     report reads like an actionable to-do list rather than a legal letter.
+//   - Inner-card chips/icons use the amber palette (bg-amber-50 / text-amber-700
+//     / border-amber-200) so the whole producer view is visually unified with
+//     the amber header strip; the sibling InsuranceReport keeps blue for the
+//     same reason. This makes mid-scroll "which report am I in?" obvious.
 //   - Empty/missing fields are tolerated silently — the backend may roll out
 //     sections in stages and partial data should still render usefully.
 //   - The "Download Producer PDF" button is parented at the top right, where
 //     the InsuranceReport's "Download Signed PDF" button sits, so the two
 //     sub-reports look like siblings.
+//
+// Text-rendering contract (defence-in-depth): every ``report.*`` string —
+// executive_summary, top_risks_to_address[], scene_by_scene_priorities[].*,
+// pre_production_checklist[], equipment_checklist[], daily_safety_briefings[],
+// additional_crew_recommendations[] — flows into JSX text children only.
+// We deliberately do NOT use dangerouslySetInnerHTML, do NOT pass any
+// report field into an ``href``, and do NOT pipe report text through a
+// markdown renderer. The whitespace-pre-line styling below is CSS-only;
+// it does not parse the string. If a future change adds a markdown
+// renderer here, configure it with disallowedElements / skipHtml and
+// no rehype-raw — the upstream LLM is treated as an untrusted source.
 
 import {
   CheckSquare,
@@ -121,7 +136,7 @@ export default function ProducerReport({
                       sa.scene_id != null && onSelectScene?.(sa.scene_id)
                     }
                     disabled={sa.scene_id == null}
-                    className="text-xs font-semibold text-[var(--text-primary)] hover:text-emerald-500 disabled:cursor-default disabled:hover:text-[var(--text-primary)]"
+                    className="text-xs font-semibold text-[var(--text-primary)] hover:text-amber-700 disabled:cursor-default disabled:hover:text-[var(--text-primary)]"
                   >
                     {sa.heading
                       ? sa.heading
@@ -188,7 +203,10 @@ function Card({ icon, title, children }: CardProps) {
   return (
     <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
       <header className="mb-3 flex items-center gap-2">
-        <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-500">
+        {/* Inner-card chip uses the amber palette so producer-side
+            iconography is consistent with the report header's amber
+            identity (insurance keeps blue across both header + chips). */}
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-amber-700">
           {icon}
         </span>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">
@@ -216,7 +234,9 @@ function ChecklistList({ items, compact }: ChecklistListProps) {
         >
           <CheckSquare
             size={compact ? 11 : 13}
-            className="mt-0.5 shrink-0 text-emerald-500"
+            // Amber check icon keeps each item on the producer-side
+            // palette — matches the header strip and inner-card chips.
+            className="mt-0.5 shrink-0 text-amber-700"
           />
           <span className="whitespace-pre-line">{item}</span>
         </li>
