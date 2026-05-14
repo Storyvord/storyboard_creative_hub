@@ -442,6 +442,44 @@ export const MOCK_RESULTS_FINALIZED_DUAL_REPORT: RiskAnalysis = {
   scenes_with_findings_count: 2,
 };
 
+// ---------------------------------------------------------------------------
+// Smoke-test sample data — STO-1369 ReportsTab cascade fix.
+// ---------------------------------------------------------------------------
+//
+// Use these envelopes when manually verifying that ReportsTab renders the
+// dual-report view unconditionally on FINALIZED. The expected behaviour:
+//
+//   1. ``MOCK_RESULTS_FINALIZED_DUAL_REPORT`` (above) — both reports
+//      present, status FINALIZED → Insurance | Producer toggle visible,
+//      Insurance view default, no "Reports not generated yet" message.
+//   2. ``MOCK_RESULTS_FINALIZED_INSURANCE_ONLY`` — legacy snapshot with
+//      only insurance_report, status FINALIZED → no toggle, single
+//      Insurance view, no loader.
+//   3. ``MOCK_RESULTS_FINALIZED_PRODUCER_ONLY`` — defensive fallback
+//      (shouldn't happen in practice; insurance is mandatory) → no
+//      toggle, single Producer view, no loader.
+//
+// These envelopes are imported by Storybook / manual QA pages. Vitest
+// is not configured in this repo, so a Vitest-style test isn't shipped;
+// see /Users/kaushik/Projects/Intern/creative_hub_frontend/.harness for
+// the QA checklist that exercises these against ReportsTab.
+
+export const MOCK_RESULTS_FINALIZED_INSURANCE_ONLY: RiskAnalysis = {
+  ...MOCK_RESULTS_FINALIZED_DUAL_REPORT,
+  id: 91,
+  // Legacy snapshot: producer_report key absent from the envelope.
+  producer_report: null,
+  producer_pdf_url: null,
+};
+
+export const MOCK_RESULTS_FINALIZED_PRODUCER_ONLY: RiskAnalysis = {
+  ...MOCK_RESULTS_FINALIZED_DUAL_REPORT,
+  id: 92,
+  insurance_report: null,
+  compliance_report: null,
+  finalized_pdf_url: null,
+};
+
 export const MOCK_ANALYSES: RiskAnalysisListItem[] = [
   {
     id: 42,

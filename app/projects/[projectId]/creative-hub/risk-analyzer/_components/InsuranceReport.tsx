@@ -7,7 +7,12 @@
 //   - Uses the explicit `finalized_pdf_url` if the envelope carries one;
 //     otherwise falls back to the helper URL so older finalized analyses
 //     still get a working "Download" button.
+//
+// The header above ComplianceSection gives the report a distinct visual
+// identity (cool-blue accent + ShieldCheck icon) so it can never be
+// confused for the amber ProducerReport when the user is mid-scroll.
 
+import { Download, ShieldCheck } from "lucide-react";
 import { RiskAnalysis } from "@/types/risk-analyzer";
 import ComplianceSection from "./ComplianceSection";
 
@@ -28,14 +33,46 @@ export default function InsuranceReport({
   // Pass a truthy sentinel when the report exists so the download button
   // renders even on envelopes that don't carry a presigned URL — the page
   // handler resolves the actual endpoint URL via `getInsurancePdfUrl`.
-  const pdfUrl =
-    analysis?.finalized_pdf_url ?? (report ? "endpoint" : null);
+  const pdfUrl = analysis?.finalized_pdf_url ?? (report ? "endpoint" : null);
 
   return (
-    <ComplianceSection
-      report={report}
-      pdfUrl={pdfUrl}
-      onDownloadPdf={onDownloadPdf}
-    />
+    <div className="space-y-3">
+      {/* Identity header — cool-blue accent mirrors the PDF cover and
+          puts visual distance between this view and the amber Producer
+          report sibling. */}
+      <header className="flex flex-col gap-2 rounded-xl border border-l-4 border-blue-500 border-[var(--border)] bg-[var(--surface)] p-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-500">
+            <ShieldCheck size={18} />
+          </span>
+          <div>
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+              Insurance Risk Analysis
+            </h3>
+            <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
+              Broker / Underwriter facing — formal compliance &amp; residual
+              risk.
+            </p>
+          </div>
+        </div>
+        {pdfUrl && onDownloadPdf && (
+          <button
+            type="button"
+            onClick={onDownloadPdf}
+            className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500"
+          >
+            <Download size={12} /> Download Insurance PDF
+          </button>
+        )}
+      </header>
+
+      <ComplianceSection
+        report={report}
+        // Hide the duplicate inline button — the prominent header
+        // button above is the canonical download CTA now.
+        pdfUrl={null}
+        onDownloadPdf={onDownloadPdf}
+      />
+    </div>
   );
 }

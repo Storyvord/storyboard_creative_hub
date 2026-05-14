@@ -69,8 +69,20 @@ export default function ReportsTab({
         ? "producer"
         : subTab;
 
+  // FINALIZED is a terminal state — the envelope is frozen and the
+  // backend hardening in results.build_results_envelope guarantees both
+  // report keys are present (producer_report may be null on legacy
+  // snapshots). Render the report view UNCONDITIONALLY here so a
+  // post-finalize poll race can't flash the "Reports not generated
+  // yet" loader. The single-report fallback is handled inside —
+  // InsuranceReport reuses compliance_report when insurance_report is
+  // absent, and ProducerReport draws its own empty state when null.
   if (norm === "FINALIZED") {
     const showToggle = hasInsurance && hasProducer;
+    // Pick a sensible default sub-tab when only one report exists, so
+    // the legacy single-report path lands on the correct view.
+    const renderInsurance =
+      effectiveSubTab === "insurance" && (hasInsurance || !hasProducer);
     return (
       <div className="space-y-3">
         {showToggle && (
@@ -90,7 +102,7 @@ export default function ReportsTab({
           </div>
         )}
 
-        {effectiveSubTab === "insurance" && (hasInsurance || !hasProducer) ? (
+        {renderInsurance ? (
           <InsuranceReport
             analysis={analysis}
             onDownloadPdf={onDownloadInsurancePdf}

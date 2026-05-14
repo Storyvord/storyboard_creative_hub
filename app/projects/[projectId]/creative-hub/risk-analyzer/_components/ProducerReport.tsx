@@ -54,9 +54,12 @@ export default function ProducerReport({
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-col gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:flex-row sm:items-start sm:justify-between">
+      {/* Amber accent mirrors the producer PDF palette so the two
+          reports are immediately distinguishable from the insurance
+          sibling (which uses a cool-blue border-left). */}
+      <header className="flex flex-col gap-2 rounded-xl border border-l-4 border-amber-500 border-[var(--border)] bg-[var(--surface)] p-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-500">
+          <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/10 text-amber-500">
             <ClipboardList size={18} />
           </span>
           <div>
@@ -64,8 +67,8 @@ export default function ProducerReport({
               Producer Risk Analysis
             </h3>
             <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
-              Operational checklist for the line producer — scene-by-scene
-              actions, pre-production prep, daily briefings, and crew calls.
+              Line Producer / Production Manager facing — actionable
+              scene-by-scene plan.
             </p>
           </div>
         </div>
@@ -73,7 +76,7 @@ export default function ProducerReport({
           <button
             type="button"
             onClick={onDownloadPdf}
-            className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500"
+            className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-500"
           >
             <Download size={12} /> Download Producer PDF
           </button>
