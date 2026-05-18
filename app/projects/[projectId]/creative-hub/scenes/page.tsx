@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { getScripts, getScenes } from "@/services/creative-hub";
 import { Script, Scene } from "@/types/creative-hub";
 import SceneSyncPreviewModal from "@/components/creative-hub/SceneSyncPreviewModal";
-import { Loader2, RefreshCw, AlertCircle, MapPin, ChevronRight, Plus } from "lucide-react";
+import { Loader2, RefreshCw, AlertCircle, MapPin, ChevronRight, Plus, ShieldAlert } from "lucide-react";
 import { useParams } from "next/navigation";
+import { useScriptRiskByScene } from "@/hooks/useScriptRiskByScene";
+import { SEVERITY_COLOR } from "../risk-analyzer/_components/constants";
 
 const CHANGE_LABELS: Record<string, string> = {
   action: "Action",
@@ -25,6 +27,9 @@ export default function ScenesPage() {
   const [script, setScript] = useState<Script | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSyncModal, setShowSyncModal] = useState(false);
+  // Per-scene risk badge data — keyed by scene_id. Loads once per script
+  // via the latest FINALIZED/AWAITING_APPROVAL envelope (session-cached).
+  const { byScene: riskByScene } = useScriptRiskByScene(script?.id ?? null);
 
   useEffect(() => { if (projectId) fetchData(); }, [projectId]);
 
@@ -248,6 +253,39 @@ export default function ScenesPage() {
                         <MapPin className="h-3 w-3" />
                         <span className="truncate max-w-[120px]">{s.location}</span>
                       </div>
+                      {/* Risk pill — derived from the latest FINALIZED/AWAITING_APPROVAL
+                          envelope via useScriptRiskByScene. Clicking the pill jumps
+                          to the Scenes tab of the Risk Analyzer scoped to this scene. */}
+                      {s.id && riskByScene?.has(s.id) && (() => {
+                        const cell = riskByScene.get(s.id!);
+                        if (!cell) return null;
+                        if (!cell.severity || cell.count === 0) {
+                          return (
+                            <span className="inline-flex items-center gap-1 text-[var(--text-muted)]">
+                              <ShieldAlert className="h-3 w-3" />
+                              No risk identified
+                            </span>
+                          );
+                        }
+                        const color = SEVERITY_COLOR[cell.severity];
+                        return (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(
+                                `/projects/${projectId}/creative-hub/risk-analyzer`,
+                              );
+                            }}
+                            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-opacity hover:opacity-80"
+                            style={{ backgroundColor: `${color}22`, color }}
+                            title="Open in Risk Analyzer"
+                          >
+                            <ShieldAlert className="h-3 w-3" />
+                            {cell.severity} · {cell.count}
+                          </button>
+                        );
+                      })()}
                       {isDeleted && s.sync_shot_count != null && s.sync_shot_count > 0 && (
                         <span className="text-red-500/60">{s.sync_shot_count} shot{s.sync_shot_count !== 1 ? "s" : ""} will be removed</span>
                       )}
