@@ -27,6 +27,25 @@ import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
+// STO-1854: schema-driven Video mode.
+import { Film } from "lucide-react";
+import { useUserInfo } from "@/hooks/useUserInfo";
+import { useVideoCatalog } from "@/hooks/useVideoCatalog";
+import { useVideoCostPreflight } from "@/hooks/useVideoCostPreflight";
+import { generateVideoClip, getVideoClip, getLatestVideoTaskStatus } from "@/services/video";
+import { VideoModel, VideoClip } from "@/types/video";
+import VideoModelSelector from "@/components/creative-hub/video/VideoModelSelector";
+import DynamicVideoForm from "@/components/creative-hub/video/DynamicVideoForm";
+import VideoCostPreflightPanel from "@/components/creative-hub/video/VideoCostPreflightPanel";
+import VideoTile from "@/components/creative-hub/video/VideoTile";
+import {
+  VideoFormState,
+  emptyFormState,
+  defaultsForModel,
+  buildGeneratePayload,
+  buildTag as buildVideoTag,
+} from "@/components/creative-hub/video/payload";
+import { evaluateConstraints } from "@/components/creative-hub/video/constraints";
 import { ASPECT_RATIOS } from "@/app/projects/[projectId]/creative-hub/storyboard/page";
 import dayjs from "dayjs";
 import isToday from "dayjs/plugin/isToday";
@@ -47,6 +66,27 @@ const PARAM_SELECT_CLS =
 
 interface TaggedCharacter { id: number; name: string; image_url?: string; }
 interface TaggedLocation  { id: number; name: string; image_url?: string; }
+
+// STO-1854: a tile in the history/session feed. The feed is heterogeneous
+// (previz rows + optimistic image/video tiles), so unknown extras are allowed.
+interface FeedItem {
+  id?: number;
+  real_id?: number;
+  __tempId?: number;
+  media_type?: "video";
+  isGenerating?: boolean;
+  isError?: boolean;
+  errorMessage?: string;
+  stillRendering?: boolean;
+  image_url?: string | null;
+  video_url?: string | null;
+  aspect_ratio?: string;
+  prompt?: string;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
+  [key: string]: unknown;
+}
 
 // ─── Tag parsers ──────────────────────────────────────────────────────────────
 
@@ -120,6 +160,17 @@ interface MentionInputProps {
   disabled?: boolean;
   onKeyDown?: React.KeyboardEventHandler<HTMLTextAreaElement>;
   onPaste?: React.ClipboardEventHandler<HTMLTextAreaElement>;
+  /**
+   * STO-1854: optional dynamic Video tags (`@Image1`/`@Video1`/`@Audio1`/
+   * `@Element1`) to highlight in the backdrop. Image-mode passes nothing, so
+   * the @/#/$ behavior is byte-identical. These tags are inserted via the
+   * uploader/element chips (not autocompleted), so no extra trigger is added.
+   */
+  videoTags?: string[];
+  /** Optional placeholder override (Video mode uses a different hint). */
+  placeholder?: string;
+  /** STO-1854: expose the textarea ref so the page can insert tags at caret. */
+  inputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 type DropdownItem =
@@ -139,8 +190,9 @@ function rankByQuery<T extends { name: string }>(items: T[], query: string): T[]
   });
 }
 
-function MentionInput({ value, onChange, characters, locations, images = [], disabled, onKeyDown, onPaste }: MentionInputProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+function MentionInput({ value, onChange, characters, locations, images = [], disabled, onKeyDown, onPaste, videoTags = [], placeholder, inputRef }: MentionInputProps) {
+  const localRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = inputRef ?? localRef;
   const dropdownRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
 
@@ -292,6 +344,9 @@ function MentionInput({ value, onChange, characters, locations, images = [], dis
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+    // textareaRef is a stable ref (local or parent-provided); only `.current`
+    // is read, so it intentionally stays out of the dependency array.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Portal dropdown — rendered at document.body to escape backdrop-filter stacking context
@@ -432,7 +487,13 @@ function MentionInput({ value, onChange, characters, locations, images = [], dis
     const imagePattern = imageIndices.length > 0
       ? `\\$(?:${imageIndices.join("|")})(?![0-9])`
       : "";
-    const combined = [charPattern, locPattern, imagePattern].filter(Boolean).join("|");
+    // STO-1854: Video reference tags (@Image1/@Video1/@Audio1/@Element1) are
+    // highlighted as literal tokens. Empty in image mode → no behavior change.
+    const escapedVideoTags = videoTags.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    const videoTagPattern = escapedVideoTags.length > 0
+      ? `(?:${escapedVideoTags.join("|")})(?![A-Za-z0-9])`
+      : "";
+    const combined = [charPattern, locPattern, imagePattern, videoTagPattern].filter(Boolean).join("|");
     if (!combined) {
       parts.push(<span key={`t0`} className="text-white">{text}</span>);
       return parts;
@@ -445,8 +506,12 @@ function MentionInput({ value, onChange, characters, locations, images = [], dis
       if (m.index > last)
         parts.push(<span key={`t${last}`} className="text-white">{text.slice(last, m.index)}</span>);
       const token = m[0];
+      // STO-1854: video reference tags (@Image1/@Element1/…) share the `@`
+      // prefix with character mentions but are colored amber like references.
+      const isVideoTag = videoTags.some((t) => t.toLowerCase() === token.toLowerCase());
       const color =
-        token.startsWith("@") ? "text-emerald-400"
+        isVideoTag ? "text-amber-400"
+        : token.startsWith("@") ? "text-emerald-400"
         : token.startsWith("#") ? "text-sky-400"
         : "text-amber-400";
       parts.push(
@@ -501,7 +566,7 @@ function MentionInput({ value, onChange, characters, locations, images = [], dis
           display: "block",
           zIndex: 1,
         }}
-        placeholder="Describe the vision… @Character, #Location, $1 / $2 for uploaded references"
+        placeholder={placeholder ?? "Describe the vision… @Character, #Location, $1 / $2 for uploaded references"}
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
@@ -524,15 +589,23 @@ function MentionInput({ value, onChange, characters, locations, images = [], dis
 // share semantics — same 2s tick, same 5min ceiling, same status sets.
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+// STO-1854: video renders (motion-control / 1080p) can exceed the image
+// ceiling, so the video poll timeout is raised. A timeout surfaces a "still
+// rendering" state rather than a false failure.
+const VIDEO_POLL_TIMEOUT_MS = 12 * 60 * 1000; // 12 minutes
 const COMPLETE_TASK_STATUSES = new Set<string>(["completed", "success"]);
 const FAILED_TASK_STATUSES = new Set<string>(["failed", "failure", "revoked"]);
 const INFLIGHT_TASK_STATUSES = new Set<string>(["pending", "processing", "retrying", "started"]);
+// STO-1854: stable prefix so a video caller can tell a (raised) poll timeout
+// apart from a real failure and show "still rendering" instead.
+const POLL_TIMEOUT_SENTINEL = "__POLL_TIMEOUT__";
 
 async function pollTaskUntilComplete(
     taskId: string,
     cancelledRef: { current: boolean },
     intervalMs: number = POLL_INTERVAL_MS,
     timeoutMs: number = POLL_TIMEOUT_MS,
+    timeoutMessage: string = "Image generation timed out after 5 minutes",
 ): Promise<void> {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
@@ -555,7 +628,7 @@ async function pollTaskUntilComplete(
         }
         await new Promise((r) => setTimeout(r, intervalMs));
     }
-    throw new Error("Image generation timed out after 5 minutes");
+    throw new Error(timeoutMessage);
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -608,6 +681,116 @@ export default function CreativeSpacePage() {
   const [uploadingReferences, setUploadingReferences] = useState(0); // count of in-flight uploads
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // ── STO-1854: Video mode ────────────────────────────────────────────────
+  const [mode, setMode] = useState<"image" | "video">("image");
+  const { creditInfo, refreshCredits } = useUserInfo();
+  const walletBalance = creditInfo?.wallet?.current_balance ?? null;
+  const { families: videoFamilies, loading: videoCatalogLoading } = useVideoCatalog(mode === "video");
+  const [selectedVideoModel, setSelectedVideoModel] = useState<VideoModel | null>(null);
+  const [videoFormState, setVideoFormState] = useState<VideoFormState>(emptyFormState());
+  const [videoSelectorOpen, setVideoSelectorOpen] = useState(false);
+  const videoInputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Default-select the first selectable model once the catalog loads.
+  useEffect(() => {
+    if (mode !== "video" || selectedVideoModel) return;
+    const first = videoFamilies
+      .flatMap((f) => f.operations)
+      .find((op) => op.is_selectable);
+    if (first) {
+      setSelectedVideoModel(first);
+      setVideoFormState(defaultsForModel(first));
+    }
+  }, [mode, videoFamilies, selectedVideoModel]);
+
+  const onPickVideoModel = (model: VideoModel) => {
+    setSelectedVideoModel(model);
+    setVideoFormState(defaultsForModel(model));
+  };
+
+  // The shared prompt feeds the model's `prompt` param. Keep it in sync so the
+  // preflight/payload see it without duplicating the text input.
+  const videoParams: Record<string, unknown> = {
+    ...videoFormState.values,
+    ...(prompt.trim() ? { prompt: prompt } : {}),
+  };
+
+  // Client-side constraint check (UX-only; server is authoritative).
+  const videoConstraintResult = selectedVideoModel
+    ? evaluateConstraints(
+        selectedVideoModel.constraints,
+        videoParams,
+        videoFormState.mediaRoles,
+        videoFormState.elements,
+      )
+    : { ok: true, errors: [] };
+
+  // Required-media presence (the preflight would 400 without it; gate locally).
+  const videoMissingMedia = selectedVideoModel
+    ? selectedVideoModel.media_roles
+        .filter((r) => r.required)
+        .filter((r) => (videoFormState.mediaRoles[r.role]?.length ?? 0) === 0)
+        .map((r) => r.role)
+    : [];
+
+  const videoFormReady =
+    !!selectedVideoModel &&
+    selectedVideoModel.is_selectable &&
+    videoConstraintResult.ok &&
+    videoMissingMedia.length === 0;
+
+  // Insert a reference tag (@Image1/@Element1/…) into the shared prompt at the
+  // caret, mirroring the @/#/$ insertion grammar.
+  const insertVideoTag = (tag: string) => {
+    const el = videoInputRef.current;
+    if (!el) {
+      setPrompt((p) => `${p}${p && !p.endsWith(" ") ? " " : ""}${tag} `);
+      return;
+    }
+    const startPos = el.selectionStart ?? prompt.length;
+    const endPos = el.selectionEnd ?? prompt.length;
+    const before = prompt.slice(0, startPos);
+    const after = prompt.slice(endPos);
+    const sep = before && !before.endsWith(" ") ? " " : "";
+    const next = `${before}${sep}${tag} ${after}`;
+    setPrompt(next);
+    setTimeout(() => {
+      const caret = before.length + sep.length + tag.length + 1;
+      el.setSelectionRange(caret, caret);
+      el.focus();
+    }, 0);
+  };
+
+  // Literal video tags to highlight in the prompt backdrop, derived from the
+  // attached media + elements via the model's reference_tag_format.
+  const videoTags: string[] = (() => {
+    if (mode !== "video" || !selectedVideoModel) return [];
+    const fmt = selectedVideoModel.reference_tag_format;
+    const tags: string[] = [];
+    const roleTypes: Record<string, string> = { image: "Image", video: "Video", audio: "Audio" };
+    for (const [role, type] of Object.entries(roleTypes)) {
+      const count = videoFormState.mediaRoles[role]?.length ?? 0;
+      for (let i = 1; i <= count; i++) {
+        tags.push(fmt ? buildVideoTag(fmt, type, i) : `@${type}${i}`);
+      }
+    }
+    for (let i = 1; i <= videoFormState.elements.length; i++) {
+      tags.push(buildVideoTag(fmt || "@Element{n}", "Element", i));
+    }
+    return tags;
+  })();
+
+  // Cost preflight (debounced). Only fires when the form is structurally ready.
+  const { estimate: videoEstimate, loading: videoEstimateLoading, error: videoEstimateError } =
+    useVideoCostPreflight({
+      slug: selectedVideoModel?.slug ?? null,
+      params: videoParams,
+      media: videoFormState.mediaRoles,
+      elements: videoFormState.elements,
+      character_ids: videoFormState.characterIds,
+      enabled: mode === "video" && videoFormReady,
+    });
 
   const fetchHistory = async (sid: number, page: number, isInitial: boolean = false) => {
     if (isFetchingHistory) return;
@@ -741,6 +924,8 @@ export default function CreativeSpacePage() {
     const RECENT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
     const now = Date.now();
     const candidates = history.filter((row) => {
+      // STO-1854: video clips are restored by a dedicated pass below.
+      if (row?.media_type === "video") return false;
       if (!row || row.image_url) return false;
       if (typeof row.id !== "number") return false;
       // Skip optimistic tiles that haven't been swapped yet (id == Date.now()-ish);
@@ -751,7 +936,20 @@ export default function CreativeSpacePage() {
       const age = now - new Date(ts).getTime();
       return age >= 0 && age <= RECENT_WINDOW_MS;
     });
-    if (candidates.length === 0) return;
+
+    // STO-1854: in-flight video_clip_generation rows (real clip id, no
+    // video_url, "still rendering"). Restored via getLatestVideoTaskStatus.
+    const videoCandidates = history.filter((row) => {
+      if (row?.media_type !== "video") return false;
+      if (typeof row.id !== "number") return false;
+      if (row.video_url) return false;
+      const ts = row.updated_at || row.created_at;
+      if (!ts) return false;
+      const age = now - new Date(ts).getTime();
+      return age >= 0 && age <= RECENT_WINDOW_MS;
+    });
+
+    if (candidates.length === 0 && videoCandidates.length === 0) return;
 
     let cancelled = false;
     const cancelledRef = { current: false };
@@ -829,6 +1027,66 @@ export default function CreativeSpacePage() {
           if (cancelled) return;
           const msg = err?.message || "Image generation failed";
           markErrored(previzId, msg);
+        }
+      });
+
+      // ── STO-1854: restore in-flight video_clip_generation tasks ──────────
+      const resolveVideoRow = async (clipId: number) => {
+        try {
+          const clip = await getVideoClip(clipId);
+          if (cancelled) return;
+          const resolved = {
+            ...clip,
+            id: clipId,
+            media_type: "video" as const,
+            isGenerating: false,
+            stillRendering: false,
+          };
+          setHistory((prev) => prev.map((item) => (item.id === clipId ? { ...item, ...resolved } : item)));
+          setSessionGenerations((prev) =>
+            prev.map((item) => (item.id === clipId ? { ...item, ...resolved } : item)),
+          );
+        } catch (err) {
+          if (cancelled) return;
+          console.error("Failed to refetch clip after restore poll:", err);
+        }
+      };
+
+      await runWithConcurrency(videoCandidates, 5, async (row: FeedItem) => {
+        const clipId = row.id as number;
+        const status = await getLatestVideoTaskStatus(clipId);
+        if (!status || cancelled) return;
+        if (COMPLETE_TASK_STATUSES.has(status.status)) {
+          await resolveVideoRow(clipId);
+          return;
+        }
+        if (FAILED_TASK_STATUSES.has(status.status)) {
+          if (isTaskBackfillRow(status)) return;
+          markErrored(clipId, "Video generation failed");
+          return;
+        }
+        if (!INFLIGHT_TASK_STATUSES.has(status.status)) return;
+
+        // Re-spin the tile (still-rendering) and resume polling.
+        const spin = (item: FeedItem) =>
+          item.id === clipId ? { ...item, isGenerating: true, stillRendering: true } : item;
+        setHistory((prev) => prev.map(spin));
+        setSessionGenerations((prev) => prev.map(spin));
+        try {
+          await pollTaskUntilComplete(
+            status.task_id,
+            cancelledRef,
+            POLL_INTERVAL_MS,
+            VIDEO_POLL_TIMEOUT_MS,
+            POLL_TIMEOUT_SENTINEL,
+          );
+          if (cancelled) return;
+          await resolveVideoRow(clipId);
+        } catch (err: unknown) {
+          if (cancelled) return;
+          const m = err instanceof Error ? err.message : "";
+          if (m === POLL_TIMEOUT_SENTINEL) return; // keep "still rendering"
+          markErrored(clipId, m || "Video generation failed");
         }
       });
     })();
@@ -1017,6 +1275,135 @@ export default function CreativeSpacePage() {
     }
   };
 
+  // ── STO-1854: Video generation ─────────────────────────────────────────
+  const handleGenerateVideo = async () => {
+    if (!selectedVideoModel) {
+      toast.error("Select a video model first.");
+      return;
+    }
+    if (!videoFormReady) {
+      const reason =
+        videoConstraintResult.errors[0] ||
+        (videoMissingMedia.length > 0
+          ? `Missing required input: ${videoMissingMedia.join(", ")}`
+          : "Complete the form to generate.");
+      toast.error(reason);
+      return;
+    }
+    // Client-side balance guard (server 402 stays authoritative for the race).
+    if (
+      videoEstimate &&
+      walletBalance != null &&
+      videoEstimate.credits > walletBalance
+    ) {
+      toast.error(`Insufficient credits — need ${videoEstimate.credits}, have ${walletBalance}.`);
+      return;
+    }
+
+    setIsGenerating(true);
+    const capturedPrompt = prompt;
+    const tempId = Date.now();
+    const aspectFromParams =
+      (videoParams.aspect_ratio as string) || aspectRatio || "16:9";
+
+    const newGen = {
+      id: tempId,
+      __tempId: tempId,
+      media_type: "video" as const,
+      isGenerating: true,
+      prompt: capturedPrompt,
+      aspect_ratio: aspectFromParams,
+      model_name: selectedVideoModel.display_name,
+      created_at: new Date().toISOString(),
+    };
+    setHistory((prev) => [...prev, newGen]);
+    setSessionGenerations((prev) => [...prev, newGen]);
+    setTimeout(() => {
+      if (sessionContainerRef.current) sessionContainerRef.current.scrollTop = sessionContainerRef.current.scrollHeight;
+      if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }, 50);
+
+    const payload = buildGeneratePayload(selectedVideoModel, {
+      ...videoFormState,
+      values: videoParams,
+    }, {
+      projectId,
+      scriptId: scriptId ?? undefined,
+    });
+
+    try {
+      const response = await generateVideoClip(payload);
+      const clipId = response.clip_id;
+      // Re-key the optimistic tile to the real clip id so a mid-render reload
+      // can find and resume polling on this row (mirrors the image flow).
+      setHistory((prev) =>
+        prev.map((item) =>
+          item.id === tempId ? { ...item, id: clipId, real_id: clipId } : item,
+        ),
+      );
+      setSessionGenerations((prev) =>
+        prev.map((item) =>
+          item.id === tempId ? { ...item, id: clipId, real_id: clipId } : item,
+        ),
+      );
+
+      const finalizeVideo = (clip: VideoClip) => {
+        const resolved = {
+          ...clip,
+          id: clipId,
+          media_type: "video" as const,
+          isGenerating: false,
+          stillRendering: false,
+          prompt: capturedPrompt,
+          aspect_ratio: clip.aspect_ratio || aspectFromParams,
+        };
+        setHistory((prev) => prev.map((item) => (item.id === clipId ? resolved : item)));
+        setSessionGenerations((prev) => prev.map((item) => (item.id === clipId ? resolved : item)));
+        setPrompt("");
+        refreshCredits();
+        setTimeout(() => {
+          if (sessionContainerRef.current) sessionContainerRef.current.scrollTop = sessionContainerRef.current.scrollHeight;
+        }, 50);
+      };
+
+      const cancelledRef = { current: false };
+      try {
+        await pollTaskUntilComplete(
+          response.task_id,
+          cancelledRef,
+          POLL_INTERVAL_MS,
+          VIDEO_POLL_TIMEOUT_MS,
+          POLL_TIMEOUT_SENTINEL,
+        );
+        const clip = await getVideoClip(clipId);
+        finalizeVideo(clip);
+      } catch (pollErr: unknown) {
+        const pollMsg = pollErr instanceof Error ? pollErr.message : "";
+        if (pollMsg === POLL_TIMEOUT_SENTINEL) {
+          // Raised ceiling hit — keep the tile alive in a "still rendering"
+          // state; reload recovery will pick it up if the worker finishes.
+          const stillRendering = (item: FeedItem) =>
+            item.id === clipId ? { ...item, isGenerating: true, stillRendering: true } : item;
+          setHistory((prev) => prev.map(stillRendering));
+          setSessionGenerations((prev) => prev.map(stillRendering));
+          toast.info("Still rendering — your video will appear here when it's ready.");
+        } else {
+          throw pollErr;
+        }
+      }
+    } catch (error: unknown) {
+      console.error("Failed to generate video clip:", error);
+      const msg = extractApiError(error, "Video generation failed. Please try again.");
+      toast.error(msg);
+      const errored = (item: FeedItem) => ({ ...item, isGenerating: false, stillRendering: false, isError: true, errorMessage: msg });
+      const matches = (item: FeedItem) => item.id === tempId || item.real_id === tempId || item.__tempId === tempId;
+      setHistory((prev) => prev.map((item) => (matches(item) ? errored(item) : item)));
+      setSessionGenerations((prev) => prev.map((item) => (matches(item) ? errored(item) : item)));
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // Group history items by date explicitly resolving "Today" and "Yesterday."
   // Since items are fetched descending (newest first) and we reversed them to place oldest at top,
   // we can iterate cleanly. However, if the server ordered them newest-first natively, they should be in 
@@ -1136,7 +1523,10 @@ export default function CreativeSpacePage() {
                           className="bg-[var(--background)] relative flex items-center justify-center overflow-hidden"
                           style={{ aspectRatio: `${w}/${h}` }}
                         >
-                          {item.isGenerating ? (
+                          {item.media_type === "video" ? (
+                            /* STO-1854: video clip tile (generating/error/play). */
+                            <VideoTile item={item} variant="history" />
+                          ) : item.isGenerating ? (
                             <div className="flex flex-col items-center justify-center h-full w-full bg-[var(--background)]">
                               <Loader2 className="w-6 h-6 text-emerald-500 animate-spin mb-2" />
                               <span className="text-emerald-400 text-[10px] font-medium animate-pulse">Generating</span>
@@ -1242,7 +1632,10 @@ export default function CreativeSpacePage() {
                   return (
                     <div key={item.id || idx} className="flex flex-col gap-3 fade-in">
                       <div className="relative w-full flex items-center justify-center bg-[var(--background)] border border-[var(--border)] rounded-xl overflow-hidden shadow-2xl" style={{ aspectRatio: `${w}/${h}` }}>
-                        {item.isGenerating ? (
+                        {item.media_type === "video" ? (
+                          /* STO-1854: video clip tile (generating/error/play). */
+                          <VideoTile item={item} variant="session" />
+                        ) : item.isGenerating ? (
                           <div className="flex flex-col items-center justify-center h-full w-full bg-[var(--background)]">
                             <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mb-3" />
                             <span className="text-emerald-400 text-xs font-medium animate-pulse">Generating your vision...</span>
@@ -1454,19 +1847,32 @@ export default function CreativeSpacePage() {
               <MentionInput
                 value={prompt}
                 onChange={setPrompt}
-                characters={characters}
-                locations={locations}
-                images={attachedReferences.map((r, i) => ({
+                characters={mode === "video" ? [] : characters}
+                locations={mode === "video" ? [] : locations}
+                images={mode === "video" ? [] : attachedReferences.map((r, i) => ({
                   id: r.id,
                   index: i + 1,
                   image_url: r.image_url,
                 }))}
+                videoTags={videoTags}
+                placeholder={
+                  mode === "video"
+                    ? "Describe the motion / scene… reference attached media with @Image1, @Video1, @Element1…"
+                    : undefined
+                }
+                inputRef={mode === "video" ? videoInputRef : undefined}
                 disabled={isGenerating}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleGenerate(); }
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (mode === "video") handleGenerateVideo();
+                    else handleGenerate();
+                  }
                 }}
                 onPaste={(e) => {
-                  // STO-546: Image paste support — pull image items off the clipboard
+                  // STO-546: Image paste support (image mode only) — pull image
+                  // items off the clipboard. Video mode uses role uploaders.
+                  if (mode === "video") return;
                   const items = e.clipboardData?.items;
                   if (!items) return;
                   const files: File[] = [];
@@ -1482,19 +1888,29 @@ export default function CreativeSpacePage() {
                   }
                 }}
               />
-              {/* STO-546: Paperclip button opens the hidden file input */}
+              {/* STO-546: Paperclip button opens the hidden file input (image mode). */}
+              {mode === "image" && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isGenerating || !scriptId}
+                  title="Attach reference images"
+                  className="ml-1 p-2.5 bg-[var(--surface-hover)] hover:bg-[var(--border)] disabled:opacity-40 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg transition-colors flex items-center justify-center flex-shrink-0"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
+              )}
               <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isGenerating || !scriptId}
-                title="Attach reference images"
-                className="ml-1 p-2.5 bg-[var(--surface-hover)] hover:bg-[var(--border)] disabled:opacity-40 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg transition-colors flex items-center justify-center flex-shrink-0"
-              >
-                <Paperclip className="w-5 h-5" />
-              </button>
-              <button
-                onClick={handleGenerate}
-                disabled={isGenerating || !prompt.trim()}
+                onClick={mode === "video" ? handleGenerateVideo : handleGenerate}
+                disabled={
+                  isGenerating ||
+                  (mode === "video"
+                    ? !videoFormReady ||
+                      (videoEstimate != null &&
+                        walletBalance != null &&
+                        videoEstimate.credits > walletBalance)
+                    : !prompt.trim())
+                }
                 className="ml-2 p-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-lg transition-colors flex items-center justify-center flex-shrink-0"
               >
                 {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
@@ -1505,63 +1921,149 @@ export default function CreativeSpacePage() {
           {/* Parameters row */}
           <div className="flex flex-wrap gap-x-5 gap-y-2.5 items-center px-1">
 
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">Aspect Ratio</span>
-              <select className={PARAM_SELECT_CLS} value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}>
-                {ASPECT_RATIOS.map((ar) => <option key={ar} value={ar}>{ar}</option>)}
-              </select>
+            {/* STO-1854: Mode toggle (Image | Video) */}
+            <div className="flex items-center gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-md p-0.5">
+              <button
+                type="button"
+                onClick={() => setMode("image")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                  mode === "image"
+                    ? "bg-emerald-600 text-white"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <LayoutPanelTop className="w-3 h-3" /> Image
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("video")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                  mode === "video"
+                    ? "bg-emerald-600 text-white"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <Film className="w-3 h-3" /> Video
+              </button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">Shot Type</span>
-              <ShotTypeSelector
-                shotTypes={shotTypes}
-                value={shotType}
-                onChange={setShotType}
-                size="sm"
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">Camera Angle</span>
-              <CameraAngleSelector
-                angles={cameraAngles}
-                value={cameraAngle}
-                onChange={setCameraAngle}
-                size="sm"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 ml-auto">
-              <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">Model</span>
-              {imageModels.length === 0 ? (
-                <div className="flex items-center gap-1.5 text-[var(--text-muted)] text-xs">
-                  <Loader2 className="w-3 h-3 animate-spin" /> Loading...
+            {mode === "image" ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">Aspect Ratio</span>
+                  <select className={PARAM_SELECT_CLS} value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}>
+                    {ASPECT_RATIOS.map((ar) => <option key={ar} value={ar}>{ar}</option>)}
+                  </select>
                 </div>
-              ) : (
-                <select
-                  className={`${PARAM_SELECT_CLS} max-w-[280px]`}
-                  value={selectedModelIdx >= 0 ? selectedModelIdx : 0}
-                  onChange={handleModelChange}
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">Shot Type</span>
+                  <ShotTypeSelector
+                    shotTypes={shotTypes}
+                    value={shotType}
+                    onChange={setShotType}
+                    size="sm"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">Camera Angle</span>
+                  <CameraAngleSelector
+                    angles={cameraAngles}
+                    value={cameraAngle}
+                    onChange={setCameraAngle}
+                    size="sm"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 ml-auto">
+                  <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">Model</span>
+                  {imageModels.length === 0 ? (
+                    <div className="flex items-center gap-1.5 text-[var(--text-muted)] text-xs">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Loading...
+                    </div>
+                  ) : (
+                    <select
+                      className={`${PARAM_SELECT_CLS} max-w-[280px]`}
+                      value={selectedModelIdx >= 0 ? selectedModelIdx : 0}
+                      onChange={handleModelChange}
+                    >
+                      {imageModels.map((m, i) => {
+                        const minCr = m.credits_per_image_min ?? m.credits_per_image;
+                        const maxCr = m.credits_per_image_max ?? m.credits_per_image;
+                        const label = m.has_variants && minCr !== maxCr
+                          ? `${minCr}–${maxCr} cr`
+                          : `${maxCr} cr`;
+                        const name = m.display_name || m.model_name.split("/").pop();
+                        return (
+                          <option key={i} value={i}>{name} · {label}</option>
+                        );
+                      })}
+                    </select>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* STO-1854: Video model picker + cost preflight (the dynamic form
+                 renders above the parameters row when expanded). */
+              <div className="flex items-center gap-2 ml-auto">
+                <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap">Model</span>
+                <button
+                  type="button"
+                  onClick={() => setVideoSelectorOpen(true)}
+                  disabled={videoCatalogLoading}
+                  className={`${PARAM_SELECT_CLS} flex items-center gap-1.5 max-w-[280px] disabled:opacity-50`}
                 >
-                  {imageModels.map((m, i) => {
-                    const minCr = m.credits_per_image_min ?? m.credits_per_image;
-                    const maxCr = m.credits_per_image_max ?? m.credits_per_image;
-                    const label = m.has_variants && minCr !== maxCr
-                      ? `${minCr}–${maxCr} cr`
-                      : `${maxCr} cr`;
-                    const name = m.display_name || m.model_name.split("/").pop();
-                    return (
-                      <option key={i} value={i}>{name} · {label}</option>
-                    );
-                  })}
-                </select>
-              )}
-            </div>
+                  {videoCatalogLoading ? (
+                    <><Loader2 className="w-3 h-3 animate-spin" /> Loading…</>
+                  ) : selectedVideoModel ? (
+                    <span className="truncate">{selectedVideoModel.display_name}</span>
+                  ) : (
+                    <span className="text-[var(--text-muted)]">Select model…</span>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* STO-1854: Video dynamic form + cost panel (above params row) */}
+          {mode === "video" && selectedVideoModel && (
+            <div className="flex flex-col gap-3 px-1 max-h-[40vh] overflow-y-auto">
+              {!videoConstraintResult.ok && (
+                <div className="text-[10px] text-amber-400 leading-snug">
+                  {videoConstraintResult.errors[0]}
+                </div>
+              )}
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-4 items-start">
+                <DynamicVideoForm
+                  model={selectedVideoModel}
+                  state={videoFormState}
+                  onStateChange={setVideoFormState}
+                  scriptId={scriptId}
+                  onInsertTag={insertVideoTag}
+                />
+                <VideoCostPreflightPanel
+                  estimate={videoEstimate}
+                  loading={videoEstimateLoading}
+                  error={videoEstimateError}
+                  walletBalance={walletBalance}
+                />
+              </div>
+            </div>
+          )}
 
         </div>
       </div>
+
+      {/* STO-1854: Video model picker modal */}
+      <VideoModelSelector
+        isOpen={videoSelectorOpen}
+        onClose={() => setVideoSelectorOpen(false)}
+        families={videoFamilies}
+        loading={videoCatalogLoading}
+        selectedSlug={selectedVideoModel?.slug ?? null}
+        onConfirm={onPickVideoModel}
+      />
     </div>
   );
 }

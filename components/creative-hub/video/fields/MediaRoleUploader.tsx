@@ -94,25 +94,24 @@ export default function MediaRoleUploader({
     }
     if (valid.length === 0) return;
     setUploading((n) => n + valid.length);
+    // Accumulate within the batch so multiple files selected at once all land
+    // (a per-iteration onChange against the stale `value` would clobber prior
+    // uploads). Commit once at the end for multi; replace for single.
+    const uploaded: UploadedMedia[] = [];
     for (const file of valid) {
       try {
         const media = await uploadVideoMedia(scriptId, file);
         if (!media.url) throw new Error("Upload returned no URL");
-        // Single-role uploaders replace; multi append (recompute each iteration
-        // via the functional shape is not available here, so guard with max).
-        onChange(isMulti ? [...valueRef(), media].slice(0, max) : [media]);
+        uploaded.push(media);
       } catch (err) {
         toast.error(extractApiError(err, `Failed to upload ${file.name}`));
       } finally {
         setUploading((n) => n - 1);
       }
     }
+    if (uploaded.length === 0) return;
+    onChange(isMulti ? [...value, ...uploaded].slice(0, max) : [uploaded[uploaded.length - 1]]);
   };
-
-  // Capture latest value for sequential multi-uploads without stale closures.
-  const valueRef = () => latest.current;
-  const latest = useRef(value);
-  latest.current = value;
 
   const remove = (idx: number) => onChange(value.filter((_, i) => i !== idx));
 
