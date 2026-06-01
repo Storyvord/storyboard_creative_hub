@@ -27,6 +27,9 @@ export type VideoUiWidget =
  *  by the `constraints` block, e.g. prompt XOR multi_prompt). */
 export type VideoRequired = boolean | "conditional";
 
+// `name` and `type` are the only REQUIRED keys; every other field is optional
+// and the FE supplies a sensible fallback when absent (e.g. `ui_widget` falls
+// back to a `type`-based default, `required` defaults to false).
 export interface VideoParamSpec {
   name: string;
   type: VideoParamType;
@@ -56,6 +59,9 @@ export type MediaRole =
   | "element"
   | string;
 
+// `role` is the only REQUIRED key. `max_count` defaults to 1 (single uploader),
+// `required` to false, and `mime_types`/`max_bytes` are unenforced client-side
+// when absent (the backend re-validates authoritatively at submit time).
 export interface MediaRoleSpec {
   role: MediaRole;
   required?: boolean;
@@ -121,6 +127,8 @@ export interface VideoModel {
   max_characters_per_generation: number;
   supports_elements: boolean;
   max_elements: number;
+  /** Tag template for in-prompt media references; when empty/absent the FE
+   *  falls back to the `@{Type}{n}` form (e.g. `@Image1`, `@Video2`). */
   reference_tag_format: string;
   provider_param_mapping: Record<string, unknown>;
 

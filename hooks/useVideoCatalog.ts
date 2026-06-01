@@ -87,7 +87,14 @@ export function useVideoCatalog(enabled: boolean = true): UseVideoCatalogResult 
     if (!enabled || cachedModels) return;
 
     let cancelled = false;
-    if (!inflight) inflight = getVideoModels();
+    // Start the fetch inside Promise.resolve().then() so a SYNCHRONOUS throw from
+    // getVideoModels() (e.g. a misconfigured service) becomes a rejected promise
+    // routed through .catch() rather than escaping the effect — which would leave
+    // `loading` stuck true. The `cancelled` guard then covers the full resolution
+    // path so a resolve/reject after unmount never calls setState. setState stays
+    // inside async callbacks only (never the synchronous effect body), preserving
+    // the no-cascading-renders behavior.
+    if (!inflight) inflight = Promise.resolve().then(() => getVideoModels());
     inflight
       .then((data) => {
         cachedModels = data;
