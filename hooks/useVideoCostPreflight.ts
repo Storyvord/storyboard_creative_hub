@@ -39,6 +39,13 @@ export function useVideoCostPreflight(input: PreflightInput): UseVideoCostPrefli
   const key = JSON.stringify({ slug, params, media, elements, character_ids, enabled });
   const controllerRef = useRef<AbortController | null>(null);
 
+  // Mirror the latest inputs into a ref so a fired timer reads current values
+  // rather than the values captured when the effect that scheduled it ran.
+  // `key` already gates re-scheduling, so behavior is unchanged for valid runs;
+  // the ref just removes the stale-closure footgun if that ever drifts.
+  const latest = useRef({ slug, params, media, elements, character_ids });
+  latest.current = { slug, params, media, elements, character_ids };
+
   useEffect(() => {
     if (!slug || !enabled) {
       setEstimate(null);
@@ -53,7 +60,8 @@ export function useVideoCostPreflight(input: PreflightInput): UseVideoCostPrefli
       controllerRef.current = controller;
       setLoading(true);
       setError(null);
-      preflightVideoCost(slug, params, media, elements, character_ids, controller.signal)
+      const cur = latest.current;
+      preflightVideoCost(cur.slug ?? slug, cur.params, cur.media, cur.elements, cur.character_ids, controller.signal)
         .then((est) => {
           if (controller.signal.aborted) return;
           setEstimate(est);
