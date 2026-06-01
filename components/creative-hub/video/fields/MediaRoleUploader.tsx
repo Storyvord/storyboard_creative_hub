@@ -63,15 +63,25 @@ export default function MediaRoleUploader({
   const label = prettyRole(spec.role);
   const tagName = ROLE_TAG_NAME[spec.role];
 
-  const validate = (file: File): string | null => {
-    if (spec.mime_types && spec.mime_types.length > 0 && file.type && !spec.mime_types.includes(file.type)) {
-      return `${file.name}: unsupported type ${file.type}. Allowed: ${spec.mime_types.join(", ")}`;
+  // Collect every failing rule across the whole batch so we surface ONE
+  // consolidated toast instead of one per file/rule. Returns the files that
+  // passed plus a single newline-joined issue string (null when all valid).
+  const validate = (files: File[]): { valid: File[]; issues: string | null } => {
+    const valid: File[] = [];
+    const issues: string[] = [];
+    for (const file of files) {
+      if (spec.mime_types && spec.mime_types.length > 0 && file.type && !spec.mime_types.includes(file.type)) {
+        issues.push(`${file.name}: unsupported type ${file.type}. Allowed: ${spec.mime_types.join(", ")}`);
+        continue;
+      }
+      if (spec.max_bytes && file.size > spec.max_bytes) {
+        const mb = (spec.max_bytes / (1024 * 1024)).toFixed(0);
+        issues.push(`${file.name}: exceeds ${mb} MB limit.`);
+        continue;
+      }
+      valid.push(file);
     }
-    if (spec.max_bytes && file.size > spec.max_bytes) {
-      const mb = (spec.max_bytes / (1024 * 1024)).toFixed(0);
-      return `${file.name}: exceeds ${mb} MB limit.`;
-    }
-    return null;
+    return { valid, issues: issues.length > 0 ? issues.join("\n") : null };
   };
 
   const handleFiles = async (files: FileList | File[]) => {
@@ -86,12 +96,8 @@ export default function MediaRoleUploader({
       return;
     }
     const slice = incoming.slice(0, room);
-    const valid: File[] = [];
-    for (const f of slice) {
-      const err = validate(f);
-      if (err) toast.error(err);
-      else valid.push(f);
-    }
+    const { valid, issues } = validate(slice);
+    if (issues) toast.error(issues);
     if (valid.length === 0) return;
     setUploading((n) => n + valid.length);
     // Accumulate within the batch so multiple files selected at once all land
