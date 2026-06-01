@@ -88,6 +88,19 @@ interface FeedItem {
   [key: string]: unknown;
 }
 
+// Parse an "W:H" aspect_ratio into numeric width/height, defaulting to 16/9.
+// Guards both falsy 0 AND NaN from a malformed/empty aspect_ratio (e.g. "abc",
+// "16:", or undefined) — plain `parseFloat(...) || 16` only catches the former.
+function safeParseRatio(aspect_ratio?: string | null): { w: number; h: number } {
+  const [rawW, rawH] = (aspect_ratio || "16:9").split(":");
+  const w = parseFloat(rawW);
+  const h = parseFloat(rawH);
+  return {
+    w: Number.isFinite(w) && w > 0 ? w : 16,
+    h: Number.isFinite(h) && h > 0 ? h : 9,
+  };
+}
+
 // ─── Tag parsers ──────────────────────────────────────────────────────────────
 
 // Reference images attached to the prompt — labelled $1 / $2 / … in the
@@ -1504,9 +1517,7 @@ export default function CreativeSpacePage() {
 
                 <div className="flex flex-wrap gap-3">
                   {(items as any[]).map((item: any, idx: number) => {
-                    const pt = (item.aspect_ratio || "16:9").split(":");
-                    const w = parseFloat(pt[0]) || 16;
-                    const h = parseFloat(pt[1]) || 9;
+                    const { w, h } = safeParseRatio(item.aspect_ratio);
                     const ratio = Math.max(0.5, Math.min(w / h, 3));
 
                     return (
@@ -1625,10 +1636,8 @@ export default function CreativeSpacePage() {
             <div className="w-full max-w-5xl mx-auto flex flex-col gap-10">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {sessionGenerations.map((item, idx) => {
-                  const pt = (item.aspect_ratio || "16:9").split(":");
-                  const w = parseFloat(pt[0]) || 16;
-                  const h = parseFloat(pt[1]) || 9;
-                  
+                  const { w, h } = safeParseRatio(item.aspect_ratio);
+
                   return (
                     <div key={item.id || idx} className="flex flex-col gap-3 fade-in">
                       <div className="relative w-full flex items-center justify-center bg-[var(--background)] border border-[var(--border)] rounded-xl overflow-hidden shadow-2xl" style={{ aspectRatio: `${w}/${h}` }}>
