@@ -62,7 +62,10 @@ export const getVideoClip = async (clipId: number): Promise<VideoClip> => {
 };
 
 /** Latest TaskStatus for a video clip — used by reload recovery to resume an
- *  in-flight `video_clip_generation` task. Returns null on 404 (no row). */
+ *  in-flight `video_clip_generation` task. Returns null on 404 (no row) and,
+ *  defensively, on 400 — the backend's tasks/latest/ resolver table may not yet
+ *  register `videoclip` (see CONTRACT NOTES), and recovery must degrade
+ *  gracefully rather than throw and break the page mount. */
 export const getLatestVideoTaskStatus = async (
   clipId: number,
 ): Promise<LatestTaskStatus | null> => {
@@ -76,13 +79,11 @@ export const getLatestVideoTaskStatus = async (
     });
     return response.data as LatestTaskStatus;
   } catch (error: unknown) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      (error as { response?: { status?: number } }).response?.status === 404
-    ) {
-      return null;
-    }
+    const statusCode =
+      typeof error === "object" && error !== null
+        ? (error as { response?: { status?: number } }).response?.status
+        : undefined;
+    if (statusCode === 404 || statusCode === 400) return null;
     throw error;
   }
 };
