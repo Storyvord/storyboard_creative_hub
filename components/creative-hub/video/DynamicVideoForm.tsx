@@ -139,6 +139,13 @@ export default function DynamicVideoForm({
   const tagFor = (type: string, n: number) =>
     buildTag(model.reference_tag_format, type, n);
 
+  // In-prompt media reference tags (@Image1/@Video1/@Audio1) are a
+  // reference-to-video feature: those media are cited in the prompt. For
+  // image-to-video the `image`/`end_image` roles are POSITIONAL frames (start/
+  // end), not prompt-referenced — so they must not show a tag chip (otherwise
+  // the start frame shows @Image1 while the end frame shows nothing).
+  const usesReferenceTags = model.operation === "reference_to_video";
+
   const renderParam = (spec: VideoParamSpec) => {
     if (excludeParams.includes(spec.name)) return null;
     if (motionConsumedParams.has(spec.name)) return null;
@@ -296,8 +303,8 @@ export default function DynamicVideoForm({
               scriptId={scriptId}
               value={mediaRoles[role.role] ?? []}
               onChange={(files) => setMedia(role.role, files)}
-              tagFor={tagFor}
-              onInsertTag={onInsertTag}
+              tagFor={usesReferenceTags ? tagFor : undefined}
+              onInsertTag={usesReferenceTags ? onInsertTag : undefined}
             />
           ))}
         </div>

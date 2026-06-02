@@ -798,11 +798,15 @@ export default function CreativeSpacePage() {
     if (mode !== "video" || !selectedVideoModel) return [];
     const fmt = selectedVideoModel.reference_tag_format;
     const tags: string[] = [];
-    const roleTypes: Record<string, string> = { image: "Image", video: "Video", audio: "Audio" };
-    for (const [role, type] of Object.entries(roleTypes)) {
-      const count = videoFormState.mediaRoles[role]?.length ?? 0;
-      for (let i = 1; i <= count; i++) {
-        tags.push(fmt ? buildVideoTag(fmt, type, i) : `@${type}${i}`);
+    // Only reference-to-video cites media in the prompt (@Image1/@Video1/@Audio1);
+    // image-to-video frames (image/end_image) are positional, not tag-referenced.
+    if (selectedVideoModel.operation === "reference_to_video") {
+      const roleTypes: Record<string, string> = { image: "Image", video: "Video", audio: "Audio" };
+      for (const [role, type] of Object.entries(roleTypes)) {
+        const count = videoFormState.mediaRoles[role]?.length ?? 0;
+        for (let i = 1; i <= count; i++) {
+          tags.push(fmt ? buildVideoTag(fmt, type, i) : `@${type}${i}`);
+        }
       }
     }
     for (let i = 1; i <= videoFormState.elements.length; i++) {
