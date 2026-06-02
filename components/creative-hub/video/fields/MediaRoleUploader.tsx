@@ -6,11 +6,12 @@
 // R2V) a chip per file inserts the in-prompt tag (@Image1, @Video1, …) built
 // from `reference_tag_format`.
 import { useRef, useState } from "react";
-import { Loader2, Plus, X, Tag } from "lucide-react";
+import { Loader2, Plus, X, Tag, History } from "lucide-react";
 import { toast } from "react-toastify";
 import { MediaRoleSpec, UploadedMedia } from "@/types/video";
 import { uploadVideoMedia } from "@/services/video";
 import { extractApiError } from "@/lib/extract-api-error";
+import VideoHistoryImagePicker from "./VideoHistoryImagePicker";
 
 interface MediaRoleUploaderProps {
   spec: MediaRoleSpec;
@@ -48,6 +49,17 @@ function acceptFor(spec: MediaRoleSpec): string | undefined {
   return "image/*";
 }
 
+// STO-1854: the "From history" picker serves stills only — gate it to image
+// roles. Explicit allow-list of image roles, plus a defensive check that the
+// resolved `accept` is image-only (never offer it for video/audio roles).
+const IMAGE_ROLES = new Set(["start_image", "end_image", "image"]);
+function isImageRole(spec: MediaRoleSpec): boolean {
+  if (spec.role === "video" || spec.role === "audio") return false;
+  if (IMAGE_ROLES.has(spec.role)) return true;
+  const accept = acceptFor(spec);
+  return accept === "image/*";
+}
+
 export default function MediaRoleUploader({
   spec,
   scriptId,
@@ -58,10 +70,13 @@ export default function MediaRoleUploader({
 }: MediaRoleUploaderProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(0);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const max = spec.max_count ?? 1;
   const isMulti = max > 1;
   const label = prettyRole(spec.role);
   const tagName = ROLE_TAG_NAME[spec.role];
+  // "From history" is offered for image roles only (stills); never video/audio.
+  const allowHistory = isImageRole(spec);
 
   // Collect every failing rule across the whole batch so we surface ONE
   // consolidated toast instead of one per file/rule. Returns the files that
@@ -120,6 +135,25 @@ export default function MediaRoleUploader({
   };
 
   const remove = (idx: number) => onChange(value.filter((_, i) => i !== idx));
+
+  // STO-1854: append a history-picked still as already-hosted media — no
+  // re-upload, so mime/bytes are null (the backend tolerates hosted URLs and
+  // skips mime/size checks when metadata is absent). Mirrors the upload commit:
+  // replace for single, append + cap for multi.
+  const handleHistoryPick = (image: { url: string; description: string | null }) => {
+    if (!image.url) return;
+    if (value.some((m) => m.url === image.url)) {
+      toast.info(`${label}: that image is already added.`);
+      return;
+    }
+    const picked: UploadedMedia = {
+      url: image.url,
+      mime: undefined,
+      bytes: undefined,
+      name: image.description ?? undefined,
+    };
+    onChange(isMulti ? [...value, picked].slice(0, max) : [picked]);
+  };
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -200,6 +234,20 @@ export default function MediaRoleUploader({
             <Plus className="w-4 h-4" />
           </button>
         )}
+
+        {/* STO-1854: pick an existing still from history (image roles only). */}
+        {allowHistory && value.length < max && (
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            disabled={!scriptId}
+            className="h-[44px] px-2 rounded-lg border border-dashed border-[var(--border-hover)] text-[10px] font-medium text-[var(--text-muted)] hover:text-emerald-400 hover:border-emerald-500/40 transition-colors flex items-center gap-1 disabled:opacity-40"
+            title={`Pick ${label.toLowerCase()} from history`}
+          >
+            <History className="w-3.5 h-3.5" />
+            <span>From history</span>
+          </button>
+        )}
       </div>
 
       {spec.notes ? (
@@ -217,6 +265,16 @@ export default function MediaRoleUploader({
           e.target.value = "";
         }}
       />
+
+      {allowHistory && scriptId != null && (
+        <VideoHistoryImagePicker
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          scriptId={scriptId}
+          roleLabel={label}
+          onPick={handleHistoryPick}
+        />
+      )}
     </div>
   );
 }

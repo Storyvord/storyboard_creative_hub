@@ -61,6 +61,37 @@ export const getVideoClip = async (clipId: number): Promise<VideoClip> => {
   return response.data as VideoClip;
 };
 
+/** A page of script-wide video clips for the "View History" feed. */
+export interface VideoClipPage {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: VideoClip[];
+}
+
+/** Fetch completed video clips for a script (newest first), for the script-wide
+ *  history feed. Mirrors `getScriptPrevizHistory`'s paginated-envelope handling:
+ *  tolerates either a DRF page object or a bare array. The list excludes
+ *  in-flight clips by design — reload recovery handles still-generating ones. */
+export const getScriptVideoClips = async (
+  scriptId: number,
+  page: number = 1,
+): Promise<VideoClipPage> => {
+  const response = await api.get(
+    `/api/creative_hub/scripts/${scriptId}/video-clips/?page=${page}`,
+  );
+  const data = response.data;
+  if (Array.isArray(data)) {
+    return { count: data.length, next: null, previous: null, results: data };
+  }
+  return {
+    count: data.count ?? data.results?.length ?? 0,
+    next: data.next ?? null,
+    previous: data.previous ?? null,
+    results: data.results ?? [],
+  };
+};
+
 /** Latest TaskStatus for a video clip — used by reload recovery to resume an
  *  in-flight `video_clip_generation` task. Returns null on 404 (no row) and,
  *  defensively, on 400 — the backend's tasks/latest/ resolver table may not yet

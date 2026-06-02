@@ -205,6 +205,22 @@ export interface GenerateVideoResponse {
 
 // ── Clip detail (poll-complete fetch) ───────────────────────────────────────
 
+/** Per-clip prompt provenance (latest `Prompt` GenericFK row). Preferred over
+ *  the row columns for prompt + params, falling back to them when null. */
+export interface VideoClipPromptDetail {
+  final_prompt: string | null;
+  model_name: string | null;
+  model_params: Record<string, unknown> | null;
+  created_at: string | null;
+}
+
+/** Author resolver payload — mirrors PrevizHistorySerializer.get_added_by. */
+export interface VideoClipAuthor {
+  id: number;
+  email: string | null;
+  name: string | null;
+}
+
 export interface VideoClip {
   id: number;
   video_url: string | null;
@@ -213,4 +229,19 @@ export interface VideoClip {
   prompt: string;
   provider_meta: Record<string, unknown> | null;
   created_at: string;
+
+  // ── STO-1854 history fields (all optional/nullable to tolerate older rows
+  //    persisted before the additive migration). ──
+  script_id?: number | null;
+  source_previz_id?: number | null;
+  slug?: string | null;
+  /** Generation params as submitted (real duration lives here, NOT in the
+   *  clamped `duration_seconds` column). */
+  params?: Record<string, unknown> | null;
+  /** `{role: [{url, mime, bytes}]}` — media roles used for the clip. */
+  media?: Record<string, UploadedMedia[]> | null;
+  elements?: ElementInput[] | null;
+  character_ids?: (string | number)[] | null;
+  added_by?: VideoClipAuthor | null;
+  prompt_detail?: VideoClipPromptDetail | null;
 }

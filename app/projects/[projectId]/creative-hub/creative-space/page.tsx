@@ -32,7 +32,7 @@ import { Film } from "lucide-react";
 import { useUserInfo } from "@/hooks/useUserInfo";
 import { useVideoCatalog } from "@/hooks/useVideoCatalog";
 import { useVideoCostPreflight } from "@/hooks/useVideoCostPreflight";
-import { generateVideoClip, getVideoClip, getLatestVideoTaskStatus } from "@/services/video";
+import { generateVideoClip, getVideoClip, getLatestVideoTaskStatus, getScriptVideoClips } from "@/services/video";
 import { VideoModel, VideoClip } from "@/types/video";
 import VideoModelSelector from "@/components/creative-hub/video/VideoModelSelector";
 import DynamicVideoForm from "@/components/creative-hub/video/DynamicVideoForm";
@@ -812,10 +812,45 @@ export default function CreativeSpacePage() {
       const { results, next } = await getScriptPrevisualizations(sid, page);
       const items = Array.isArray(results) ? [...results] : [];
 
+      // STO-1854: also surface generated video clips in the script-wide feed,
+      // mirroring the image tiles. Only the first page fetches clips (page 1 of
+      // the clip list, newest first) so they restore durably on reload without
+      // duplicating across previz pages. Each clip becomes a `media_type:'video'`
+      // FeedItem; `chronologicalHistory` interleaves it by id. We prefer the
+      // `prompt_detail` (Prompt GenericFK) for prompt + params, falling back to
+      // the row columns for older clips persisted before the additive migration.
+      let videoItems: FeedItem[] = [];
+      if (page === 1) {
+        try {
+          const clips = await getScriptVideoClips(sid, 1);
+          videoItems = (clips.results || [])
+            .filter((clip) => !!clip.video_url)
+            .map((clip) => ({
+              id: clip.id,
+              real_id: clip.id,
+              media_type: "video" as const,
+              video_url: clip.video_url,
+              prompt: clip.prompt_detail?.final_prompt ?? clip.prompt,
+              aspect_ratio: clip.aspect_ratio,
+              model_name: clip.prompt_detail?.model_name ?? clip.slug ?? null,
+              params: clip.prompt_detail?.model_params ?? clip.params ?? null,
+              media: clip.media ?? null,
+              elements: clip.elements ?? null,
+              character_ids: clip.character_ids ?? null,
+              created_at: clip.created_at,
+              isGenerating: false,
+            }));
+        } catch (videoErr) {
+          // Video history is additive — a failure here must not break the
+          // image feed. Log and continue with previz rows only.
+          console.error("Failed to fetch video clip history:", videoErr);
+        }
+      }
+
       // Results usually come newest first (ex: ID descending).
       // Since we want newest at the bottom, we should reverse them.
       // E.g., if page 1 has IDs 10..1, reversed is 1..10 (10 at bottom).
-      const newItems = items;
+      const newItems = [...items, ...videoItems];
 
       if (containerRef.current) {
         setLastScrollHeight(containerRef.current.scrollHeight);
@@ -1521,8 +1556,8 @@ export default function CreativeSpacePage() {
                     const ratio = Math.max(0.5, Math.min(w / h, 3));
 
                     return (
-                      <div 
-                        key={item.id ?? idx} 
+                      <div
+                        key={`${item.media_type === "video" ? "vid" : "img"}-${item.id ?? idx}`}
                         className="bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden flex flex-col group relative"
                         style={{
                           flexGrow: ratio,
@@ -1530,14 +1565,18 @@ export default function CreativeSpacePage() {
                           maxWidth: '100%'
                         }}
                       >
-                        <div 
+                        {item.media_type === "video" ? (
+                          /* STO-1854: self-contained video tile — owns its
+                             aspect-ratio body AND the compact footer (prompt +
+                             aspect/duration/model badges + Details popover). */
+                          <VideoTile item={item} variant="history" aspect={{ w, h }} />
+                        ) : (
+                        <>
+                        <div
                           className="bg-[var(--background)] relative flex items-center justify-center overflow-hidden"
                           style={{ aspectRatio: `${w}/${h}` }}
                         >
-                          {item.media_type === "video" ? (
-                            /* STO-1854: video clip tile (generating/error/play). */
-                            <VideoTile item={item} variant="history" />
-                          ) : item.isGenerating ? (
+                          {item.isGenerating ? (
                             <div className="flex flex-col items-center justify-center h-full w-full bg-[var(--background)]">
                               <Loader2 className="w-6 h-6 text-emerald-500 animate-spin mb-2" />
                               <span className="text-emerald-400 text-[10px] font-medium animate-pulse">Generating</span>
@@ -1617,6 +1656,8 @@ export default function CreativeSpacePage() {
                             )}
                           </div>
                         </div>
+                        </>
+                        )}
                       </div>
                     );
                   })}
