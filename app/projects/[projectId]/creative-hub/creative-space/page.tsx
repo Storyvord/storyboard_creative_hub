@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, Send, LayoutPanelTop, MonitorPlay, AlertTriangle, User, MapPin, History, Paperclip, X } from "lucide-react";
+import { Loader2, Send, LayoutPanelTop, MonitorPlay, AlertTriangle, User, MapPin, History, Paperclip, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useParams } from "next/navigation";
 import {
   getScripts,
@@ -658,6 +658,33 @@ export default function CreativeSpacePage() {
   const [shotType,    setShotType]    = useState("");
   const [shotTypes,   setShotTypes]   = useState<ShotType[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Collapsible prompt bar (auto-hide with hover/click reveal). When collapsed
+  // the bar slides down to a slim peek handle; hovering the bottom edge or
+  // clicking the handle reveals it. It always stays open while typing (focused)
+  // or while a generation is running so it never hides mid-action.
+  const [barCollapsed, setBarCollapsed] = useState(false);
+  const [barHover, setBarHover] = useState(false);
+  const [barFocused, setBarFocused] = useState(false);
+  const barHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const barRevealed = !barCollapsed || barHover || barFocused || isGenerating;
+  const revealBar = () => {
+    if (barHideTimer.current) {
+      clearTimeout(barHideTimer.current);
+      barHideTimer.current = null;
+    }
+    setBarHover(true);
+  };
+  const scheduleHideBar = () => {
+    if (barHideTimer.current) clearTimeout(barHideTimer.current);
+    barHideTimer.current = setTimeout(() => setBarHover(false), 250);
+  };
+  useEffect(
+    () => () => {
+      if (barHideTimer.current) clearTimeout(barHideTimer.current);
+    },
+    [],
+  );
 
   // View toggle state
   const [showHistory, setShowHistory] = useState(false);
@@ -1777,10 +1804,37 @@ export default function CreativeSpacePage() {
 
       {/* Floating bottom bar */}
       <div className="absolute bottom-0 left-0 right-0 pb-5 px-4 z-20 pointer-events-none">
+        {/* Reveal hot-zone — present whenever the bar is collapsed (kept mounted
+            even while revealed so the bottom edge always re-triggers reveal, no
+            flicker). Hovering reveals; clicking restores (un-collapses). The peek
+            pill shows only while the bar is hidden. */}
+        {barCollapsed && (
+          <div
+            className="absolute bottom-0 left-0 right-0 h-6 flex items-end justify-center pointer-events-auto cursor-pointer group"
+            onMouseEnter={revealBar}
+            onClick={() => setBarCollapsed(false)}
+            title="Show prompt bar"
+          >
+            {!barRevealed && (
+              <div className="mb-1 flex items-center gap-1 rounded-full bg-[var(--surface)]/80 backdrop-blur border border-[#ffffff12] px-2.5 py-1 text-[10px] text-[var(--text-muted)] group-hover:text-emerald-400 group-hover:border-emerald-500/40 shadow-lg transition-colors">
+                <ChevronUp className="w-3 h-3" />
+                <span>Prompt</span>
+              </div>
+            )}
+          </div>
+        )}
         <div
-          className={`w-3/4 mx-auto bg-[var(--surface)]/70 backdrop-blur-xl border ${
+          className={`relative w-3/4 mx-auto bg-[var(--surface)]/70 backdrop-blur-xl border ${
             dragOver ? "border-emerald-500/60 border-dashed bg-emerald-500/5" : "border-[#ffffff08]"
-          } rounded-2xl p-4 lg:p-5 shadow-[0_-4px_48px_rgba(0,0,0,0.8)] flex flex-col gap-3 pointer-events-auto transition-colors`}
+          } rounded-2xl p-4 lg:p-5 shadow-[0_-4px_48px_rgba(0,0,0,0.8)] flex flex-col gap-3 pointer-events-auto transition-transform duration-300 ${
+            barRevealed ? "translate-y-0" : "translate-y-[125%]"
+          }`}
+          onMouseEnter={revealBar}
+          onMouseLeave={scheduleHideBar}
+          onFocusCapture={() => setBarFocused(true)}
+          onBlurCapture={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) setBarFocused(false);
+          }}
           onDragOver={(e) => {
             // STO-546: drag/drop reference attachments
             e.preventDefault();
@@ -1798,6 +1852,21 @@ export default function CreativeSpacePage() {
             }
           }}
         >
+
+          {/* Hide handle — collapse the prompt bar into auto-hide mode. */}
+          <button
+            type="button"
+            onClick={() => {
+              setBarCollapsed(true);
+              setBarHover(false);
+              setBarFocused(false);
+            }}
+            className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-9 h-6 rounded-full bg-[var(--surface)] border border-[#ffffff12] text-[var(--text-muted)] hover:text-emerald-400 hover:border-emerald-500/40 shadow-lg transition-colors"
+            title="Hide prompt bar"
+            aria-label="Hide prompt bar"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
 
           {/* STO-546: Hidden file input wired to the paperclip button */}
           <input
