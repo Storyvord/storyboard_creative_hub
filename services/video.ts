@@ -138,5 +138,8 @@ export const uploadVideoMedia = async (
     { headers: { "Content-Type": "multipart/form-data" } },
   );
   const url: string = response.data?.image_url || response.data?.video_url || "";
-  return { url, mime: file.type, bytes: file.size, name: file.name };
+  // Carry the created Previsualization id so the backend can re-sign a fresh
+  // storage URL at task time (the returned SAS URL is short-lived).
+  const previz_id: number | null = response.data?.id ?? null;
+  return { url, mime: file.type, bytes: file.size, previz_id, name: file.name };
 };

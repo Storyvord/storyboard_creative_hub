@@ -140,7 +140,11 @@ export default function MediaRoleUploader({
   // re-upload, so mime/bytes are null (the backend tolerates hosted URLs and
   // skips mime/size checks when metadata is absent). Mirrors the upload commit:
   // replace for single, append + cap for multi.
-  const handleHistoryPick = (image: { url: string; description: string | null }) => {
+  const handleHistoryPick = (image: {
+    url: string;
+    description: string | null;
+    previzId: number | null;
+  }) => {
     if (!image.url) return;
     if (value.some((m) => m.url === image.url)) {
       toast.info(`${label}: that image is already added.`);
@@ -150,6 +154,9 @@ export default function MediaRoleUploader({
       url: image.url,
       mime: undefined,
       bytes: undefined,
+      // Carry the source previz id so the backend re-signs a fresh URL at task
+      // time (the picked SAS URL is short-lived).
+      previz_id: image.previzId ?? null,
       name: image.description ?? undefined,
     };
     onChange(isMulti ? [...value, picked].slice(0, max) : [picked]);

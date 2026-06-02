@@ -172,6 +172,11 @@ export interface UploadedMedia {
   url: string;
   mime?: string;
   bytes?: number;
+  /** Source Previsualization id, when the media is a picked/uploaded still.
+   *  Sent to the backend so it can re-sign a FRESH storage URL at task time
+   *  (the captured SAS URL is short-lived and would expire on a delayed/retried
+   *  generation). */
+  previz_id?: number | null;
   /** Local-only fields for the FE preview (stripped before submit). */
   name?: string;
 }

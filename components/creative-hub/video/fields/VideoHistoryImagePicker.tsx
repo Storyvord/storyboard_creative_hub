@@ -25,6 +25,8 @@ interface PrevizRow {
 interface PickedHistoryImage {
   url: string;
   description: string | null;
+  /** Source previz id — lets the backend re-sign a fresh URL at task time. */
+  previzId: number | null;
 }
 
 interface VideoHistoryImagePickerProps {
@@ -124,7 +126,7 @@ export default function VideoHistoryImagePicker({
   const handlePick = (row: PrevizRow) => {
     const url = row.image_url;
     if (!url) return;
-    onPick({ url, description: row.description ?? null });
+    onPick({ url, description: row.description ?? null, previzId: row.id ?? null });
     onClose();
   };
 
