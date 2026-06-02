@@ -747,11 +747,28 @@ export default function CreativeSpacePage() {
         .map((r) => r.role)
     : [];
 
+  // Required *scalar* params (the server validates these too — chiefly `prompt`,
+  // which lives in the shared bottom-bar input). `conditional`-required params
+  // (e.g. Kling prompt/multi_prompt) are governed by `constraints`, not here.
+  const videoMissingParams = selectedVideoModel
+    ? selectedVideoModel.parameters
+        .filter((p) => p.required === true)
+        .filter((p) => {
+          const v = videoParams[p.name];
+          if (v === undefined || v === null) return true;
+          if (typeof v === "string") return v.trim() === "";
+          if (Array.isArray(v)) return v.length === 0;
+          return false;
+        })
+        .map((p) => p.name)
+    : [];
+
   const videoFormReady =
     !!selectedVideoModel &&
     selectedVideoModel.is_selectable &&
     videoConstraintResult.ok &&
-    videoMissingMedia.length === 0;
+    videoMissingMedia.length === 0 &&
+    videoMissingParams.length === 0;
 
   // Insert a reference tag (@Image1/@Element1/…) into the shared prompt at the
   // caret, mirroring the @/#/$ insertion grammar.
@@ -1354,11 +1371,14 @@ export default function CreativeSpacePage() {
       return;
     }
     if (!videoFormReady) {
+      const missing = [...videoMissingParams, ...videoMissingMedia];
       const reason =
         videoConstraintResult.errors[0] ||
-        (videoMissingMedia.length > 0
-          ? `Missing required input: ${videoMissingMedia.join(", ")}`
-          : "Complete the form to generate.");
+        (videoMissingParams.includes("prompt")
+          ? "Enter a prompt to generate this video."
+          : missing.length > 0
+            ? `Missing required input: ${missing.join(", ")}`
+            : "Complete the form to generate.");
       toast.error(reason);
       return;
     }
