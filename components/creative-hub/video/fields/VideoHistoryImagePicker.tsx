@@ -1,17 +1,26 @@
 // STO-1854 — "From history" image picker for image-type media roles.
 //
 // Lets the user pick a source image for image_to_video / reference_to_video
-// FROM the script's previz history instead of re-uploading. Reuses the same
-// data source (`getScriptPrevizHistory`) and the ScriptHistoryModal grid shell;
-// filtered to rows with a non-null `image_url` (stills only — never a video).
-// On pick we hand back the already-hosted URL + description; the caller appends
-// it as UploadedMedia with null mime/bytes (no re-upload, payload unchanged).
+// FROM the script's history instead of re-uploading. Uses the SAME data source
+// as the Creative Space "View History" feed — `getScriptPrevisualizations`
+// (/previsualization/list/?script_id=) — so every image visible in View History
+// is pickable here. Filtered to rows with a non-null `image_url` (stills only —
+// never a video). On pick we hand back the already-hosted URL + description; the
+// caller appends it as UploadedMedia with null mime/bytes (no re-upload, payload
+// unchanged).
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { History, X, ImageOff } from "lucide-react";
 import { toast } from "react-toastify";
-import { getScriptPrevizHistory, PrevizHistoryRow } from "@/services/creative-hub";
+import { getScriptPrevisualizations } from "@/services/creative-hub";
 import { extractApiError } from "@/lib/extract-api-error";
+
+/** Minimal shape of a Previsualization row from the script-wide list. */
+interface PrevizRow {
+  id: number;
+  image_url?: string | null;
+  description?: string | null;
+}
 
 interface PickedHistoryImage {
   url: string;
@@ -34,7 +43,7 @@ export default function VideoHistoryImagePicker({
   roleLabel,
   onPick,
 }: VideoHistoryImagePickerProps) {
-  const [rows, setRows] = useState<PrevizHistoryRow[]>([]);
+  const [rows, setRows] = useState<PrevizRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
@@ -44,7 +53,7 @@ export default function VideoHistoryImagePicker({
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Only stills are valid for an image role — never feed a non-image previz.
-  const stills = rows.filter((r) => !!r.previsualization.image_url);
+  const stills = rows.filter((r) => !!r.image_url);
 
   useEffect(() => {
     if (!open) return;
@@ -55,9 +64,9 @@ export default function VideoHistoryImagePicker({
       setPage(1);
       setHasMore(false);
       try {
-        const result = await getScriptPrevizHistory(scriptId, { page: 1 });
+        const result = await getScriptPrevisualizations(scriptId, 1);
         if (cancelled) return;
-        setRows(result.results);
+        setRows((result.results ?? []) as PrevizRow[]);
         setHasMore(!!result.next);
         setPage(1);
       } catch (err) {
@@ -80,9 +89,9 @@ export default function VideoHistoryImagePicker({
     setLoadingMore(true);
     try {
       const next = page + 1;
-      const result = await getScriptPrevizHistory(scriptId, { page: next });
+      const result = await getScriptPrevisualizations(scriptId, next);
       const seen = new Set(rows.map((r) => r.id));
-      const incoming = result.results.filter((r) => !seen.has(r.id));
+      const incoming = ((result.results ?? []) as PrevizRow[]).filter((r) => !seen.has(r.id));
       setRows((prev) => [...prev, ...incoming]);
       setPage(next);
       setHasMore(!!result.next);
@@ -112,10 +121,10 @@ export default function VideoHistoryImagePicker({
     return () => observer.disconnect();
   }, [open, hasMore, rows.length]);
 
-  const handlePick = (row: PrevizHistoryRow) => {
-    const url = row.previsualization.image_url;
+  const handlePick = (row: PrevizRow) => {
+    const url = row.image_url;
     if (!url) return;
-    onPick({ url, description: row.previsualization.description ?? null });
+    onPick({ url, description: row.description ?? null });
     onClose();
   };
 
@@ -176,21 +185,20 @@ export default function VideoHistoryImagePicker({
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {stills.map((row) => {
-                  const previzId = row.previsualization.id;
-                  const desc = row.previsualization.description;
+                  const desc = row.description;
                   return (
                     <button
                       key={row.id}
                       type="button"
                       onClick={() => handlePick(row)}
-                      title={desc ?? `Previz ${previzId}`}
+                      title={desc ?? `Previz ${row.id}`}
                       className="group bg-[var(--background)] border border-[var(--border)] hover:border-emerald-500 rounded-md overflow-hidden flex flex-col text-left transition-colors"
                     >
                       <div className="aspect-video relative bg-black/40">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={row.previsualization.image_url as string}
-                          alt={desc ?? `Previz ${previzId}`}
+                          src={row.image_url as string}
+                          alt={desc ?? `Previz ${row.id}`}
                           loading="lazy"
                           decoding="async"
                           className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
