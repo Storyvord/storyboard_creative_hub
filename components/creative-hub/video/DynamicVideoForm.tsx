@@ -68,6 +68,32 @@ function widgetFor(spec: VideoParamSpec): string {
   }
 }
 
+/**
+ * Layout span for a param so each control is sized to its purpose rather than a
+ * full-width bar. Grid is 2 cols (mobile) / 3 cols (sm+).
+ *  - compact (col-span-1): small box — enum selectors (duration, resolution,
+ *    aspect ratio, shot type), toggles, seed, bare numbers.
+ *  - medium (col-span-2): sliders (need track + readout) and free single-line text.
+ *  - full (col-span-full): textareas, repeatable list editors, opaque path data.
+ */
+function spanFor(spec: VideoParamSpec): string {
+  switch (widgetFor(spec)) {
+    case "textarea":
+    case "list":
+    case "motion_path":
+      return "col-span-full";
+    case "slider":
+    case "text":
+      return "col-span-2";
+    case "select":
+    case "toggle":
+    case "number":
+    case "seed":
+    default:
+      return "col-span-1";
+  }
+}
+
 const MOTION_ROLES = new Set(["image", "video"]);
 
 export default function DynamicVideoForm({
@@ -277,8 +303,20 @@ export default function DynamicVideoForm({
         </div>
       )}
 
-      {/* Declared parameters (rendered via the widget registry) */}
-      {model.parameters.map(renderParam)}
+      {/* Declared parameters — proportional grid. Compact controls (duration,
+          resolution, aspect ratio, seed, toggles) sit in small boxes; long text
+          and repeatable editors span the full row. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-3 items-start">
+        {model.parameters.map((spec) => {
+          const el = renderParam(spec);
+          if (!el) return null;
+          return (
+            <div key={`cell-${spec.name}`} className={spanFor(spec)}>
+              {el}
+            </div>
+          );
+        })}
+      </div>
 
       {/* Kling identity elements */}
       {model.supports_elements && model.max_elements > 0 && (

@@ -43,7 +43,7 @@ export default function NumberSlider({ spec, value, onChange, label }: NumberSli
           step={step}
           value={current}
           onChange={(e) => onChange(isFloat ? parseFloat(e.target.value) : parseInt(e.target.value, 10))}
-          className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer bg-[var(--surface-hover)] accent-emerald-500"
+          className="flex-1 h-1 sm:h-1.5 rounded-full appearance-none cursor-pointer bg-[var(--surface-hover)] accent-emerald-500"
         />
         <span className="text-xs font-mono text-[var(--text-primary)] tabular-nums w-12 text-right">
           {isFloat ? current.toFixed(2) : current}

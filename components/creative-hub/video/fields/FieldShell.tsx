@@ -23,7 +23,7 @@ export default function FieldShell({
     <div className={inline ? "flex items-center justify-between gap-3" : "flex flex-col gap-1"}>
       <label
         htmlFor={htmlFor}
-        className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider"
+        className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider truncate"
       >
         {label}
         {required ? <span className="text-emerald-500 ml-0.5">*</span> : null}

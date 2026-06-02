@@ -12,8 +12,8 @@ interface BoolToggleProps {
 export default function BoolToggle({ label, help, value, onChange, disabled }: BoolToggleProps) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <div className="flex flex-col">
-        <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">
+      <div className="flex flex-col min-w-0 flex-1">
+        <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider truncate">
           {label}
         </span>
         {help ? <span className="text-[10px] text-[var(--text-muted)] leading-snug">{help}</span> : null}

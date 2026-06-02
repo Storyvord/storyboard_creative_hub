@@ -25,7 +25,7 @@ export default function SeedField({ spec, value, onChange, label }: SeedFieldPro
             const v = e.target.value;
             onChange(v === "" ? undefined : parseInt(v, 10));
           }}
-          className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-primary)] px-2 py-1.5 outline-none focus:border-emerald-500/40 transition-colors"
+          className="flex-1 min-w-0 bg-[var(--surface)] border border-[var(--border)] rounded-md text-xs text-[var(--text-primary)] px-2 py-1.5 outline-none focus:border-emerald-500/40 transition-colors"
         />
         <button
           type="button"
