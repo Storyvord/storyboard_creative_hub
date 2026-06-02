@@ -10,7 +10,7 @@
 // "Details" popover listing ALL generation params, the media roles used,
 // elements, and character ids — so a persisted clip is fully self-describing.
 import { useState } from "react";
-import { Loader2, AlertTriangle, Film, Info } from "lucide-react";
+import { Loader2, AlertTriangle, Film, Info, Play } from "lucide-react";
 
 export interface VideoTileItem {
   isGenerating?: boolean;
@@ -73,6 +73,81 @@ function formatParamValue(value: unknown): string {
   return String(value);
 }
 
+// Poster (thumbnail) WITHOUT loading the video or any server-side processing:
+// reuse the clip's own source/start frame. Text-to-video clips have no source
+// image → null → a placeholder is shown instead.
+function posterFromItem(item: VideoTileItem): string | null {
+  if (item.poster) return item.poster;
+  const m = item.media ?? {};
+  for (const role of ["image", "start_image"]) {
+    const url = m[role]?.[0]?.url;
+    if (url) return url;
+  }
+  return null;
+}
+
+// YouTube-style lazy player: shows a poster/placeholder + play button and does
+// NOT mount the <video> (so the browser fetches NO video bytes) until the user
+// clicks play. This is what stops a grid of history videos from all loading at
+// once and stalling image loads.
+function LazyVideo({ item, compact }: { item: VideoTileItem; compact: boolean }) {
+  const [playing, setPlaying] = useState(false);
+  const [posterFailed, setPosterFailed] = useState(false);
+  const poster = posterFromItem(item);
+
+  if (playing) {
+    return (
+      <video
+        src={item.video_url ?? undefined}
+        poster={poster ?? undefined}
+        controls
+        autoPlay
+        playsInline
+        preload="auto"
+        className="w-full h-full object-contain bg-black"
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setPlaying(true);
+      }}
+      className="group relative w-full h-full bg-black flex items-center justify-center overflow-hidden"
+      title="Play video"
+      aria-label="Play video"
+    >
+      {poster && !posterFailed ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={poster}
+          alt={item.prompt || "Video thumbnail"}
+          loading="lazy"
+          decoding="async"
+          onError={() => setPosterFailed(true)}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[var(--surface)] to-black text-[var(--text-muted)]">
+          <Film className={compact ? "w-6 h-6" : "w-10 h-10"} />
+        </div>
+      )}
+      <span className="absolute inset-0 flex items-center justify-center">
+        <span
+          className={`flex items-center justify-center rounded-full bg-black/55 group-hover:bg-emerald-600/85 backdrop-blur transition-colors ${
+            compact ? "w-9 h-9" : "w-12 h-12"
+          }`}
+        >
+          <Play className={`${compact ? "w-4 h-4" : "w-5 h-5"} text-white translate-x-0.5`} fill="currentColor" />
+        </span>
+      </span>
+    </button>
+  );
+}
+
 function VideoBody({
   item,
   compact,
@@ -109,16 +184,7 @@ function VideoBody({
     );
   }
   if (item.video_url) {
-    return (
-      <video
-        src={item.video_url}
-        poster={item.poster ?? undefined}
-        controls
-        playsInline
-        preload="metadata"
-        className="w-full h-full object-contain bg-black"
-      />
-    );
+    return <LazyVideo item={item} compact={compact} />;
   }
   return (
     <div className="text-[var(--text-muted)]">
