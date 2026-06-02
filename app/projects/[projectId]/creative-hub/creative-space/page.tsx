@@ -2128,11 +2128,12 @@ export default function CreativeSpacePage() {
             )}
           </div>
 
-          {/* STO-1854: Video dynamic form + cost panel (above params row).
-              Capped compact (~20vh) and internally scrollable so the video
-              controls never dominate the screen. */}
+          {/* STO-1854: Video dynamic form + cost panel (above params row). The
+              form lays its controls across the width (start/end side by side,
+              selectors filling the row) so it stays compact without scrolling;
+              the max-height is only a safety bound for unusually large models. */}
           {mode === "video" && selectedVideoModel && (
-            <div className="flex flex-col gap-1.5 px-1 max-h-[20vh] overflow-y-auto">
+            <div className="flex flex-col gap-1.5 px-1 max-h-[34vh] overflow-y-auto">
               {!videoConstraintResult.ok && (
                 <div className="text-[10px] text-amber-400 leading-snug">
                   {videoConstraintResult.errors[0]}
