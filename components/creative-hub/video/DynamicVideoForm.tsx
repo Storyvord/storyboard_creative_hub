@@ -293,25 +293,30 @@ export default function DynamicVideoForm({
         />
       )}
 
-      {/* Media-role uploaders — laid out across the width: single-file roles
-          (start/end frame) sit side by side; multi-file roles (R2V image/video/
-          audio) span the full row since they hold several chips. */}
+      {/* Media-role uploaders — laid out across the width. The column count
+          adapts to the number of roles so they sit side by side and stay
+          compact: 2 roles (i2v start/end) → 2 cols; 3+ roles (R2V image/video/
+          audio) → up to 3 cols; each uploader wraps its own chips. */}
       {otherRoles.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2.5 items-start">
+        <div
+          className={`grid gap-x-3 gap-y-2.5 items-start ${
+            otherRoles.length >= 3
+              ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+              : otherRoles.length === 2
+                ? "grid-cols-1 sm:grid-cols-2"
+                : "grid-cols-1"
+          }`}
+        >
           {otherRoles.map((role) => (
-            <div
+            <MediaRoleUploader
               key={`role-${role.role}`}
-              className={(role.max_count ?? 1) > 1 ? "sm:col-span-2" : ""}
-            >
-              <MediaRoleUploader
-                spec={role}
-                scriptId={scriptId}
-                value={mediaRoles[role.role] ?? []}
-                onChange={(files) => setMedia(role.role, files)}
-                tagFor={usesReferenceTags ? tagFor : undefined}
-                onInsertTag={usesReferenceTags ? onInsertTag : undefined}
-              />
-            </div>
+              spec={role}
+              scriptId={scriptId}
+              value={mediaRoles[role.role] ?? []}
+              onChange={(files) => setMedia(role.role, files)}
+              tagFor={usesReferenceTags ? tagFor : undefined}
+              onInsertTag={usesReferenceTags ? onInsertTag : undefined}
+            />
           ))}
         </div>
       )}
