@@ -2128,15 +2128,17 @@ export default function CreativeSpacePage() {
             )}
           </div>
 
-          {/* STO-1854: Video dynamic form + cost panel (above params row) */}
+          {/* STO-1854: Video dynamic form + cost panel (above params row).
+              Capped compact (~20vh) and internally scrollable so the video
+              controls never dominate the screen. */}
           {mode === "video" && selectedVideoModel && (
-            <div className="flex flex-col gap-3 px-1 max-h-[40vh] overflow-y-auto">
+            <div className="flex flex-col gap-1.5 px-1 max-h-[20vh] overflow-y-auto">
               {!videoConstraintResult.ok && (
                 <div className="text-[10px] text-amber-400 leading-snug">
                   {videoConstraintResult.errors[0]}
                 </div>
               )}
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-4 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-2.5 items-start">
                 <DynamicVideoForm
                   model={selectedVideoModel}
                   state={videoFormState}

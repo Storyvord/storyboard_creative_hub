@@ -69,9 +69,15 @@ export function buildGeneratePayload(
   for (const [role, files] of Object.entries(state.mediaRoles)) {
     const mapped = (files || [])
       .filter((f) => f.url)
-      // Keep `previz_id` so the backend re-signs a fresh storage URL at task
-      // time (the captured SAS URL expires); strip local-only preview fields.
-      .map((f) => ({ url: f.url, mime: f.mime, bytes: f.bytes, previz_id: f.previz_id }));
+      // Keep `previz_id`/`video_clip_id` so the backend re-signs a fresh storage
+      // URL at task time (the captured SAS URL expires); strip local-only fields.
+      .map((f) => ({
+        url: f.url,
+        mime: f.mime,
+        bytes: f.bytes,
+        previz_id: f.previz_id,
+        video_clip_id: f.video_clip_id,
+      }));
     if (mapped.length > 0) media[role] = mapped;
   }
 

@@ -11,7 +11,7 @@ import { toast } from "react-toastify";
 import { MediaRoleSpec, UploadedMedia } from "@/types/video";
 import { uploadVideoMedia } from "@/services/video";
 import { extractApiError } from "@/lib/extract-api-error";
-import VideoHistoryImagePicker from "./VideoHistoryImagePicker";
+import VideoHistoryImagePicker, { HistoryMediaKind } from "./VideoHistoryImagePicker";
 
 interface MediaRoleUploaderProps {
   spec: MediaRoleSpec;
@@ -75,8 +75,10 @@ export default function MediaRoleUploader({
   const isMulti = max > 1;
   const label = prettyRole(spec.role);
   const tagName = ROLE_TAG_NAME[spec.role];
-  // "From history" is offered for image roles only (stills); never video/audio.
-  const allowHistory = isImageRole(spec);
+  // "From history" is offered for image roles (stills) and the video role
+  // (generated clips, e.g. reference-to-video) — never audio.
+  const allowHistory = isImageRole(spec) || spec.role === "video";
+  const historyKind: HistoryMediaKind = spec.role === "video" ? "video" : "image";
 
   // Collect every failing rule across the whole batch so we surface ONE
   // consolidated toast instead of one per file/rule. Returns the files that
@@ -144,19 +146,22 @@ export default function MediaRoleUploader({
     url: string;
     description: string | null;
     previzId: number | null;
+    videoClipId: number | null;
   }) => {
     if (!image.url) return;
     if (value.some((m) => m.url === image.url)) {
-      toast.info(`${label}: that image is already added.`);
+      toast.info(`${label}: that item is already added.`);
       return;
     }
     const picked: UploadedMedia = {
       url: image.url,
       mime: undefined,
       bytes: undefined,
-      // Carry the source previz id so the backend re-signs a fresh URL at task
-      // time (the picked SAS URL is short-lived).
+      // Carry the source id so the backend re-signs a fresh URL at task time
+      // (the picked SAS URL is short-lived): previz id for stills, clip id for
+      // generated videos.
       previz_id: image.previzId ?? null,
+      video_clip_id: image.videoClipId ?? null,
       name: image.description ?? undefined,
     };
     onChange(isMulti ? [...value, picked].slice(0, max) : [picked]);
@@ -242,7 +247,7 @@ export default function MediaRoleUploader({
           </button>
         )}
 
-        {/* STO-1854: pick an existing still from history (image roles only). */}
+        {/* STO-1854: pick an existing still/clip from history (image + video roles). */}
         {allowHistory && value.length < max && (
           <button
             type="button"
@@ -278,6 +283,7 @@ export default function MediaRoleUploader({
           open={pickerOpen}
           onClose={() => setPickerOpen(false)}
           scriptId={scriptId}
+          kind={historyKind}
           roleLabel={label}
           onPick={handleHistoryPick}
         />

@@ -177,6 +177,10 @@ export interface UploadedMedia {
    *  (the captured SAS URL is short-lived and would expire on a delayed/retried
    *  generation). */
   previz_id?: number | null;
+  /** Source VideoClip id, when the media is a generated video picked from
+   *  history (reference-to-video / motion-control video role). Same purpose as
+   *  previz_id — lets the backend re-sign a fresh clip URL at task time. */
+  video_clip_id?: number | null;
   /** Local-only fields for the FE preview (stripped before submit). */
   name?: string;
 }

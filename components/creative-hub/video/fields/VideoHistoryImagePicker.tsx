@@ -1,80 +1,110 @@
-// STO-1854 — "From history" image picker for image-type media roles.
+// STO-1854 — "From history" media picker for video form media roles.
 //
-// Lets the user pick a source image for image_to_video / reference_to_video
-// FROM the script's history instead of re-uploading. Uses the SAME data source
-// as the Creative Space "View History" feed — `getScriptPrevisualizations`
-// (/previsualization/list/?script_id=) — so every image visible in View History
-// is pickable here. Filtered to rows with a non-null `image_url` (stills only —
-// never a video). On pick we hand back the already-hosted URL + description; the
-// caller appends it as UploadedMedia with null mime/bytes (no re-upload, payload
-// unchanged).
+// Lets the user pick a source from the script's history instead of re-uploading:
+//   - kind="image" → previz stills via getScriptPrevisualizations (same source
+//     as the Creative Space "View History" feed) — for start/end/image roles.
+//   - kind="video" → generated clips via getScriptVideoClips — for reference /
+//     motion-control video roles.
+// On pick we hand back the already-hosted URL + the source id (previzId for
+// images, videoClipId for videos) so the backend re-signs a FRESH storage URL at
+// task time (the captured SAS URL is short-lived). Per-(script,kind) module
+// cache: reopening renders instantly and only newly-detected rows are appended.
+// Infinite scroll fetches the next page when scrolled to 80% of the list.
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { History, X, ImageOff } from "lucide-react";
 import { toast } from "react-toastify";
 import { getScriptPrevisualizations } from "@/services/creative-hub";
+import { getScriptVideoClips } from "@/services/video";
 import { extractApiError } from "@/lib/extract-api-error";
 
-/** Minimal shape of a Previsualization row from the script-wide list. */
-interface PrevizRow {
+export type HistoryMediaKind = "image" | "video";
+
+/** Unified history row (image still or generated video clip). */
+interface HistoryRow {
   id: number;
-  image_url?: string | null;
-  description?: string | null;
+  url: string | null;
+  label: string | null;
 }
 
-interface PickedHistoryImage {
+export interface PickedHistoryMedia {
   url: string;
   description: string | null;
-  /** Source previz id — lets the backend re-sign a fresh URL at task time. */
+  /** Set for image picks (source previz id). */
   previzId: number | null;
+  /** Set for video picks (source clip id). */
+  videoClipId: number | null;
 }
 
 interface VideoHistoryImagePickerProps {
   open: boolean;
   onClose: () => void;
   scriptId: number;
-  /** Human label for the target role (e.g. "Start frame"). */
+  /** Which history to browse — stills or generated clips. Defaults to image. */
+  kind?: HistoryMediaKind;
+  /** Human label for the target role (e.g. "Start frame", "Reference video"). */
   roleLabel: string;
-  onPick: (image: PickedHistoryImage) => void;
+  onPick: (media: PickedHistoryMedia) => void;
 }
 
-// Module-level cache of loaded history rows per script. Reopening the picker
-// renders from cache instantly (no refetch, no thumbnail re-download), and a
-// background page-1 sync appends ONLY newly-detected rows (delta by id). Thumb
-// SAS URLs are short-lived, so a TTL forces a full URL refresh once it lapses.
-interface HistoryCacheEntry {
-  rows: PrevizRow[];
+interface CacheEntry {
+  rows: HistoryRow[];
   page: number;
   hasMore: boolean;
   ts: number;
 }
-const historyCache = new Map<number, HistoryCacheEntry>();
+// Keyed by `${scriptId}:${kind}` so images and clips cache independently.
+const historyCache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 8 * 60 * 1000;
+
+async function fetchHistoryPage(
+  kind: HistoryMediaKind,
+  scriptId: number,
+  page: number,
+): Promise<{ rows: HistoryRow[]; hasNext: boolean }> {
+  if (kind === "video") {
+    const r = await getScriptVideoClips(scriptId, page);
+    return {
+      rows: (r.results ?? []).map((c) => ({
+        id: c.id,
+        url: c.video_url ?? null,
+        label: c.prompt_detail?.final_prompt ?? c.prompt ?? null,
+      })),
+      hasNext: !!r.next,
+    };
+  }
+  const r = await getScriptPrevisualizations(scriptId, page);
+  return {
+    rows: ((r.results ?? []) as Array<{ id: number; image_url?: string | null; description?: string | null }>).map(
+      (x) => ({ id: x.id, url: x.image_url ?? null, label: x.description ?? null }),
+    ),
+    hasNext: !!r.next,
+  };
+}
 
 export default function VideoHistoryImagePicker({
   open,
   onClose,
   scriptId,
+  kind = "image",
   roleLabel,
   onPick,
 }: VideoHistoryImagePickerProps) {
-  const [rows, setRows] = useState<PrevizRow[]>([]);
+  const [rows, setRows] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
 
   const loadMoreRef = useRef<() => void>(() => {});
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-
-  // Only stills are valid for an image role — never feed a non-image previz.
-  const stills = rows.filter((r) => !!r.image_url);
+  const cacheKey = `${scriptId}:${kind}`;
+  const usable = rows.filter((r) => !!r.url);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
 
-    const cached = historyCache.get(scriptId);
+    const cached = historyCache.get(cacheKey);
     const fresh = !!cached && Date.now() - cached.ts < CACHE_TTL_MS;
 
     if (cached) {
@@ -92,37 +122,25 @@ export default function VideoHistoryImagePicker({
 
     const sync = async () => {
       try {
-        const result = await getScriptPrevisualizations(scriptId, 1);
+        const { rows: incoming, hasNext } = await fetchHistoryPage(kind, scriptId, 1);
         if (cancelled) return;
-        const incoming = (result.results ?? []) as PrevizRow[];
-        const hasNext = !!result.next;
-
         if (fresh && cached) {
-          // Delta: prepend ONLY new rows (id not already cached) so existing
-          // thumbnails keep their browser-cached URLs. TTL (ts) is preserved so
-          // a full URL refresh still happens once it lapses.
+          // Delta: prepend ONLY new rows (id not cached) so existing thumbnails
+          // keep their browser-cached URLs. TTL (ts) preserved for a later refresh.
           const seen = new Set(cached.rows.map((r) => r.id));
           const added = incoming.filter((r) => r.id != null && !seen.has(r.id));
           if (added.length > 0) {
             const merged = [...added, ...cached.rows];
-            historyCache.set(scriptId, { ...cached, rows: merged });
+            historyCache.set(cacheKey, { ...cached, rows: merged });
             setRows(merged);
           }
         } else {
-          // No cache or stale (SAS may have expired) → refresh page 1 fully.
-          historyCache.set(scriptId, {
-            rows: incoming,
-            page: 1,
-            hasMore: hasNext,
-            ts: Date.now(),
-          });
+          historyCache.set(cacheKey, { rows: incoming, page: 1, hasMore: hasNext, ts: Date.now() });
           setRows(incoming);
           setPage(1);
           setHasMore(hasNext);
         }
       } catch (err) {
-        // Non-fatal when we already showed cached rows; only surface a hard
-        // failure on the very first (uncached) load.
         if (!cancelled && !cached) {
           console.error("Failed to fetch script history", err);
           toast.error(extractApiError(err, "Failed to load script history."));
@@ -135,21 +153,19 @@ export default function VideoHistoryImagePicker({
     return () => {
       cancelled = true;
     };
-  }, [open, scriptId]);
+  }, [open, scriptId, kind, cacheKey]);
 
   const loadMore = async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
       const next = page + 1;
-      const result = await getScriptPrevisualizations(scriptId, next);
-      const incoming = (result.results ?? []) as PrevizRow[];
-      const hasNext = !!result.next;
+      const { rows: incoming, hasNext } = await fetchHistoryPage(kind, scriptId, next);
       setRows((prev) => {
         const seen = new Set(prev.map((r) => r.id));
         const merged = [...prev, ...incoming.filter((r) => r.id != null && !seen.has(r.id))];
-        const entry = historyCache.get(scriptId);
-        historyCache.set(scriptId, {
+        const entry = historyCache.get(cacheKey);
+        historyCache.set(cacheKey, {
           rows: merged,
           page: next,
           hasMore: hasNext,
@@ -166,33 +182,31 @@ export default function VideoHistoryImagePicker({
       setLoadingMore(false);
     }
   };
-
   loadMoreRef.current = loadMore;
 
-  useEffect(() => {
-    if (!open) return;
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) loadMoreRef.current();
-        }
-      },
-      { rootMargin: "200px 0px" },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [open, hasMore, rows.length]);
+  // Fetch the next page when scrolled to 80% of the list (before the very end).
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.scrollHeight <= el.clientHeight) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight * 0.8) {
+      loadMoreRef.current();
+    }
+  };
 
-  const handlePick = (row: PrevizRow) => {
-    const url = row.image_url;
-    if (!url) return;
-    onPick({ url, description: row.description ?? null, previzId: row.id ?? null });
+  const handlePick = (row: HistoryRow) => {
+    if (!row.url) return;
+    onPick({
+      url: row.url,
+      description: row.label,
+      previzId: kind === "image" ? row.id : null,
+      videoClipId: kind === "video" ? row.id : null,
+    });
     onClose();
   };
 
   if (!open) return null;
+
+  const emptyLabel = kind === "video" ? "No generated videos on this script yet." : "No images on this script yet.";
 
   return (
     <AnimatePresence>
@@ -216,12 +230,8 @@ export default function VideoHistoryImagePicker({
           <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--border)] bg-[var(--surface)] flex-shrink-0">
             <div className="flex items-center gap-3 min-w-0">
               <History className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-                Pick from history
-              </h2>
-              <span className="text-xs text-[var(--text-muted)] truncate">
-                — using as {roleLabel}
-              </span>
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">Pick from history</h2>
+              <span className="text-xs text-[var(--text-muted)] truncate">— using as {roleLabel}</span>
             </div>
             <button
               type="button"
@@ -234,47 +244,55 @@ export default function VideoHistoryImagePicker({
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-4" onScroll={handleScroll}>
             {loading ? (
               <div className="flex items-center justify-center gap-1 py-16 text-[10px] text-[var(--text-muted)]">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce [animation-delay:-0.3s]" />
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce [animation-delay:-0.15s]" />
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce" />
               </div>
-            ) : stills.length === 0 ? (
+            ) : usable.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center text-[var(--text-muted)] gap-2">
                 <ImageOff className="w-10 h-10 opacity-40" />
-                <p className="text-sm">No images on this script yet.</p>
+                <p className="text-sm">{emptyLabel}</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {stills.map((row) => {
-                  const desc = row.description;
+                {usable.map((row) => {
+                  const label = row.label;
                   return (
                     <button
                       key={row.id}
                       type="button"
                       onClick={() => handlePick(row)}
-                      title={desc ?? `Previz ${row.id}`}
+                      title={label ?? `#${row.id}`}
                       className="group bg-[var(--background)] border border-[var(--border)] hover:border-emerald-500 rounded-md overflow-hidden flex flex-col text-left transition-colors"
                     >
                       <div className="aspect-video relative bg-black/40">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={row.image_url as string}
-                          alt={desc ?? `Previz ${row.id}`}
-                          loading="lazy"
-                          decoding="async"
-                          className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
-                        />
+                        {kind === "video" ? (
+                          <video
+                            src={row.url as string}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                          />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={row.url as string}
+                            alt={label ?? `#${row.id}`}
+                            loading="lazy"
+                            decoding="async"
+                            className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                          />
+                        )}
                         <span className="absolute inset-x-0 bottom-0 px-2 py-1 text-[9px] font-medium text-white bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity text-center">
-                          Use this image
+                          {kind === "video" ? "Use this video" : "Use this image"}
                         </span>
                       </div>
-                      {desc ? (
-                        <p className="p-1.5 text-[9px] text-[var(--text-secondary)] line-clamp-2">
-                          {desc}
-                        </p>
+                      {label ? (
+                        <p className="p-1.5 text-[9px] text-[var(--text-secondary)] line-clamp-2">{label}</p>
                       ) : null}
                     </button>
                   );
@@ -282,11 +300,8 @@ export default function VideoHistoryImagePicker({
               </div>
             )}
 
-            {hasMore && !loading && (
-              <div
-                ref={sentinelRef}
-                className="flex items-center justify-center gap-1 py-4 text-[10px] text-[var(--text-muted)]"
-              >
+            {loadingMore && (
+              <div className="flex items-center justify-center gap-1 py-4 text-[10px] text-[var(--text-muted)]">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce [animation-delay:-0.3s]" />
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce [animation-delay:-0.15s]" />
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce" />
