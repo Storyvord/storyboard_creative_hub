@@ -842,8 +842,11 @@ export default function CreativeSpacePage() {
             }));
         } catch (videoErr) {
           // Video history is additive — a failure here must not break the
-          // image feed. Log and continue with previz rows only.
-          console.error("Failed to fetch video clip history:", videoErr);
+          // image feed. Non-fatal: warn and continue with previz rows only.
+          // NB: a still-rendering clip won't land in `history` when this throws;
+          // the restore pass falls back to `sessionGenerations` so it stays
+          // visible rather than blanking the feed.
+          console.warn("Failed to fetch video clip history (non-fatal):", videoErr);
         }
       }
 
@@ -965,7 +968,13 @@ export default function CreativeSpacePage() {
 
   useEffect(() => {
     if (!scriptId) return;
-    if (history.length === 0) return;
+    // Normally gate on history being populated, but also proceed when an
+    // in-flight session video clip exists — if getScriptVideoClips threw, that
+    // clip is absent from history and would otherwise never get restored.
+    const hasInflightSessionVideo = (sessionGenerations as FeedItem[]).some(
+      (row) => row?.media_type === "video" && !row.video_url && row.isGenerating,
+    );
+    if (history.length === 0 && !hasInflightSessionVideo) return;
     if (restorePrevizScriptIdRef.current === scriptId) return;
     restorePrevizScriptIdRef.current = scriptId;
 
@@ -987,7 +996,19 @@ export default function CreativeSpacePage() {
 
     // STO-1854: in-flight video_clip_generation rows (real clip id, no
     // video_url, "still rendering"). Restored via getLatestVideoTaskStatus.
-    const videoCandidates = history.filter((row) => {
+    //
+    // Fall back to sessionGenerations: if getScriptVideoClips threw (caught,
+    // non-fatal), a still-rendering clip never lands in `history`. Merge in any
+    // session video rows the originating tab still holds (deduped by id) so a
+    // transient fetch error keeps the spinner visible instead of blanking it.
+    const videoSource: FeedItem[] = [...history];
+    const historyIds = new Set(history.map((row) => row.id));
+    for (const row of sessionGenerations as FeedItem[]) {
+      if (row?.media_type === "video" && !historyIds.has(row.id)) {
+        videoSource.push(row);
+      }
+    }
+    const videoCandidates = videoSource.filter((row) => {
       if (row?.media_type !== "video") return false;
       if (typeof row.id !== "number") return false;
       if (row.video_url) return false;
@@ -1143,7 +1164,10 @@ export default function CreativeSpacePage() {
       cancelled = true;
       cancelledRef.current = true;
     };
-  }, [scriptId, history]);
+    // sessionGenerations is read for the in-flight-video fallback; the
+    // restorePrevizScriptIdRef guard above prevents this from re-running per
+    // scriptId, so listing it here is safe and satisfies exhaustive-deps.
+  }, [scriptId, history, sessionGenerations]);
 
   // Maintain scroll position when compiling new older history
   useEffect(() => {
@@ -1457,10 +1481,14 @@ export default function CreativeSpacePage() {
   // we can iterate cleanly. However, if the server ordered them newest-first natively, they should be in 
   // chronological order for the chat interface (oldest at top). Let's sort to guarantee chronological order.
   const chronologicalHistory = [...history].sort((a, b) => {
-    // If temp generating item, id is large date.now(), puts it at end appropriately
-    const idA = a.id ?? 0;
-    const idB = b.id ?? 0;
-    return idA - idB; 
+    // Sort by created_at (ascending — oldest at top, newest at bottom) so the
+    // feed ranks consistently across reloads. Do NOT sort by numeric id: an
+    // optimistic temp tile carries a Date.now() id (~13 digits) while real DB
+    // ids are small auto-increments, so id-sorting would mis-rank a fresh clip
+    // against older persisted rows once the temp id is swapped on reload.
+    const tA = new Date(a.created_at || 0).getTime();
+    const tB = new Date(b.created_at || 0).getTime();
+    return tA - tB;
   });
 
   const groupedHistory = chronologicalHistory.reduce((acc: any, item: any) => {
@@ -1680,7 +1708,7 @@ export default function CreativeSpacePage() {
                   const { w, h } = safeParseRatio(item.aspect_ratio);
 
                   return (
-                    <div key={item.id || idx} className="flex flex-col gap-3 fade-in">
+                    <div key={`${item.media_type === "video" ? "vid" : "img"}-${item.id ?? idx}`} className="flex flex-col gap-3 fade-in">
                       <div className="relative w-full flex items-center justify-center bg-[var(--background)] border border-[var(--border)] rounded-xl overflow-hidden shadow-2xl" style={{ aspectRatio: `${w}/${h}` }}>
                         {item.media_type === "video" ? (
                           /* STO-1854: video clip tile (generating/error/play). */

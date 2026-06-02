@@ -44,6 +44,9 @@ interface VideoTileProps {
 // Pull a human duration (seconds) out of params without trusting the clamped
 // `duration_seconds` column. Accepts `duration`, `duration_seconds`, or
 // `seconds` as a number or numeric string.
+// NB: `params.duration` carries the REAL requested duration; the DB
+// `duration_seconds` column is clamped and display-only — never read it as the
+// source of truth here (doing so would regress real-duration reporting).
 function durationFromParams(params?: Record<string, unknown> | null): string | null {
   if (!params) return null;
   for (const key of ["duration", "duration_seconds", "seconds"]) {
