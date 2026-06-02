@@ -55,21 +55,25 @@ export default function MotionControlDualInput({
           />
         )}
       </div>
-      {orientationSpec && (
-        <EnumSelect
-          spec={orientationSpec}
-          label="Character orientation"
-          value={values[orientationSpec.name] as string | number | undefined}
-          onChange={(v) => onValueChange(orientationSpec.name, v)}
-        />
-      )}
-      {keepSoundSpec && (
-        <BoolToggle
-          label="Keep original sound"
-          help={keepSoundSpec.help}
-          value={Boolean(values[keepSoundSpec.name])}
-          onChange={(v) => onValueChange(keepSoundSpec.name, v)}
-        />
+      {(orientationSpec || keepSoundSpec) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2.5 items-center">
+          {orientationSpec && (
+            <EnumSelect
+              spec={orientationSpec}
+              label="Character orientation"
+              value={values[orientationSpec.name] as string | number | undefined}
+              onChange={(v) => onValueChange(orientationSpec.name, v)}
+            />
+          )}
+          {keepSoundSpec && (
+            <BoolToggle
+              label="Keep original sound"
+              help={keepSoundSpec.help}
+              value={Boolean(values[keepSoundSpec.name])}
+              onChange={(v) => onValueChange(keepSoundSpec.name, v)}
+            />
+          )}
+        </div>
       )}
     </div>
   );
