@@ -43,7 +43,18 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
   const params = useParams();
   const projectId = params.projectId as string;
   const { theme, toggleTheme } = useTheme();
-  const [collapsed, setCollapsed] = useState(false);
+  const isCreativeSpace = !!pathname?.includes("/creative-hub/creative-space");
+  // The Creative Space is a canvas that needs the room, so default the nav to
+  // collapsed there and expanded elsewhere. Seeded from the initial route (so a
+  // direct load starts correct) and re-applied on route change via the
+  // adjust-state-during-render pattern below — without fighting manual toggles
+  // within a page.
+  const [collapsed, setCollapsed] = useState(isCreativeSpace);
+  const [navPathname, setNavPathname] = useState(pathname);
+  if (pathname !== navPathname) {
+    setNavPathname(pathname);
+    setCollapsed(isCreativeSpace);
+  }
   const [projectName, setProjectName] = useState<string>("");
   const [tourVisible, setTourVisible] = useState(false);
 

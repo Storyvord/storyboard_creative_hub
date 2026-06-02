@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, Send, LayoutPanelTop, MonitorPlay, AlertTriangle, User, MapPin, History, Paperclip, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Send, LayoutPanelTop, MonitorPlay, AlertTriangle, User, MapPin, History, Paperclip, X, ChevronDown, ChevronUp, GitCompare } from "lucide-react";
 import { useParams } from "next/navigation";
 import {
   getScripts,
@@ -34,6 +34,8 @@ import { useVideoCatalog } from "@/hooks/useVideoCatalog";
 import { useVideoCostPreflight } from "@/hooks/useVideoCostPreflight";
 import { generateVideoClip, getVideoClip, getLatestVideoTaskStatus, getScriptVideoClips } from "@/services/video";
 import { VideoModel, VideoClip } from "@/types/video";
+import RetryingImage from "@/components/creative-hub/RetryingImage";
+import PrevizCompareView from "@/components/creative-hub/PrevizCompareView";
 import VideoModelSelector from "@/components/creative-hub/video/VideoModelSelector";
 import DynamicVideoForm from "@/components/creative-hub/video/DynamicVideoForm";
 import VideoCostPreflightPanel from "@/components/creative-hub/video/VideoCostPreflightPanel";
@@ -688,6 +690,10 @@ export default function CreativeSpacePage() {
 
   // View toggle state
   const [showHistory, setShowHistory] = useState(false);
+
+  // Compare mode — side-by-side of generated images from the script's history
+  // (read-only; no single "active" previz in the Creative Space).
+  const [compareOpen, setCompareOpen] = useState(false);
 
   // History state
   const [history, setHistory] = useState<any[]>([]);
@@ -1558,6 +1564,26 @@ export default function CreativeSpacePage() {
     return acc;
   }, {} as Record<string, any[]>);
 
+  // Completed images from the script-wide history feed, shaped for the compare
+  // view (videos are excluded — compare is image side-by-side).
+  const compareList = history
+    .filter((h) => h.media_type !== "video" && h.image_url && !h.isGenerating && !h.isError)
+    .map((h) => ({
+      id: h.id,
+      image_url: h.image_url,
+      created_at: h.created_at,
+      aspect_ratio: h.aspect_ratio ?? null,
+      added_by: h.added_by ?? null,
+    }));
+
+  const handleOpenCompare = () => {
+    // Ensure the script-wide history is loaded so there's something to compare.
+    if (scriptId && history.length === 0 && hasMoreHistory) {
+      fetchHistory(scriptId, 1, true);
+    }
+    setCompareOpen(true);
+  };
+
   return (
     <div className="relative flex flex-col h-full bg-[var(--background)] overflow-hidden">
 
@@ -1573,28 +1599,38 @@ export default function CreativeSpacePage() {
             <span className="text-sky-500 font-medium">#locations</span> to include reference images.
           </p>
         </div>
-        <button
-          onClick={() => {
-            // Trigger fetch dynamically when opening history view if we haven't yet
-            if (!showHistory && scriptId && history.length === 0 && hasMoreHistory) {
-              fetchHistory(scriptId, 1, true);
-            }
-            setShowHistory(!showHistory);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-[var(--surface-hover)] hover:bg-[var(--border)] border border-[var(--border-hover)] rounded-md text-sm text-white transition-colors"
-        >
-          {showHistory ? (
-            <>
-              <MonitorPlay className="w-4 h-4" />
-              <span>Back to Generator</span>
-            </>
-          ) : (
-            <>
-              <History className="w-4 h-4" />
-              <span>View History</span>
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleOpenCompare}
+            title="Compare generated images side-by-side"
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--surface-hover)] hover:bg-[var(--border)] border border-[var(--border-hover)] rounded-md text-sm text-white transition-colors"
+          >
+            <GitCompare className="w-4 h-4" />
+            <span>Compare</span>
+          </button>
+          <button
+            onClick={() => {
+              // Trigger fetch dynamically when opening history view if we haven't yet
+              if (!showHistory && scriptId && history.length === 0 && hasMoreHistory) {
+                fetchHistory(scriptId, 1, true);
+              }
+              setShowHistory(!showHistory);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--surface-hover)] hover:bg-[var(--border)] border border-[var(--border-hover)] rounded-md text-sm text-white transition-colors"
+          >
+            {showHistory ? (
+              <>
+                <MonitorPlay className="w-4 h-4" />
+                <span>Back to Generator</span>
+              </>
+            ) : (
+              <>
+                <History className="w-4 h-4" />
+                <span>View History</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Scrollable history grid */}
@@ -1666,7 +1702,7 @@ export default function CreativeSpacePage() {
                               <p className="text-red-400 text-[10px] leading-relaxed line-clamp-3" title={item.errorMessage}>{item.errorMessage}</p>
                             </div>
                           ) : item.image_url ? (
-                            <img src={item.image_url} alt="Generated Previz" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            <RetryingImage src={item.image_url} alt="Generated Previz" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                           ) : (
                             <div className="text-[var(--text-muted)]"><MonitorPlay className="w-6 h-6" /></div>
                           )}
@@ -1775,7 +1811,7 @@ export default function CreativeSpacePage() {
                             <p className="text-red-400 text-xs leading-relaxed">{item.errorMessage}</p>
                           </div>
                         ) : item.image_url ? (
-                          <img src={item.image_url} alt="Generated Previz" className="w-full h-full object-contain" />
+                          <RetryingImage src={item.image_url} alt="Generated Previz" className="w-full h-full object-contain" />
                         ) : null}
                       </div>
                       <div className="px-2">
@@ -2238,6 +2274,16 @@ export default function CreativeSpacePage() {
         selectedSlug={selectedVideoModel?.slug ?? null}
         onConfirm={onPickVideoModel}
       />
+
+      {/* Compare mode — read-only side-by-side of the script's generated images. */}
+      {compareOpen && (
+        <PrevizCompareView
+          previzList={compareList}
+          activePrevizId={null}
+          subjectLabel="Creative Space"
+          onClose={() => setCompareOpen(false)}
+        />
+      )}
     </div>
   );
 }
