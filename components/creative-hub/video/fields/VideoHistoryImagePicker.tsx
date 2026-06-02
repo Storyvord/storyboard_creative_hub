@@ -38,6 +38,19 @@ interface VideoHistoryImagePickerProps {
   onPick: (image: PickedHistoryImage) => void;
 }
 
+// Module-level cache of loaded history rows per script. Reopening the picker
+// renders from cache instantly (no refetch, no thumbnail re-download), and a
+// background page-1 sync appends ONLY newly-detected rows (delta by id). Thumb
+// SAS URLs are short-lived, so a TTL forces a full URL refresh once it lapses.
+interface HistoryCacheEntry {
+  rows: PrevizRow[];
+  page: number;
+  hasMore: boolean;
+  ts: number;
+}
+const historyCache = new Map<number, HistoryCacheEntry>();
+const CACHE_TTL_MS = 8 * 60 * 1000;
+
 export default function VideoHistoryImagePicker({
   open,
   onClose,
@@ -60,19 +73,57 @@ export default function VideoHistoryImagePicker({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    const load = async () => {
-      setLoading(true);
+
+    const cached = historyCache.get(scriptId);
+    const fresh = !!cached && Date.now() - cached.ts < CACHE_TTL_MS;
+
+    if (cached) {
+      // Render cached rows instantly — no flash, no thumbnail re-download.
+      setRows(cached.rows);
+      setPage(cached.page);
+      setHasMore(cached.hasMore);
+      setLoading(false);
+    } else {
       setRows([]);
       setPage(1);
       setHasMore(false);
+      setLoading(true);
+    }
+
+    const sync = async () => {
       try {
         const result = await getScriptPrevisualizations(scriptId, 1);
         if (cancelled) return;
-        setRows((result.results ?? []) as PrevizRow[]);
-        setHasMore(!!result.next);
-        setPage(1);
+        const incoming = (result.results ?? []) as PrevizRow[];
+        const hasNext = !!result.next;
+
+        if (fresh && cached) {
+          // Delta: prepend ONLY new rows (id not already cached) so existing
+          // thumbnails keep their browser-cached URLs. TTL (ts) is preserved so
+          // a full URL refresh still happens once it lapses.
+          const seen = new Set(cached.rows.map((r) => r.id));
+          const added = incoming.filter((r) => r.id != null && !seen.has(r.id));
+          if (added.length > 0) {
+            const merged = [...added, ...cached.rows];
+            historyCache.set(scriptId, { ...cached, rows: merged });
+            setRows(merged);
+          }
+        } else {
+          // No cache or stale (SAS may have expired) → refresh page 1 fully.
+          historyCache.set(scriptId, {
+            rows: incoming,
+            page: 1,
+            hasMore: hasNext,
+            ts: Date.now(),
+          });
+          setRows(incoming);
+          setPage(1);
+          setHasMore(hasNext);
+        }
       } catch (err) {
-        if (!cancelled) {
+        // Non-fatal when we already showed cached rows; only surface a hard
+        // failure on the very first (uncached) load.
+        if (!cancelled && !cached) {
           console.error("Failed to fetch script history", err);
           toast.error(extractApiError(err, "Failed to load script history."));
         }
@@ -80,7 +131,7 @@ export default function VideoHistoryImagePicker({
         if (!cancelled) setLoading(false);
       }
     };
-    load();
+    sync();
     return () => {
       cancelled = true;
     };
@@ -92,11 +143,22 @@ export default function VideoHistoryImagePicker({
     try {
       const next = page + 1;
       const result = await getScriptPrevisualizations(scriptId, next);
-      const seen = new Set(rows.map((r) => r.id));
-      const incoming = ((result.results ?? []) as PrevizRow[]).filter((r) => !seen.has(r.id));
-      setRows((prev) => [...prev, ...incoming]);
+      const incoming = (result.results ?? []) as PrevizRow[];
+      const hasNext = !!result.next;
+      setRows((prev) => {
+        const seen = new Set(prev.map((r) => r.id));
+        const merged = [...prev, ...incoming.filter((r) => r.id != null && !seen.has(r.id))];
+        const entry = historyCache.get(scriptId);
+        historyCache.set(scriptId, {
+          rows: merged,
+          page: next,
+          hasMore: hasNext,
+          ts: entry?.ts ?? Date.now(),
+        });
+        return merged;
+      });
       setPage(next);
-      setHasMore(!!result.next);
+      setHasMore(hasNext);
     } catch (err) {
       console.error("Failed to load more script history", err);
       toast.error(extractApiError(err, "Failed to load more."));
