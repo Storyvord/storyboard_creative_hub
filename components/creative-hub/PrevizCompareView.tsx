@@ -27,12 +27,15 @@ const displayAuthor = (
 };
 
 interface PrevizCompareViewProps {
-  subjectId: number;
+  subjectId?: number;
   subjectLabel?: string;
   previzList: PrevizItem[];
-  activePrevizId: number | null | undefined;
+  activePrevizId?: number | null | undefined;
   onClose: () => void;
-  onSetActive: (previzId: number) => Promise<void>;
+  /** Optional — sets the subject's active previz. When omitted (e.g. the
+   *  Creative Space, which has no single active previz), the view is a read-only
+   *  side-by-side compare and the "Set as Active" control is hidden. */
+  onSetActive?: (previzId: number) => Promise<void>;
 }
 
 export default function PrevizCompareView({
@@ -73,6 +76,7 @@ export default function PrevizCompareView({
   };
 
   const handleSetActive = async (previzId: number) => {
+    if (!onSetActive) return;
     setSettingActiveId(previzId);
     try {
       await onSetActive(previzId);
@@ -254,18 +258,20 @@ export default function PrevizCompareView({
                             </p>
                           )}
                         </div>
-                        <button
-                          onClick={() => handleSetActive(previz.id)}
-                          disabled={isActive || isSettingActive}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-3 py-1.5 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap flex-shrink-0"
-                        >
-                          {isSettingActive ? (
-                            <div className="animate-spin rounded-full h-3 w-3 border-2 border-white/30 border-t-white" />
-                          ) : isActive ? (
-                            <Check className="w-3 h-3" strokeWidth={3} />
-                          ) : null}
-                          {isActive ? "Active" : isSettingActive ? "Setting..." : "Set as Active"}
-                        </button>
+                        {onSetActive && (
+                          <button
+                            onClick={() => handleSetActive(previz.id)}
+                            disabled={isActive || isSettingActive}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-3 py-1.5 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap flex-shrink-0"
+                          >
+                            {isSettingActive ? (
+                              <div className="animate-spin rounded-full h-3 w-3 border-2 border-white/30 border-t-white" />
+                            ) : isActive ? (
+                              <Check className="w-3 h-3" strokeWidth={3} />
+                            ) : null}
+                            {isActive ? "Active" : isSettingActive ? "Setting..." : "Set as Active"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
