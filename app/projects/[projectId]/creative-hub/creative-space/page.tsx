@@ -27,6 +27,7 @@ import CameraAngleSelector from "@/components/creative-hub/CameraAngleSelector";
 import ShotTypeSelector from "@/components/creative-hub/ShotTypeSelector";
 import { toast } from "react-toastify";
 import { extractApiError } from "@/lib/extract-api-error";
+import { MASONRY_COLS } from "@/lib/history-gallery";
 // STO-1854: schema-driven Video mode.
 import { Film } from "lucide-react";
 import { useUserInfo } from "@/hooks/useUserInfo";
@@ -1665,20 +1666,15 @@ export default function CreativeSpacePage() {
                   <div className="h-px bg-[var(--surface-hover)] flex-1"></div>
                 </div>
 
-                <div className="flex flex-wrap gap-3">
+                <div className={MASONRY_COLS}>
                   {(items as any[]).map((item: any, idx: number) => {
                     const { w, h } = safeParseRatio(item.aspect_ratio);
-                    const ratio = Math.max(0.5, Math.min(w / h, 3));
 
                     return (
                       <div
                         key={`${item.media_type === "video" ? "vid" : "img"}-${item.id ?? idx}`}
-                        className="bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden flex flex-col group relative"
-                        style={{
-                          flexGrow: ratio,
-                          flexBasis: `${ratio * 120}px`,
-                          maxWidth: '100%'
-                        }}
+                        title={item.description || item.prompt || undefined}
+                        className="mb-3 break-inside-avoid bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden flex flex-col group relative"
                       >
                         {item.media_type === "video" ? (
                           /* STO-1854: self-contained video tile — owns its
@@ -1753,31 +1749,11 @@ export default function CreativeSpacePage() {
                             )}
                           </div>
                         </div>
-
-                        {/* Bottom Info area */}
-                        <div className="p-2 flex flex-col border-t border-[var(--border)] h-[72px] flex-shrink-0">
-                          <p className="text-[10px] text-[#ccc] line-clamp-2" title={item.description || item.prompt}>
-                            {item.description || item.prompt}
-                          </p>
-
-                          <div className="flex flex-wrap gap-1 mt-auto overflow-hidden">
-                            <span className="text-[8px] bg-[var(--surface-hover)] px-1 py-0.5 rounded text-[var(--text-secondary)] font-mono whitespace-nowrap">
-                              {item.aspect_ratio || "16:9"}
-                            </span>
-                            {item.shot_type && (
-                              <span className="text-[8px] bg-[var(--surface-hover)] px-1 py-0.5 rounded text-[var(--text-secondary)] truncate max-w-[80px]">
-                                {item.shot_type}
-                              </span>
-                            )}
-                          </div>
-                        </div>
                         </>
                         )}
                       </div>
                     );
                   })}
-                  {/* Dummy element to prevent the last row from stretching heavily if incomplete */}
-                  <div className="flex-grow-[10]"></div>
                 </div>
               </div>
             ))

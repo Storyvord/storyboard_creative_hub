@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { History, X, ImageOff, User, Clock } from "lucide-react";
+import { History, X, ImageOff, Check } from "lucide-react";
 import { toast } from "react-toastify";
 import {
-    getScriptPrevizHistory,
+    getScriptPrevisualizations,
     setActiveSubjectPreviz,
-    PrevizHistoryRow,
     PrevizSubjectKind,
 } from "@/services/creative-hub";
 import { extractApiError } from "@/lib/extract-api-error";
+import {
+    MASONRY_COLS,
+    parseAspectRatio,
+    isReferencePreviz,
+    groupByDay,
+} from "@/lib/history-gallery";
 
 interface ScriptHistoryModalProps {
     open: boolean;
@@ -20,9 +25,8 @@ interface ScriptHistoryModalProps {
      * button copy: "Set as Active for <label>"). Falls back to a generic
      * kind label when omitted. */
     currentSubjectLabel?: string;
-    /** Currently-active previz id on the parent page. Rows whose
-     * `previsualization.id` matches this are rendered as already-applied
-     * and their apply button is disabled. */
+    /** Currently-active previz id on the parent page. The matching tile is
+     * rendered as already-applied and its action button is disabled. */
     currentActivePrevizId?: number | null;
     /** Bumped on the parent so the per-subject strip can refetch. */
     onApplied?: () => void;
@@ -35,55 +39,27 @@ const KIND_LABEL: Record<PrevizSubjectKind, string> = {
     shot: "shot",
 };
 
-// Mirror PrevizHistorySection's author resolver — prefer name, fall back to
-// email's local-part so the UI doesn't leak full addresses for unconfigured
-// accounts.
-const displayAuthor = (
-    addedBy: { name?: string | null; email?: string | null } | null | undefined,
-): string | null => {
-    if (!addedBy) return null;
-    const name = addedBy.name?.trim();
-    const email = addedBy.email?.trim();
-    if (name && name !== email) return name;
-    if (email) return email.split("@")[0];
-    return null;
-};
+// Flat previz row from the whole-script previz list — the same source the
+// Creative Space "View History" feed uses, so Creative Space generations
+// (which have no Character/Location/Shot subject) appear here too.
+interface PrevizRow {
+    id: number;
+    image_url: string | null;
+    aspect_ratio: string | null;
+    created_at: string;
+    description: string | null;
+    notes: string | null;
+}
 
-// Produce a small badge string from the backend's `subject_summary` payload
-// (shape varies by subject_type — see PrevizHistorySerializer.get_subject_summary).
-const summarizeSubject = (row: PrevizHistoryRow): string => {
-    const s = row.subject_summary || {};
-    const subjectType = row.subject_type;
-    if (subjectType === "character") {
-        const name = s["name"];
-        return `Character: ${typeof name === "string" && name ? name : "—"}`;
-    }
-    if (subjectType === "location") {
-        const name = s["name"];
-        return `Location: ${typeof name === "string" && name ? name : "—"}`;
-    }
-    if (subjectType === "scene_character") {
-        const order = s["scene_order"];
-        const charName = s["character_name"];
-        const orderStr =
-            typeof order === "number" ? String(order).padStart(2, "0") : "—";
-        const charLabel =
-            typeof charName === "string" && charName ? charName : "scene look";
-        return `Scene ${orderStr} — ${charLabel}`;
-    }
-    if (subjectType === "shot") {
-        const sceneOrder = s["scene_order"];
-        const shotOrder = s["shot_order"];
-        const so =
-            typeof sceneOrder === "number"
-                ? String(sceneOrder).padStart(2, "0")
-                : "—";
-        const sh =
-            typeof shotOrder === "number" ? String(shotOrder) : "—";
-        return `Shot ${sh} (Scene ${so})`;
-    }
-    return subjectType || "Unknown";
-};
+const mapRow = (x: Record<string, unknown>): PrevizRow => ({
+    id: Number(x.id),
+    image_url: (x.image_url as string | null) ?? null,
+    aspect_ratio: (x.aspect_ratio as string | null) ?? null,
+    created_at: (x.created_at as string) ?? "",
+    description:
+        (x.description as string | null) ?? (x.prompt as string | null) ?? null,
+    notes: (x.notes as string | null) ?? null,
+});
 
 export default function ScriptHistoryModal({
     open,
@@ -95,7 +71,7 @@ export default function ScriptHistoryModal({
     currentActivePrevizId,
     onApplied,
 }: ScriptHistoryModalProps) {
-    const [rows, setRows] = useState<PrevizHistoryRow[]>([]);
+    const [rows, setRows] = useState<PrevizRow[]>([]);
     const [loading, setLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
     const [page, setPage] = useState(1);
@@ -119,9 +95,9 @@ export default function ScriptHistoryModal({
             setPage(1);
             setHasMore(false);
             try {
-                const result = await getScriptPrevizHistory(scriptId, { page: 1 });
+                const result = await getScriptPrevisualizations(scriptId, 1);
                 if (cancelled) return;
-                setRows(result.results);
+                setRows(result.results.map(mapRow));
                 setHasMore(!!result.next);
                 setPage(1);
             } catch (err) {
@@ -144,10 +120,12 @@ export default function ScriptHistoryModal({
         setLoadingMore(true);
         try {
             const next = page + 1;
-            const result = await getScriptPrevizHistory(scriptId, { page: next });
+            const result = await getScriptPrevisualizations(scriptId, next);
             // De-dupe in case rows shifted between fetches.
             const seen = new Set(rows.map((r) => r.id));
-            const incoming = result.results.filter((r) => !seen.has(r.id));
+            const incoming = result.results
+                .map(mapRow)
+                .filter((r) => !seen.has(r.id));
             setRows((prev) => [...prev, ...incoming]);
             setPage(next);
             setHasMore(!!result.next);
@@ -181,14 +159,11 @@ export default function ScriptHistoryModal({
         return () => observer.disconnect();
     }, [open, hasMore, rows.length]);
 
-    const handleApply = async (row: PrevizHistoryRow) => {
-        setSettingId(row.previsualization.id);
+    const handleApply = async (row: PrevizRow) => {
+        if (row.id === currentActivePrevizId) return;
+        setSettingId(row.id);
         try {
-            await setActiveSubjectPreviz(
-                currentKind,
-                currentSubjectId,
-                row.previsualization.id,
-            );
+            await setActiveSubjectPreviz(currentKind, currentSubjectId, row.id);
             toast.success("Active image updated");
             onApplied?.();
         } catch (err) {
@@ -206,6 +181,10 @@ export default function ScriptHistoryModal({
 
     if (!open) return null;
 
+    // Only tiles with a rendered image; grouped by day (newest day first).
+    const withImages = rows.filter((r) => !!r.image_url);
+    const groups = groupByDay(withImages, (r) => r.created_at);
+
     return (
         <AnimatePresence>
             <motion.div
@@ -221,21 +200,19 @@ export default function ScriptHistoryModal({
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.98, y: 8 }}
                     transition={{ duration: 0.15 }}
-                    className="bg-[var(--surface)] border border-[var(--border)] rounded-xl w-full max-w-5xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden"
+                    className="bg-[var(--surface)] border border-[var(--border)] rounded-xl w-full max-w-6xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden"
                     onClick={(e) => e.stopPropagation()}
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--border)] bg-[var(--surface)] flex-shrink-0">
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
                             <History className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                            <h2 className="text-sm font-semibold text-[var(--text-primary)] truncate">
                                 Script Generation History
                             </h2>
-                            {currentSubjectLabel && (
-                                <span className="text-xs text-[var(--text-muted)] truncate">
-                                    — applying to {currentSubjectLabel}
-                                </span>
-                            )}
+                            <span className="text-[11px] text-[var(--text-muted)] truncate">
+                                — every previz on this script
+                            </span>
                         </div>
                         <button
                             type="button"
@@ -255,102 +232,38 @@ export default function ScriptHistoryModal({
                                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce [animation-delay:-0.15s]" />
                                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce" />
                             </div>
-                        ) : rows.length === 0 ? (
+                        ) : withImages.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-20 text-center text-[var(--text-muted)] gap-2">
                                 <ImageOff className="w-10 h-10 opacity-40" />
                                 <p className="text-sm">No previz on this script yet.</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {rows.map((row) => {
-                                    const previzId = row.previsualization.id;
-                                    const isActive =
-                                        currentActivePrevizId != null &&
-                                        previzId === currentActivePrevizId;
-                                    const isSetting = settingId === previzId;
-                                    const author = displayAuthor(row.added_by);
-                                    const subjectBadge = summarizeSubject(row);
-                                    const created = new Date(row.created_at);
-                                    return (
-                                        <div
-                                            key={row.id}
-                                            className={`bg-[var(--background)] border rounded-md overflow-hidden flex flex-col ${
-                                                isActive
-                                                    ? "border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
-                                                    : "border-[var(--border)]"
-                                            }`}
-                                        >
-                                            <div className="aspect-video relative bg-black/40">
-                                                {row.previsualization.image_url ? (
-                                                    <img
-                                                        src={row.previsualization.image_url}
-                                                        alt={`Previz ${previzId}`}
-                                                        loading="lazy"
-                                                        decoding="async"
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                ) : (
-                                                    <div className="absolute inset-0 flex items-center justify-center text-[var(--text-muted)]">
-                                                        <ImageOff className="w-5 h-5 opacity-50" />
-                                                    </div>
-                                                )}
-                                                <span className="absolute top-1.5 left-1.5 text-[8px] font-semibold uppercase tracking-wider bg-black/70 backdrop-blur-sm border border-[var(--border)] text-[var(--text-secondary)] px-1.5 py-0.5 rounded max-w-[90%] truncate">
-                                                    {subjectBadge}
-                                                </span>
-                                                {isActive && (
-                                                    <span className="absolute top-1.5 right-1.5 text-[8px] font-bold uppercase bg-emerald-500 text-black px-1.5 py-0.5 rounded shadow">
-                                                        Active
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="p-2.5 border-t border-[var(--border)] flex flex-col gap-2">
-                                                <button
-                                                    type="button"
-                                                    disabled={isActive || isSetting}
-                                                    onClick={() => handleApply(row)}
-                                                    className={`w-full text-[10px] px-2 py-1.5 rounded font-medium transition-colors flex items-center justify-center gap-1 ${
-                                                        isActive
-                                                            ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 cursor-default"
-                                                            : "bg-emerald-600 hover:bg-emerald-500 text-white"
-                                                    } disabled:opacity-70`}
-                                                >
-                                                    {isSetting && (
-                                                        <span className="inline-block w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                                    )}
-                                                    {isActive
-                                                        ? "Currently Active"
-                                                        : isSetting
-                                                          ? "Setting…"
-                                                          : applyLabel}
-                                                </button>
-                                                <div className="flex items-center justify-between gap-2 text-[9px] text-[var(--text-muted)]">
-                                                    {author ? (
-                                                        <div className="flex items-center gap-1 min-w-0">
-                                                            <User className="w-3 h-3 text-emerald-500/80 flex-shrink-0" />
-                                                            <span className="truncate" title={author}>
-                                                                {author}
-                                                            </span>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex items-center gap-1 text-[var(--text-muted)]">
-                                                            <User className="w-3 h-3" />
-                                                            <span>API Generated</span>
-                                                        </div>
-                                                    )}
-                                                    <span className="flex items-center gap-1 flex-shrink-0">
-                                                        <Clock className="w-3 h-3" />
-                                                        {created.toLocaleDateString()}
-                                                    </span>
-                                                </div>
-                                                {row.notes && (
-                                                    <p className="text-[9px] text-[var(--text-secondary)] italic line-clamp-2">
-                                                        {row.notes}
-                                                    </p>
-                                                )}
-                                            </div>
+                            <div className="flex flex-col gap-8">
+                                {groups.map((group) => (
+                                    <section key={group.label}>
+                                        <div className="mb-3 flex items-center gap-4">
+                                            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
+                                                {group.label}
+                                            </span>
+                                            <div className="h-px flex-1 bg-[var(--border)]" />
                                         </div>
-                                    );
-                                })}
+                                        <div className={MASONRY_COLS}>
+                                            {group.items.map((row) => (
+                                                <HistoryTile
+                                                    key={row.id}
+                                                    row={row}
+                                                    isActive={
+                                                        currentActivePrevizId != null &&
+                                                        row.id === currentActivePrevizId
+                                                    }
+                                                    isSetting={settingId === row.id}
+                                                    applyLabel={applyLabel}
+                                                    onApply={() => handleApply(row)}
+                                                />
+                                            ))}
+                                        </div>
+                                    </section>
+                                ))}
                             </div>
                         )}
 
@@ -368,5 +281,93 @@ export default function ScriptHistoryModal({
                 </motion.div>
             </motion.div>
         </AnimatePresence>
+    );
+}
+
+// A single masonry tile — just the image at its natural aspect ratio, with a
+// hover "Set as Active" action. No author / created-date / subject footer.
+function HistoryTile({
+    row,
+    isActive,
+    isSetting,
+    applyLabel,
+    onApply,
+}: {
+    row: PrevizRow;
+    isActive: boolean;
+    isSetting: boolean;
+    applyLabel: string;
+    onApply: () => void;
+}) {
+    const { w, h } = parseAspectRatio(row.aspect_ratio);
+    // Start from the declared ratio (placeholder to avoid load jank), then
+    // correct to the natural dimensions on load so each tile renders at its
+    // true aspect ratio with no letterbox.
+    const [ratio, setRatio] = useState(w / h);
+    const isRef = isReferencePreviz(row);
+
+    return (
+        <div
+            style={{ aspectRatio: ratio }}
+            title={row.description ?? undefined}
+            className={
+                "group relative mb-3 block w-full break-inside-avoid overflow-hidden rounded-md border bg-[var(--background)] transition-colors " +
+                (isActive
+                    ? "border-emerald-500 ring-2 ring-emerald-500/30"
+                    : "border-[var(--border)] hover:border-emerald-500/50")
+            }
+        >
+            {row.image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                    src={row.image_url}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    onLoad={(e) => {
+                        const t = e.currentTarget;
+                        if (t.naturalWidth > 0 && t.naturalHeight > 0)
+                            setRatio(t.naturalWidth / t.naturalHeight);
+                    }}
+                    className="h-full w-full object-cover"
+                />
+            ) : (
+                <div className="flex h-full w-full items-center justify-center text-[var(--text-muted)]">
+                    <ImageOff className="w-5 h-5 opacity-50" />
+                </div>
+            )}
+
+            {isRef && (
+                <span className="absolute left-1.5 bottom-1.5 z-10 text-[8px] font-bold uppercase bg-blue-500 text-white px-1.5 py-0.5 rounded shadow">
+                    Reference
+                </span>
+            )}
+            {isActive && (
+                <span className="absolute left-1.5 top-1.5 z-10 flex items-center gap-1 text-[8px] font-bold uppercase bg-emerald-500 text-black px-1.5 py-0.5 rounded shadow">
+                    <Check className="w-2.5 h-2.5" strokeWidth={3} />
+                    Active
+                </span>
+            )}
+
+            {/* Hover action — set this image as the subject's active previz. */}
+            <div
+                className={
+                    "absolute inset-x-0 bottom-0 flex items-end justify-center p-2 bg-gradient-to-t from-black/80 to-transparent transition-opacity " +
+                    (isActive ? "opacity-0" : "opacity-0 group-hover:opacity-100")
+                }
+            >
+                <button
+                    type="button"
+                    disabled={isActive || isSetting}
+                    onClick={onApply}
+                    className="w-full text-[10px] px-2 py-1.5 rounded font-medium transition-colors flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-70"
+                >
+                    {isSetting && (
+                        <span className="inline-block w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    )}
+                    {isSetting ? "Setting…" : applyLabel}
+                </button>
+            </div>
+        </div>
     );
 }
