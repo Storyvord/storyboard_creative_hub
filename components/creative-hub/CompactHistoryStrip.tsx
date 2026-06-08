@@ -52,6 +52,11 @@ export default function CompactHistoryStrip({
     // through a ref instead of tearing the observer down on every tick.
     const loadMoreRef = useRef<() => void>(() => {});
     const sentinelRef = useRef<HTMLDivElement | null>(null);
+    // The strip scrolls inside its own max-h container, not the page. The
+    // observer must watch that container as its root — otherwise it tracks
+    // the viewport (which never moves as you scroll the strip) and the
+    // sentinel never re-triggers past page 1.
+    const scrollRootRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -120,7 +125,7 @@ export default function CompactHistoryStrip({
                     }
                 }
             },
-            { rootMargin: "200px 0px" },
+            { root: scrollRootRef.current, rootMargin: "200px 0px" },
         );
         observer.observe(el);
         return () => observer.disconnect();
@@ -170,7 +175,7 @@ export default function CompactHistoryStrip({
                     {rows.length} of {totalCount}
                 </span>
             </div>
-            <div className="max-h-[440px] overflow-y-auto pr-1">
+            <div ref={scrollRootRef} className="max-h-[440px] overflow-y-auto pr-1">
                 <div className="grid grid-cols-2 gap-2">
                     {rows.map((r) => {
                         const isActive = r.id === activePrevizId;

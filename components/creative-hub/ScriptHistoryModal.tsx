@@ -104,6 +104,10 @@ export default function ScriptHistoryModal({
 
     const loadMoreRef = useRef<() => void>(() => {});
     const sentinelRef = useRef<HTMLDivElement | null>(null);
+    // The grid scrolls inside the modal body, not the page. The observer
+    // must use that body as its root — watching the viewport (the default)
+    // never sees the sentinel move, so paging stalls after page 1.
+    const scrollRootRef = useRef<HTMLDivElement | null>(null);
 
     // Reset + load page 1 whenever the modal opens (or scriptId changes).
     useEffect(() => {
@@ -171,7 +175,7 @@ export default function ScriptHistoryModal({
                     if (entry.isIntersecting) loadMoreRef.current();
                 }
             },
-            { rootMargin: "200px 0px" },
+            { root: scrollRootRef.current, rootMargin: "200px 0px" },
         );
         observer.observe(el);
         return () => observer.disconnect();
@@ -244,7 +248,7 @@ export default function ScriptHistoryModal({
                     </div>
 
                     {/* Body */}
-                    <div className="flex-1 overflow-y-auto p-4">
+                    <div ref={scrollRootRef} className="flex-1 overflow-y-auto p-4">
                         {loading ? (
                             <div className="flex items-center justify-center gap-1 py-16 text-[10px] text-[var(--text-muted)]">
                                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce [animation-delay:-0.3s]" />

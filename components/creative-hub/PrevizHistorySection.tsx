@@ -125,6 +125,10 @@ export default function PrevizHistorySection({
     // observer on every page tick.
     const loadMoreRef = useRef<() => void>(() => {});
     const sentinelRef = useRef<HTMLDivElement | null>(null);
+    // In infinite-scroll mode the grid lives in its own max-h scroll box, so
+    // the observer must watch that box as its root. Watching the viewport (the
+    // default) never registers scroll inside the box, stalling paging at page 1.
+    const scrollRootRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -189,7 +193,7 @@ export default function PrevizHistorySection({
                     }
                 }
             },
-            { rootMargin: "200px 0px" },
+            { root: scrollRootRef.current, rootMargin: "200px 0px" },
         );
         observer.observe(el);
         return () => observer.disconnect();
@@ -241,6 +245,7 @@ export default function PrevizHistorySection({
                 </div>
             ) : history.length > 0 ? (
                 <div
+                    ref={scrollRootRef}
                     className={
                         infiniteScroll
                             ? "max-h-[60vh] overflow-y-auto pr-1"
