@@ -159,6 +159,17 @@ export default function ScriptHistoryModal({
         return () => observer.disconnect();
     }, [open, hasMore, rows.length]);
 
+    // When a page doesn't fill the scroll area there's nothing to scroll, so
+    // the sentinel never leaves/re-enters the viewport and infinite scroll
+    // never starts — keep pulling pages until the content overflows (or we
+    // run out). loadMore's own guard de-dupes against the observer firing too.
+    useEffect(() => {
+        if (!open || loading || loadingMore || !hasMore) return;
+        const el = scrollRootRef.current;
+        if (!el) return;
+        if (el.scrollHeight <= el.clientHeight) loadMoreRef.current();
+    }, [open, rows.length, hasMore, loading, loadingMore]);
+
     const handleApply = async (row: PrevizRow) => {
         if (row.id === currentActivePrevizId) return;
         setSettingId(row.id);

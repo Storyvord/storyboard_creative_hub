@@ -1250,12 +1250,25 @@ export default function CreativeSpacePage() {
 
   const handleScroll = () => {
     if (!containerRef.current || isFetchingHistory || !hasMoreHistory || !scriptId || isGenerating) return;
-    
+
     // If scrolled to top with a 100px threshold
     if (containerRef.current.scrollTop <= 100) {
       fetchHistory(scriptId, historyPage + 1);
     }
   };
+
+  // View History only: if the loaded pages don't fill the scroll area there's
+  // no way to scroll up to pull older pages, so it stalls on the first page.
+  // Keep fetching older pages until the content overflows (or we run out).
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!showHistory || !el) return;
+    if (isFetchingHistory || !hasMoreHistory || !scriptId || isGenerating) return;
+    if (el.scrollHeight <= el.clientHeight) {
+      fetchHistory(scriptId, historyPage + 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showHistory, history.length, hasMoreHistory, isFetchingHistory, scriptId, isGenerating, historyPage]);
 
   // Derive tagged entities live from prompt changes
   useEffect(() => {
