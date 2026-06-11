@@ -97,6 +97,16 @@ export const generateScriptFromPrompt = async (
   return response.data;
 };
 
+// Create a script directly — no file upload, no AI. Powers the "start writing
+// manually" flow: a blank row the user edits in the screenplay editor.
+export const createScript = async (
+  projectId: string,
+  data: { title?: string; content?: string } = {},
+): Promise<Script> => {
+  const response = await api.post(`/api/creative_hub/scripts/?project_id=${projectId}`, data);
+  return response.data;
+};
+
 export const getScriptConversionReview = async (scriptId: number): Promise<any> => {
     const response = await api.get(`/api/creative_hub/scripts/${scriptId}/conversion/review/`);
     return response.data;

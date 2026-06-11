@@ -11,6 +11,7 @@ import {
   confirmScriptConversion,
   deleteScript,
   getTaskStatus,
+  createScript,
   generateScriptFromPrompt,
   getLatestTaskStatus,
   isTaskBackfillRow,
@@ -28,9 +29,12 @@ import {
   Keyboard,
   X,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Trash2,
   Sparkles,
   Plus,
+  PenLine,
 } from "lucide-react";
 import {
   PieChart,
@@ -363,6 +367,35 @@ export default function ScriptPage() {
   const updateGenCharacter = (idx: number, patch: Partial<GenCharacter>) =>
     setGenCharacters((prev) => prev.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
 
+  /* ── Manual (blank) script creation ─────────────────────── */
+  const [creatingManual, setCreatingManual] = useState(false);
+
+  /* ── Floating generate bar (Creative-Space-style collapse) ──
+     Collapses to a slim peek pill; hovering the bottom edge or clicking the
+     pill reveals it. Stays open while typing or while a kickoff is running. */
+  const [barCollapsed, setBarCollapsed] = useState(false);
+  const [barHover, setBarHover] = useState(false);
+  const [barFocused, setBarFocused] = useState(false);
+  const barHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const barRevealed = !barCollapsed || barHover || barFocused || genSubmitting;
+  const revealBar = () => {
+    if (barHideTimer.current) {
+      clearTimeout(barHideTimer.current);
+      barHideTimer.current = null;
+    }
+    setBarHover(true);
+  };
+  const scheduleHideBar = () => {
+    if (barHideTimer.current) clearTimeout(barHideTimer.current);
+    barHideTimer.current = setTimeout(() => setBarHover(false), 250);
+  };
+  useEffect(
+    () => () => {
+      if (barHideTimer.current) clearTimeout(barHideTimer.current);
+    },
+    [],
+  );
+
   /* ── UI toggles ─────────────────────────────────────────── */
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -390,6 +423,17 @@ export default function ScriptPage() {
   const showUpload = !script && !loading && !isConverting && !isGenerating;
   const canUpload = !script || isConverting;
   const isEditorVisible = !!script && !isConverting && !isGenerating && !loading && !showUpload;
+
+  // "New script" = nothing saved yet and nothing meaningful typed. The floating
+  // generate bar only exists in that window — the moment the user writes or a
+  // script has real content, it disappears for good.
+  const scriptIsBlank = !!script && !(script.content || "").trim();
+  const showGenerateBar =
+    !loading &&
+    !isConverting &&
+    !isGenerating &&
+    !isAwaitingConfirm &&
+    (!script || (scriptIsBlank && editorContent.trim().length < 20));
 
   // React shortcuts & legacy inputs managed by TipTap ScriptEditor
   
@@ -584,12 +628,39 @@ export default function ScriptPage() {
 
   /* ═══════════════════════ Handlers ════════════════════════ */
 
+  const handleStartManual = async () => {
+    if (creatingManual) return;
+    setCreatingManual(true);
+    try {
+      await createScript(projectId, { title: "Untitled Script" });
+      toast.success("Blank script created — start writing!");
+      await fetchScript();
+    } catch (err: unknown) {
+      toast.error(extractApiError(err as Error, "Failed to create script."));
+    } finally {
+      setCreatingManual(false);
+    }
+  };
+
   const handleGenerateScript = async () => {
     const rawText = genForm.raw_text.trim();
     if (!rawText || genSubmitting) return;
 
     setGenSubmitting(true);
     try {
+      // A blank manual script may already exist (the "start writing manually"
+      // row). The generate endpoint creates a fresh script, and this page
+      // loads the OLDEST script in the project — so remove the empty row
+      // first or it would shadow the generated one. Nothing saved is lost:
+      // the bar only renders while the script has no content.
+      if (script && !(script.content || "").trim()) {
+        try {
+          await deleteScript(script.id);
+        } catch {
+          // Non-fatal: worst case the generated script sorts second and the
+          // user deletes the empty one from the UI.
+        }
+      }
       // Build the structured instruction — empty optional fields are omitted
       // so the backend brief never contains hollow sections.
       const characters = genCharacters
@@ -931,7 +1002,7 @@ export default function ScriptPage() {
   /* ═══════════════════════ Render ══════════════════════════ */
 
   return (
-    <div className="h-full flex flex-col bg-[var(--background)]">
+    <div className="relative h-full flex flex-col bg-[var(--background)]">
       {/* ─── Top bar ─────────────────────────────────────── */}
       <header className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-[var(--border)]">
         <div className="flex items-center gap-3">
@@ -1107,18 +1178,22 @@ export default function ScriptPage() {
                 <div className="flex-1 h-px bg-[var(--border)]" />
               </div>
 
-              {/* No file? Let the AI write one. */}
+              {/* Blank script → the screenplay editor, no file involved. */}
               <button
-                onClick={() => setShowGenerateModal(true)}
-                disabled={uploading}
-                className="px-6 py-2.5 rounded-md text-sm font-medium transition-colors flex items-center gap-2 border border-emerald-600/40 bg-emerald-600/10 text-emerald-400 hover:bg-emerald-600/20 hover:border-emerald-500"
+                onClick={handleStartManual}
+                disabled={uploading || creatingManual}
+                className="px-6 py-2.5 rounded-md text-sm font-medium transition-colors flex items-center gap-2 border border-[var(--border-hover)] text-[var(--text-secondary)] hover:text-white hover:border-emerald-500/50 hover:bg-[var(--surface-hover)]"
               >
-                <Sparkles className="h-4 w-4" />
-                Generate with AI
+                {creatingManual ? (
+                  <Loader2 className="animate-spin h-4 w-4" />
+                ) : (
+                  <PenLine className="h-4 w-4" />
+                )}
+                Start writing manually
               </button>
               <p className="text-[var(--text-muted)] text-[11px] mt-2 text-center">
-                Describe your story and the AI writes an original screenplay
-                (up to {MAX_GENERATED_SCENES} scenes) — no file needed.
+                Or describe your story in the prompt bar below and let the AI
+                write your initial script (up to {MAX_GENERATED_SCENES} scenes).
               </p>
             </div>
           </div>
@@ -1263,6 +1338,133 @@ export default function ScriptPage() {
           </>
         )}
       </div>
+
+      {/* ═══════════ Floating generate bar (new scripts only) ═══════════
+          Creative-Space-style: floats over the page bottom, collapses to a
+          slim peek pill, reveals on hover/click, never hides while typing or
+          submitting. Quick path = description + format + scene count; the
+          full structured brief lives behind "More options". */}
+      {showGenerateBar && (
+        <div className="absolute bottom-0 left-0 right-0 pb-5 px-4 z-20 pointer-events-none">
+          {/* Reveal hot-zone + peek pill while collapsed */}
+          {barCollapsed && (
+            <div
+              className="absolute bottom-0 left-0 right-0 h-6 flex items-end justify-center pointer-events-auto cursor-pointer group"
+              onMouseEnter={revealBar}
+              onClick={() => setBarCollapsed(false)}
+              title="Show prompt bar"
+            >
+              {!barRevealed && (
+                <div className="mb-1 flex items-center gap-1 rounded-full bg-[var(--surface)]/80 backdrop-blur border border-[#ffffff12] px-2.5 py-1 text-[10px] text-[var(--text-muted)] group-hover:text-emerald-400 group-hover:border-emerald-500/40 shadow-lg transition-colors">
+                  <ChevronUp className="w-3 h-3" />
+                  <span>Generate with AI</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div
+            className={`relative w-full max-w-2xl mx-auto bg-[var(--surface)]/80 backdrop-blur-xl border border-[#ffffff10] rounded-2xl p-4 shadow-[0_-4px_48px_rgba(0,0,0,0.8)] flex flex-col gap-2.5 pointer-events-auto transition-transform duration-300 ${
+              barRevealed ? "translate-y-0" : "translate-y-[125%]"
+            }`}
+            onMouseEnter={revealBar}
+            onMouseLeave={scheduleHideBar}
+            onFocusCapture={() => setBarFocused(true)}
+            onBlurCapture={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) setBarFocused(false);
+            }}
+          >
+            {/* Hide handle */}
+            <button
+              type="button"
+              onClick={() => {
+                setBarCollapsed(true);
+                setBarHover(false);
+                setBarFocused(false);
+              }}
+              className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-9 h-6 rounded-full bg-[var(--surface)] border border-[#ffffff12] text-[var(--text-muted)] hover:text-emerald-400 hover:border-emerald-500/40 shadow-lg transition-colors"
+              title="Hide prompt bar"
+              aria-label="Hide prompt bar"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+
+            <div className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)]">
+              <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+              Generate your initial script with AI
+            </div>
+
+            <div className="flex items-end gap-2">
+              <textarea
+                value={genForm.raw_text}
+                onChange={(e) => setGenField("raw_text", e.target.value)}
+                maxLength={5000}
+                rows={2}
+                placeholder="Describe your story — who, where, what happens…"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleGenerateScript();
+                  }
+                }}
+                className="flex-1 bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-colors resize-none placeholder:text-[var(--text-muted)]"
+              />
+              <button
+                type="button"
+                onClick={handleGenerateScript}
+                disabled={!genForm.raw_text.trim() || genSubmitting}
+                className="inline-flex items-center gap-1.5 h-[38px] px-4 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {genSubmitting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                Generate
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={genForm.purpose}
+                onChange={(e) => setGenField("purpose", e.target.value)}
+                title="Format"
+                className="bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-2 py-1 text-[11px] text-[var(--text-secondary)] focus:outline-none focus:border-emerald-500 transition-colors"
+              >
+                {SCRIPT_PURPOSES.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={genSceneCount}
+                onChange={(e) => setGenSceneCount(e.target.value)}
+                title="Scene count"
+                className="bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-2 py-1 text-[11px] text-[var(--text-secondary)] focus:outline-none focus:border-emerald-500 transition-colors"
+              >
+                <option value="">Auto scenes (max {MAX_GENERATED_SCENES})</option>
+                {Array.from({ length: MAX_GENERATED_SCENES }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n} scene{n > 1 ? "s" : ""}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowGenerateModal(true)}
+                className="text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors"
+                title="Genre, tone, narration, setting, language, cast…"
+              >
+                More options
+              </button>
+              <span className="ml-auto text-[10px] text-[var(--text-muted)]">
+                Enter to generate · Shift+Enter for newline
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══════════ Shortcuts Modal ═══════════════════════ */}
       {showShortcuts && (
