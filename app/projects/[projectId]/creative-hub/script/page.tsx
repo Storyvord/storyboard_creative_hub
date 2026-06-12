@@ -11,6 +11,13 @@ import {
   confirmScriptConversion,
   deleteScript,
   getTaskStatus,
+  createScript,
+  generateScriptFromPrompt,
+  getLatestTaskStatus,
+  isTaskBackfillRow,
+  MAX_GENERATED_SCENES,
+  MAX_INSTRUCTION_CHARACTERS,
+  type ScriptGenerationInstruction,
 } from "@/services/creative-hub";
 import { Script, Scene, Character } from "@/types/creative-hub";
 import {
@@ -22,7 +29,12 @@ import {
   Keyboard,
   X,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Trash2,
+  Sparkles,
+  Plus,
+  PenLine,
 } from "lucide-react";
 import {
   PieChart,
@@ -59,6 +71,64 @@ const ELEMENT_CYCLE: ScreenplayElement[] = [
   "transition",
   "shot",
 ];
+
+/* Structured options for the AI generation form. Values are the canonical
+   keys the backend prompt builder expands into rich guidance; anything typed
+   free-form (genre/tone) is passed through verbatim. */
+const SCRIPT_PURPOSES = [
+  { value: "short_film", label: "Short Film" },
+  { value: "feature_film", label: "Feature Film" },
+  { value: "ad", label: "Ad / Commercial" },
+  { value: "series_episode", label: "Series Episode" },
+  { value: "documentary", label: "Documentary" },
+  { value: "music_video", label: "Music Video" },
+];
+
+const NARRATION_STYLES = [
+  { value: "", label: "Auto — let the AI decide" },
+  { value: "first_person", label: "First person" },
+  { value: "voiceover", label: "Voiceover" },
+  { value: "dialogue_heavy", label: "Dialogue heavy" },
+  { value: "minimal_dialogue", label: "Minimal dialogue" },
+];
+
+const GENRE_SUGGESTIONS = [
+  "Thriller", "Drama", "Comedy", "Horror", "Sci-Fi",
+  "Romance", "Action", "Mystery", "Fantasy",
+];
+
+const TONE_SUGGESTIONS = [
+  "Dark", "Lighthearted", "Satirical", "Gritty",
+  "Whimsical", "Suspenseful", "Hopeful", "Melancholic",
+];
+
+const SCRIPT_LANGUAGES = [
+  { value: "en", label: "English" },
+  { value: "hi", label: "Hindi" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+  { value: "de", label: "German" },
+  { value: "ja", label: "Japanese" },
+];
+
+const CHARACTER_ROLES = ["hero", "villain", "supporting"];
+
+interface GenCharacter {
+  name: string;
+  role: string;
+  description: string;
+}
+
+const EMPTY_GEN_FORM = {
+  raw_text: "",
+  purpose: "short_film",
+  genre: "",
+  tone: "",
+  narration_style: "",
+  setting: "",
+  language: "en",
+  additional_notes: "",
+};
 
 const SCENE_HEADING_RE = /^(?:INT|EXT|INT\/EXT|I\/E)\.?\b/i;
 const TRANSITION_RE = /(?:TO:|FADE OUT\.?|FADE IN\.?|CUT TO BLACK\.?|DISSOLVE TO:?)$/i;
@@ -279,6 +349,55 @@ export default function ScriptPage() {
   const [isAwaitingConfirm, setIsAwaitingConfirm] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
+  /* ── AI script generation state ─────────────────────────── */
+  // "More options" expands the floating bar inline (no popup) to reveal the
+  // full structured-brief fields.
+  const [barExpanded, setBarExpanded] = useState(false);
+  // Structured instruction form — composed into a creative brief server-side.
+  const [genForm, setGenForm] = useState({ ...EMPTY_GEN_FORM });
+  const [genCharacters, setGenCharacters] = useState<GenCharacter[]>([]);
+  const [genTitle, setGenTitle] = useState("");
+  const [genSceneCount, setGenSceneCount] = useState(""); // "" = AI picks (≤ cap)
+  const [genSubmitting, setGenSubmitting] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [genScriptId, setGenScriptId] = useState<number | null>(null);
+  const [genProgress, setGenProgress] = useState("");
+
+  const setGenField = (field: keyof typeof EMPTY_GEN_FORM, value: string) =>
+    setGenForm((prev) => ({ ...prev, [field]: value }));
+
+  const updateGenCharacter = (idx: number, patch: Partial<GenCharacter>) =>
+    setGenCharacters((prev) => prev.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+
+  /* ── Manual (blank) script creation ─────────────────────── */
+  const [creatingManual, setCreatingManual] = useState(false);
+
+  /* ── Floating generate bar (Creative-Space-style collapse) ──
+     Collapses to a slim peek pill; hovering the bottom edge or clicking the
+     pill reveals it. Stays open while typing or while a kickoff is running. */
+  const [barCollapsed, setBarCollapsed] = useState(false);
+  const [barHover, setBarHover] = useState(false);
+  const [barFocused, setBarFocused] = useState(false);
+  const barHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const barRevealed = !barCollapsed || barHover || barFocused || genSubmitting;
+  const revealBar = () => {
+    if (barHideTimer.current) {
+      clearTimeout(barHideTimer.current);
+      barHideTimer.current = null;
+    }
+    setBarHover(true);
+  };
+  const scheduleHideBar = () => {
+    if (barHideTimer.current) clearTimeout(barHideTimer.current);
+    barHideTimer.current = setTimeout(() => setBarHover(false), 250);
+  };
+  useEffect(
+    () => () => {
+      if (barHideTimer.current) clearTimeout(barHideTimer.current);
+    },
+    [],
+  );
+
   /* ── UI toggles ─────────────────────────────────────────── */
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -303,9 +422,20 @@ export default function ScriptPage() {
     return generateInitialHtml(internalRefContent);
   }, [internalRefContent]);
 
-  const showUpload = !script && !loading && !isConverting;
+  const showUpload = !script && !loading && !isConverting && !isGenerating;
   const canUpload = !script || isConverting;
-  const isEditorVisible = !!script && !isConverting && !loading && !showUpload;
+  const isEditorVisible = !!script && !isConverting && !isGenerating && !loading && !showUpload;
+
+  // "New script" = nothing saved yet and nothing meaningful typed. The floating
+  // generate bar only exists in that window — the moment the user writes or a
+  // script has real content, it disappears for good.
+  const scriptIsBlank = !!script && !(script.content || "").trim();
+  const showGenerateBar =
+    !loading &&
+    !isConverting &&
+    !isGenerating &&
+    !isAwaitingConfirm &&
+    (!script || (scriptIsBlank && editorContent.trim().length < 20));
 
   // React shortcuts & legacy inputs managed by TipTap ScriptEditor
   
@@ -366,6 +496,33 @@ export default function ScriptPage() {
             setIsConverting(true);
           }
           return;
+        }
+
+        // AI generation in flight? The generate endpoint creates the script
+        // row immediately with empty content; recover the generating state
+        // across reloads by checking the latest script_generation task.
+        if (!(s.content || "").trim()) {
+          try {
+            const genTask = await getLatestTaskStatus(
+              "script",
+              s.id,
+              "script_generation",
+            );
+            if (
+              genTask &&
+              !isTaskBackfillRow(genTask) &&
+              (genTask.status === "pending" ||
+                genTask.status === "processing" ||
+                genTask.status === "retrying")
+            ) {
+              setGenScriptId(s.id);
+              setGenProgress(genTask.progress_message || "");
+              setIsGenerating(true);
+              return;
+            }
+          } catch {
+            // Status lookup failing must not block the normal editor flow.
+          }
         }
 
         // Normal flow — load scenes/characters
@@ -432,7 +589,129 @@ export default function ScriptPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConverting, pendingScriptId, pendingTaskId]);
 
+  /* ═══════════════ AI generation polling ═══════════════════ */
+
+  useEffect(() => {
+    if (!isGenerating || !genScriptId) return;
+
+    const timer = setInterval(async () => {
+      try {
+        const row = await getLatestTaskStatus(
+          "script",
+          genScriptId,
+          "script_generation",
+        );
+        if (!row) return; // task row not written yet — keep waiting
+
+        if (row.progress_message) setGenProgress(row.progress_message);
+
+        if (row.status === "completed") {
+          setIsGenerating(false); // tears down this interval via deps
+          setGenScriptId(null);
+          setGenProgress("");
+          toast.success("Script generated — scenes and characters are ready!");
+          await fetchScript();
+        } else if (row.status === "failed") {
+          setIsGenerating(false);
+          setGenScriptId(null);
+          setGenProgress("");
+          toast.error(row.error || "Script generation failed. Please try again.");
+          await fetchScript();
+        }
+        // pending / processing / retrying → keep polling.
+      } catch (error: unknown) {
+        console.warn("Script generation polling error:", (error as Error)?.message);
+      }
+    }, 3000);
+
+    return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGenerating, genScriptId]);
+
   /* ═══════════════════════ Handlers ════════════════════════ */
+
+  const handleStartManual = async () => {
+    if (creatingManual) return;
+    setCreatingManual(true);
+    try {
+      await createScript(projectId, { title: "Untitled Script" });
+      toast.success("Blank script created — start writing!");
+      await fetchScript();
+    } catch (err: unknown) {
+      toast.error(extractApiError(err as Error, "Failed to create script."));
+    } finally {
+      setCreatingManual(false);
+    }
+  };
+
+  const handleGenerateScript = async () => {
+    const rawText = genForm.raw_text.trim();
+    if (!rawText || genSubmitting) return;
+
+    setGenSubmitting(true);
+    try {
+      // A blank manual script may already exist (the "start writing manually"
+      // row). The generate endpoint creates a fresh script, and this page
+      // loads the OLDEST script in the project — so remove the empty row
+      // first or it would shadow the generated one. Nothing saved is lost:
+      // the bar only renders while the script has no content.
+      if (script && !(script.content || "").trim()) {
+        try {
+          await deleteScript(script.id);
+        } catch {
+          // Non-fatal: worst case the generated script sorts second and the
+          // user deletes the empty one from the UI.
+        }
+      }
+      // Build the structured instruction — empty optional fields are omitted
+      // so the backend brief never contains hollow sections.
+      const characters = genCharacters
+        .map((c) => ({
+          name: c.name.trim(),
+          role: c.role.trim(),
+          description: c.description.trim(),
+        }))
+        .filter((c) => c.name)
+        .map((c) => ({
+          name: c.name,
+          ...(c.role ? { role: c.role } : {}),
+          ...(c.description ? { description: c.description } : {}),
+        }));
+
+      const instruction: ScriptGenerationInstruction = {
+        raw_text: rawText,
+        purpose: genForm.purpose || undefined,
+        genre: genForm.genre.trim() || undefined,
+        tone: genForm.tone.trim() || undefined,
+        narration_style: genForm.narration_style || undefined,
+        setting: genForm.setting.trim() || undefined,
+        language: genForm.language || "en",
+        additional_notes: genForm.additional_notes.trim() || undefined,
+        ...(characters.length ? { characters } : {}),
+      };
+
+      const res = await generateScriptFromPrompt(projectId, {
+        instruction,
+        title: genTitle.trim() || undefined,
+        scene_count: genSceneCount ? Number(genSceneCount) : undefined,
+        metadata: { project_id: projectId, timestamp: new Date().toISOString() },
+      });
+      setBarExpanded(false);
+      setGenForm({ ...EMPTY_GEN_FORM });
+      setGenCharacters([]);
+      setGenTitle("");
+      setGenSceneCount("");
+      setScript(res);
+      setGenScriptId(res.id);
+      setGenProgress("");
+      setIsGenerating(true);
+      toast.success("Writing your screenplay — this takes about a minute…");
+    } catch (err: unknown) {
+      toast.error(extractApiError(err as Error, "Failed to start script generation."));
+    } finally {
+      setGenSubmitting(false);
+    }
+  };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -624,99 +903,66 @@ export default function ScriptPage() {
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
   }, [isAwaitingConfirm, handleConfirm, handleSave]);
 
-  /* ═══════════════════ Analytics data ═════════════════════ */
+  /* ═══════════════════ Analytics data ═════════════════════
+     All charts and stat cards derive exclusively from script.analysis, which
+     the backend computes in analyze_fdx() and saves on every content save.
+     Nothing is computed from the scenes array — keeping a single source of
+     truth means the analytics panel always reflects the saved FDX, never a
+     partially-synced scene list.
+  */
 
   const COLORS = ["#22c55e", "#10b981", "#059669", "#047857", "#6ee7b7"];
 
-  const intExtData = useMemo(() => {
-    let i = 0,
-      e = 0,
-      n = 0;
-    scenes.forEach((s) => {
-      const v = (s.int_ext || "").toUpperCase();
-      if (v.includes("INT")) i++;
-      else if (v.includes("EXT")) e++;
-      else n++;
-    });
+  const intCount = script?.analysis?.interior_vs_exterior?.Interior ?? 0;
+  const extCount = script?.analysis?.interior_vs_exterior?.Exterior ?? 0;
+
+  const intExtData = useMemo<{ name: string; value: number }[]>(() => {
     const d: { name: string; value: number }[] = [];
-    if (i) d.push({ name: "INT", value: i });
-    if (e) d.push({ name: "EXT", value: e });
-    if (n) d.push({ name: "N/A", value: n });
+    if (intCount) d.push({ name: "INT", value: intCount });
+    if (extCount) d.push({ name: "EXT", value: extCount });
     return d;
-  }, [scenes]);
+  }, [intCount, extCount]);
 
-  const locationData = useMemo(() => {
-    const m: Record<string, number> = {};
-    scenes.forEach((s) => {
-      const loc = (s.location || "").toUpperCase();
-      if (loc) m[loc] = (m[loc] || 0) + 1;
-    });
-    return Object.entries(m)
+  const locationData = useMemo<{ name: string; count: number }[]>(() => {
+    const dist = script?.analysis?.setting_distribution;
+    if (!dist) return [];
+    return Object.entries(dist)
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
-  }, [scenes]);
+  }, [script]);
 
-  const characterData = useMemo(() => {
-    const m: Record<string, number> = {};
-    scenes.forEach((s) => {
-      const seen = new Set<string>();
-      (s.scene_characters || []).forEach((sc: any) => {
-        const name = (typeof sc === "string" ? sc : sc?.name || sc?.character?.name || "").toUpperCase().trim();
-        if (name) seen.add(name);
-      });
-      seen.forEach((name) => {
-        m[name] = (m[name] || 0) + 1;
-      });
-    });
-    return Object.entries(m)
-      .map(([name, count]) => ({ name, count }))
+  const characterData = useMemo<{ name: string; count: number }[]>(() => {
+    const apps = script?.analysis?.character_appearances;
+    if (!apps) return [];
+    return Object.entries(apps)
+      .map(([name, v]) => ({ name, count: v.count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
-  }, [scenes]);
+  }, [script]);
 
-  const sceneBreakdownData = useMemo(() => {
-    // Prefer backend-computed scene_breakdown (has accurate dialogue counts)
-    const backendBreakdown: any[] = script?.analysis?.scene_breakdown || [];
-    if (backendBreakdown.length > 0) {
-      return backendBreakdown.map((sb: any, idx: number) => ({
-        label: sb.scene_label || `S${idx + 1}`,
-        scene: sb.heading || `Scene ${idx + 1}`,
-        characters: sb.characters ?? 0,
-        dialogues: sb.dialogues ?? 0,
-      }));
-    }
+  const sceneBreakdownData = useMemo<
+    { label: string; scene: string; characters: number; dialogues: number }[]
+  >(() => {
+    const breakdown = script?.analysis?.scene_breakdown;
+    if (!breakdown?.length) return [];
+    return breakdown.map((sb, idx) => ({
+      label: sb.scene_label ?? `S${idx + 1}`,
+      scene: sb.heading ?? `Scene ${idx + 1}`,
+      characters: sb.characters,
+      dialogues: sb.dialogues,
+    }));
+  }, [script]);
 
-    // Fallback: compute from frontend scene data
-    if (!scenes.length) return [];
-    return scenes
-      .slice()
-      .sort((a, b) => (a.order || 0) - (b.order || 0))
-      .map((s, idx) => {
-        const chars = (s.scene_characters || []).length;
-        return {
-          label: `S${idx + 1}`,
-          scene: s.scene_name || `Scene ${idx + 1}`,
-          characters: chars,
-          dialogues: (s as any).dialog_count ?? 0,
-        };
-      });
-  }, [scenes, script]);
-
-  /** Dialogue distribution per character — from backend analysis */
-  const dialogueDistData = useMemo(() => {
-    const dist: Record<string, number> = script?.analysis?.dialogue_distribution || {};
-    const entries = Object.entries(dist).filter(([, v]) => v > 0);
-    if (!entries.length) return [];
-    return entries
+  const dialogueDistData = useMemo<{ name: string; value: number }[]>(() => {
+    const dist = script?.analysis?.dialogue_distribution;
+    if (!dist) return [];
+    return Object.entries(dist)
+      .filter(([, v]) => v > 0)
       .map(([name, pct]) => ({ name, value: pct }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8);
   }, [script]);
-
-  /** INT / EXT counts as numbers for stat cards */
-  const intCount = useMemo(() => intExtData.find((d) => d.name === "INT")?.value ?? 0, [intExtData]);
-  const extCount = useMemo(() => intExtData.find((d) => d.name === "EXT")?.value ?? 0, [intExtData]);
 
   /* ═══════════════════ Helpers for view ═══════════════════ */
 
@@ -725,7 +971,7 @@ export default function ScriptPage() {
   /* ═══════════════════════ Render ══════════════════════════ */
 
   return (
-    <div className="h-full flex flex-col bg-[var(--background)]">
+    <div className="relative h-full flex flex-col bg-[var(--background)]">
       {/* ─── Top bar ─────────────────────────────────────── */}
       <header className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-[var(--border)]">
         <div className="flex items-center gap-3">
@@ -752,8 +998,8 @@ export default function ScriptPage() {
             <span className="hidden sm:inline">Shortcuts</span>
           </button>
 
-          {/* Analytics */}
-          {script && scenes.length > 0 && !isAwaitingConfirm && (
+          {/* Analytics — show as soon as the script has been saved once (analysis populated) */}
+          {script && script.analysis?.scene_count && !isAwaitingConfirm && (
             <button
               data-tour="script-analytics-btn"
               onClick={() => setShowAnalytics(true)}
@@ -891,6 +1137,58 @@ export default function ScriptPage() {
                   "Select File"
                 )}
               </button>
+
+              {/* Divider */}
+              <div className="w-full flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-[var(--border)]" />
+                <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                  or
+                </span>
+                <div className="flex-1 h-px bg-[var(--border)]" />
+              </div>
+
+              {/* Blank script → the screenplay editor, no file involved. */}
+              <button
+                onClick={handleStartManual}
+                disabled={uploading || creatingManual}
+                className="px-6 py-2.5 rounded-md text-sm font-medium transition-colors flex items-center gap-2 border border-[var(--border-hover)] text-[var(--text-secondary)] hover:text-white hover:border-emerald-500/50 hover:bg-[var(--surface-hover)]"
+              >
+                {creatingManual ? (
+                  <Loader2 className="animate-spin h-4 w-4" />
+                ) : (
+                  <PenLine className="h-4 w-4" />
+                )}
+                Start writing manually
+              </button>
+              <p className="text-[var(--text-muted)] text-[11px] mt-2 text-center">
+                Or describe your story in the prompt bar below and let the AI
+                write your initial script (up to {MAX_GENERATED_SCENES} scenes).
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* AI generation loader */}
+        {isGenerating && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative">
+                <div className="h-16 w-16 rounded-full border-2 border-[var(--border)] flex items-center justify-center">
+                  <Sparkles className="h-7 w-7 text-emerald-400 animate-pulse" />
+                </div>
+                <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+                  <Loader2 className="h-3 w-3 animate-spin text-emerald-400" />
+                </div>
+              </div>
+              <div className="text-center">
+                <h3 className="text-[var(--text-primary)] text-sm font-medium mb-1">
+                  Writing your screenplay…
+                </h3>
+                <p className="text-[var(--text-secondary)] text-xs max-w-xs">
+                  {genProgress ||
+                    "The AI is writing your script and building scenes and characters. This usually takes about a minute."}
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -1010,6 +1308,338 @@ export default function ScriptPage() {
         )}
       </div>
 
+      {/* ═══════════ Floating generate bar (new scripts only) ═══════════
+          Creative-Space-style: floats over the page bottom, collapses to a
+          slim peek pill, reveals on hover/click, never hides while typing or
+          submitting. Quick path = description + format + scene count; the
+          full structured brief lives behind "More options". */}
+      {showGenerateBar && (
+        <div className="absolute bottom-0 left-0 right-0 pb-5 px-4 z-20 pointer-events-none">
+          {/* Reveal hot-zone + peek pill while collapsed */}
+          {barCollapsed && (
+            <div
+              className="absolute bottom-0 left-0 right-0 h-6 flex items-end justify-center pointer-events-auto cursor-pointer group"
+              onMouseEnter={revealBar}
+              onClick={() => setBarCollapsed(false)}
+              title="Show prompt bar"
+            >
+              {!barRevealed && (
+                <div className="mb-1 flex items-center gap-1 rounded-full bg-[var(--surface)]/80 backdrop-blur border border-[#ffffff12] px-2.5 py-1 text-[10px] text-[var(--text-muted)] group-hover:text-emerald-400 group-hover:border-emerald-500/40 shadow-lg transition-colors">
+                  <ChevronUp className="w-3 h-3" />
+                  <span>Generate with AI</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div
+            className={`relative w-full max-w-2xl mx-auto bg-[var(--surface)]/80 backdrop-blur-xl border border-[#ffffff10] rounded-2xl p-4 shadow-[0_-4px_48px_rgba(0,0,0,0.8)] flex flex-col gap-2.5 pointer-events-auto transition-transform duration-300 ${
+              barRevealed ? "translate-y-0" : "translate-y-[125%]"
+            }`}
+            onMouseEnter={revealBar}
+            onMouseLeave={scheduleHideBar}
+            onFocusCapture={() => setBarFocused(true)}
+            onBlurCapture={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) setBarFocused(false);
+            }}
+          >
+            {/* Hide handle */}
+            <button
+              type="button"
+              onClick={() => {
+                setBarCollapsed(true);
+                setBarHover(false);
+                setBarFocused(false);
+              }}
+              className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-9 h-6 rounded-full bg-[var(--surface)] border border-[#ffffff12] text-[var(--text-muted)] hover:text-emerald-400 hover:border-emerald-500/40 shadow-lg transition-colors"
+              title="Hide prompt bar"
+              aria-label="Hide prompt bar"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+
+            <div className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)]">
+              <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+              Generate your initial script with AI
+            </div>
+
+            <div className="flex items-end gap-2">
+              <textarea
+                value={genForm.raw_text}
+                onChange={(e) => setGenField("raw_text", e.target.value)}
+                maxLength={5000}
+                rows={2}
+                placeholder="Describe your story — who, where, what happens…"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleGenerateScript();
+                  }
+                }}
+                className="flex-1 bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-colors resize-none placeholder:text-[var(--text-muted)]"
+              />
+              <button
+                type="button"
+                onClick={handleGenerateScript}
+                disabled={!genForm.raw_text.trim() || genSubmitting}
+                className="inline-flex items-center gap-1.5 h-[38px] px-4 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {genSubmitting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                Generate
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={genForm.purpose}
+                onChange={(e) => setGenField("purpose", e.target.value)}
+                title="Format"
+                className="bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-2 py-1 text-[11px] text-[var(--text-secondary)] focus:outline-none focus:border-emerald-500 transition-colors"
+              >
+                {SCRIPT_PURPOSES.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={genSceneCount}
+                onChange={(e) => setGenSceneCount(e.target.value)}
+                title="Scene count"
+                className="bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-2 py-1 text-[11px] text-[var(--text-secondary)] focus:outline-none focus:border-emerald-500 transition-colors"
+              >
+                <option value="">Auto scenes (max {MAX_GENERATED_SCENES})</option>
+                {Array.from({ length: MAX_GENERATED_SCENES }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n} scene{n > 1 ? "s" : ""}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setBarExpanded((v) => !v)}
+                className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors"
+                title="Genre, tone, narration, setting, language, cast…"
+              >
+                {barExpanded ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronUp className="h-3 w-3" />
+                )}
+                {barExpanded ? "Fewer options" : "More options"}
+              </button>
+              <span className="ml-auto text-[10px] text-[var(--text-muted)]">
+                Enter to generate · Shift+Enter for newline
+              </span>
+            </div>
+
+            {/* Expanded structured-brief fields — inline, no popup. */}
+            {barExpanded && (
+              <div className="border-t border-[#ffffff10] pt-3 mt-0.5 flex flex-col gap-3 max-h-[45vh] overflow-y-auto pr-1">
+                {/* Genre / Tone / Narration */}
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                      Genre
+                    </label>
+                    <input
+                      type="text"
+                      list="gen-genre-suggestions"
+                      value={genForm.genre}
+                      onChange={(e) => setGenField("genre", e.target.value)}
+                      maxLength={120}
+                      placeholder="e.g. Thriller"
+                      className="w-full bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-colors placeholder:text-[var(--text-muted)]"
+                    />
+                    <datalist id="gen-genre-suggestions">
+                      {GENRE_SUGGESTIONS.map((g) => (
+                        <option key={g} value={g} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                      Tone
+                    </label>
+                    <input
+                      type="text"
+                      list="gen-tone-suggestions"
+                      value={genForm.tone}
+                      onChange={(e) => setGenField("tone", e.target.value)}
+                      maxLength={120}
+                      placeholder="e.g. Dark"
+                      className="w-full bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-colors placeholder:text-[var(--text-muted)]"
+                    />
+                    <datalist id="gen-tone-suggestions">
+                      {TONE_SUGGESTIONS.map((t) => (
+                        <option key={t} value={t} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                      Narration style
+                    </label>
+                    <select
+                      value={genForm.narration_style}
+                      onChange={(e) => setGenField("narration_style", e.target.value)}
+                      className="w-full bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-2 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-colors"
+                    >
+                      {NARRATION_STYLES.map((n) => (
+                        <option key={n.value} value={n.value}>
+                          {n.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Setting / Language / Title */}
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                      Setting
+                    </label>
+                    <input
+                      type="text"
+                      value={genForm.setting}
+                      onChange={(e) => setGenField("setting", e.target.value)}
+                      maxLength={300}
+                      placeholder="e.g. 1980s Hong Kong"
+                      className="w-full bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-colors placeholder:text-[var(--text-muted)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                      Language
+                    </label>
+                    <select
+                      value={genForm.language}
+                      onChange={(e) => setGenField("language", e.target.value)}
+                      className="w-full bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-2 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-colors"
+                    >
+                      {SCRIPT_LANGUAGES.map((l) => (
+                        <option key={l.value} value={l.value}>
+                          {l.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                      Title{" "}
+                      <span className="normal-case text-[var(--text-muted)]">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={genTitle}
+                      onChange={(e) => setGenTitle(e.target.value)}
+                      maxLength={255}
+                      placeholder="Let the AI pick one"
+                      className="w-full bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-colors placeholder:text-[var(--text-muted)]"
+                    />
+                  </div>
+                </div>
+
+                {/* Characters */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider">
+                      Characters{" "}
+                      <span className="normal-case text-[var(--text-muted)]">
+                        (optional — the AI invents a cast if left empty)
+                      </span>
+                    </label>
+                    {genCharacters.length < MAX_INSTRUCTION_CHARACTERS && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setGenCharacters((prev) => [
+                            ...prev,
+                            { name: "", role: "", description: "" },
+                          ])
+                        }
+                        className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors"
+                      >
+                        <Plus className="h-3 w-3" /> Add character
+                      </button>
+                    )}
+                  </div>
+                  {genCharacters.length > 0 && (
+                    <div className="flex flex-col gap-1.5">
+                      {genCharacters.map((c, idx) => (
+                        <div key={idx} className="flex gap-1.5 items-start">
+                          <input
+                            type="text"
+                            value={c.name}
+                            onChange={(e) => updateGenCharacter(idx, { name: e.target.value })}
+                            maxLength={80}
+                            placeholder="Name"
+                            className="w-28 bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-2 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-colors placeholder:text-[var(--text-muted)]"
+                          />
+                          <select
+                            value={c.role}
+                            onChange={(e) => updateGenCharacter(idx, { role: e.target.value })}
+                            className="w-28 bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-1.5 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-colors"
+                          >
+                            <option value="">Role…</option>
+                            {CHARACTER_ROLES.map((r) => (
+                              <option key={r} value={r}>
+                                {r.charAt(0).toUpperCase() + r.slice(1)}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={c.description}
+                            onChange={(e) =>
+                              updateGenCharacter(idx, { description: e.target.value })
+                            }
+                            maxLength={500}
+                            placeholder="Short description (age, look, personality)"
+                            className="flex-1 bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-2 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-colors placeholder:text-[var(--text-muted)]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setGenCharacters((prev) => prev.filter((_, i) => i !== idx))
+                            }
+                            className="p-1.5 text-[var(--text-muted)] hover:text-red-400 transition-colors"
+                            title="Remove character"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Additional notes */}
+                <div>
+                  <label className="block text-[10px] font-medium text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                    Additional notes{" "}
+                    <span className="normal-case text-[var(--text-muted)]">(optional)</span>
+                  </label>
+                  <textarea
+                    value={genForm.additional_notes}
+                    onChange={(e) => setGenField("additional_notes", e.target.value)}
+                    maxLength={1000}
+                    rows={2}
+                    placeholder="Anything else the AI should honor — pacing, references, must-have beats…"
+                    className="w-full bg-[var(--surface-hover)] border border-[var(--border-hover)] rounded px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-colors resize-none placeholder:text-[var(--text-muted)]"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ═══════════ Shortcuts Modal ═══════════════════════ */}
       {showShortcuts && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
@@ -1079,13 +1709,13 @@ export default function ScriptPage() {
                 <div className="p-3 bg-[var(--surface)] rounded-md border border-[var(--border)] text-center">
                   <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">Scenes</span>
                   <p className="text-xl font-bold text-emerald-400 mt-1">
-                    {script.analysis?.scene_count || scenes.length || scriptHeadings.length}
+                    {script.analysis?.scene_count ?? sceneBreakdownData.length}
                   </p>
                 </div>
                 <div className="p-3 bg-[var(--surface)] rounded-md border border-[var(--border)] text-center">
                   <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">Characters</span>
                   <p className="text-xl font-bold text-emerald-400 mt-1">
-                    {characters.length || script.analysis?.character_count || 0}
+                    {script.analysis?.character_count ?? characterData.length}
                   </p>
                 </div>
                 <div className="p-3 bg-[var(--surface)] rounded-md border border-[var(--border)] text-center">
@@ -1104,7 +1734,7 @@ export default function ScriptPage() {
                 </div>
               </div>
 
-              {scenes.length > 0 && (
+              {sceneBreakdownData.length > 0 && (
                 <>
                   {/* Row 1 — Scene-by-Scene line chart (full width) */}
                   {sceneBreakdownData.length > 1 && (

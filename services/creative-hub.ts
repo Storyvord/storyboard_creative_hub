@@ -40,6 +40,73 @@ export const uploadScript = async (projectId: string, file: File): Promise<Scrip
   return response.data;
 };
 
+// ── Prompt-based script generation (no file upload) ─────────────────────────
+// POST /api/creative_hub/scripts/generate/ — the client sends a STRUCTURED
+// creative instruction (story idea + purpose/genre/tone/narration/cast/
+// setting/language/notes); the backend composes it into an engineered
+// creative brief and the AI writes an original short screenplay (hard-capped
+// at MAX_GENERATED_SCENES scenes), populating scenes/characters/dialogs
+// server-side exactly like an uploaded script. Returns 202 with the freshly
+// created (still empty) Script + task_id; poll completion with
+// getLatestTaskStatus("script", script.id, "script_generation").
+export const MAX_GENERATED_SCENES = 10;
+export const MAX_INSTRUCTION_CHARACTERS = 10;
+
+export interface ScriptInstructionCharacter {
+  name: string;
+  /** e.g. "hero", "villain", "supporting" — free-form. */
+  role?: string;
+  description?: string;
+}
+
+export interface ScriptGenerationInstruction {
+  /** The story idea (required, ≤5000 chars). */
+  raw_text: string;
+  /** e.g. "short_film", "feature_film", "ad", "series_episode". */
+  purpose?: string;
+  /** e.g. "first_person", "voiceover", "dialogue_heavy", "minimal_dialogue". */
+  narration_style?: string | null;
+  genre?: string | null;
+  tone?: string | null;
+  characters?: ScriptInstructionCharacter[];
+  /** Location / time period. */
+  setting?: string | null;
+  /** e.g. "en". Defaults to English server-side. */
+  language?: string;
+  additional_notes?: string | null;
+}
+
+export interface GenerateScriptPayload {
+  instruction: ScriptGenerationInstruction;
+  /** Optional title; when omitted the AI's title is used. */
+  title?: string;
+  /** Optional exact scene count, 1..MAX_GENERATED_SCENES. Omit = AI picks. */
+  scene_count?: number;
+  /** Informational only — the backend derives identity from auth. */
+  metadata?: { user_id?: string; project_id: string; timestamp: string };
+}
+
+export const generateScriptFromPrompt = async (
+  projectId: string,
+  payload: GenerateScriptPayload,
+): Promise<Script & { task_id: string; status?: string; max_scenes?: number }> => {
+  const response = await api.post(
+    `/api/creative_hub/scripts/generate/?project_id=${projectId}`,
+    payload,
+  );
+  return response.data;
+};
+
+// Create a script directly — no file upload, no AI. Powers the "start writing
+// manually" flow: a blank row the user edits in the screenplay editor.
+export const createScript = async (
+  projectId: string,
+  data: { title?: string; content?: string } = {},
+): Promise<Script> => {
+  const response = await api.post(`/api/creative_hub/scripts/?project_id=${projectId}`, data);
+  return response.data;
+};
+
 export const getScriptConversionReview = async (scriptId: number): Promise<any> => {
     const response = await api.get(`/api/creative_hub/scripts/${scriptId}/conversion/review/`);
     return response.data;

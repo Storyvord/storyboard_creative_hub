@@ -12,13 +12,54 @@ export interface TaskStatusRecord {
   updated_at: string;
 }
 
+/** One entry in scene_breakdown — per-scene dialogue/character counts. */
+export interface SceneBreakdownEntry {
+  scene_number: number;
+  scene_label: string;   // e.g. "S1"
+  heading: string;       // truncated scene heading
+  characters: number;
+  dialogues: number;
+  actions: number;
+}
+
+/** Shape of the character_appearances map value. */
+export interface CharacterAppearance {
+  count: number;
+  percentage: number;
+}
+
+/**
+ * Script analysis computed by analyze_fdx() and stored in script.analysis on
+ * every content save. This is the single source of truth for all analytics —
+ * nothing is re-derived client-side from the scenes array.
+ */
+export interface ScriptAnalysis {
+  scene_count: number;
+  character_count: number;
+  action_vs_dialogue: { Action: number; Dialogue: number };
+  interior_vs_exterior: { Interior: number; Exterior: number };
+  /** character name → percentage share of total dialogue lines */
+  dialogue_distribution: Record<string, number>;
+  /** location name → percentage of total scene count */
+  setting_distribution: Record<string, number>;
+  character_appearances: Record<string, CharacterAppearance>;
+  scene_breakdown: SceneBreakdownEntry[];
+  /** Snapshot of the structured instruction used to generate this script (if AI-generated). */
+  script_generation?: {
+    instruction: Record<string, unknown>;
+    requested_scene_count?: number | null;
+  };
+  /** V3 conversion draft metadata. */
+  v3_conversion_draft?: Record<string, unknown>;
+}
+
 export interface Script {
   id: number;
   title: string;
   content: string;
   file: string; // URL
-  suggestions: any[];
-  analysis?: any;
+  suggestions: unknown[];
+  analysis?: ScriptAnalysis;
   aspect_ratio?: string;
   storyboarding_type?: 'sketch' | 'storyboard' | 'hd' | 'anime';
   uploaded_at: string;
