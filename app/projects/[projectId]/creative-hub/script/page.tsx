@@ -903,99 +903,70 @@ export default function ScriptPage() {
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
   }, [isAwaitingConfirm, handleConfirm, handleSave]);
 
-  /* ═══════════════════ Analytics data ═════════════════════ */
+  /* ═══════════════════ Analytics data ═════════════════════
+     All charts and stat cards derive exclusively from script.analysis, which
+     the backend computes in analyze_fdx() and saves on every content save.
+     Nothing is computed from the scenes array — keeping a single source of
+     truth means the analytics panel always reflects the saved FDX, never a
+     partially-synced scene list.
+  */
 
   const COLORS = ["#22c55e", "#10b981", "#059669", "#047857", "#6ee7b7"];
 
-  const intExtData = useMemo(() => {
-    let i = 0,
-      e = 0,
-      n = 0;
-    scenes.forEach((s) => {
-      const v = (s.int_ext || "").toUpperCase();
-      if (v.includes("INT")) i++;
-      else if (v.includes("EXT")) e++;
-      else n++;
-    });
+  const intCount = (script?.analysis?.interior_vs_exterior as Record<string, number> | undefined)?.Interior ?? 0;
+  const extCount = (script?.analysis?.interior_vs_exterior as Record<string, number> | undefined)?.Exterior ?? 0;
+
+  const intExtData = useMemo<{ name: string; value: number }[]>(() => {
     const d: { name: string; value: number }[] = [];
-    if (i) d.push({ name: "INT", value: i });
-    if (e) d.push({ name: "EXT", value: e });
-    if (n) d.push({ name: "N/A", value: n });
+    if (intCount) d.push({ name: "INT", value: intCount });
+    if (extCount) d.push({ name: "EXT", value: extCount });
     return d;
-  }, [scenes]);
+  }, [intCount, extCount]);
 
-  const locationData = useMemo(() => {
-    const m: Record<string, number> = {};
-    scenes.forEach((s) => {
-      const loc = (s.location || "").toUpperCase();
-      if (loc) m[loc] = (m[loc] || 0) + 1;
-    });
-    return Object.entries(m)
+  const locationData = useMemo<{ name: string; count: number }[]>(() => {
+    const dist = script?.analysis?.setting_distribution as Record<string, number> | undefined;
+    if (!dist) return [];
+    return Object.entries(dist)
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
-  }, [scenes]);
+  }, [script]);
 
-  const characterData = useMemo(() => {
-    const m: Record<string, number> = {};
-    scenes.forEach((s) => {
-      const seen = new Set<string>();
-      (s.scene_characters || []).forEach((sc: any) => {
-        const name = (typeof sc === "string" ? sc : sc?.name || sc?.character?.name || "").toUpperCase().trim();
-        if (name) seen.add(name);
-      });
-      seen.forEach((name) => {
-        m[name] = (m[name] || 0) + 1;
-      });
-    });
-    return Object.entries(m)
-      .map(([name, count]) => ({ name, count }))
+  const characterData = useMemo<{ name: string; count: number }[]>(() => {
+    const apps = script?.analysis?.character_appearances as
+      | Record<string, { count: number }>
+      | undefined;
+    if (!apps) return [];
+    return Object.entries(apps)
+      .map(([name, v]) => ({ name, count: v.count ?? 0 }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
-  }, [scenes]);
+  }, [script]);
 
-  const sceneBreakdownData = useMemo(() => {
-    // Prefer backend-computed scene_breakdown (has accurate dialogue counts)
-    const backendBreakdown: any[] = script?.analysis?.scene_breakdown || [];
-    if (backendBreakdown.length > 0) {
-      return backendBreakdown.map((sb: any, idx: number) => ({
-        label: sb.scene_label || `S${idx + 1}`,
-        scene: sb.heading || `Scene ${idx + 1}`,
-        characters: sb.characters ?? 0,
-        dialogues: sb.dialogues ?? 0,
-      }));
-    }
+  const sceneBreakdownData = useMemo<
+    { label: string; scene: string; characters: number; dialogues: number }[]
+  >(() => {
+    const breakdown = script?.analysis?.scene_breakdown as
+      | { scene_label?: string; heading?: string; characters?: number; dialogues?: number }[]
+      | undefined;
+    if (!breakdown?.length) return [];
+    return breakdown.map((sb, idx) => ({
+      label: sb.scene_label ?? `S${idx + 1}`,
+      scene: sb.heading ?? `Scene ${idx + 1}`,
+      characters: sb.characters ?? 0,
+      dialogues: sb.dialogues ?? 0,
+    }));
+  }, [script]);
 
-    // Fallback: compute from frontend scene data
-    if (!scenes.length) return [];
-    return scenes
-      .slice()
-      .sort((a, b) => (a.order || 0) - (b.order || 0))
-      .map((s, idx) => {
-        const chars = (s.scene_characters || []).length;
-        return {
-          label: `S${idx + 1}`,
-          scene: s.scene_name || `Scene ${idx + 1}`,
-          characters: chars,
-          dialogues: (s as any).dialog_count ?? 0,
-        };
-      });
-  }, [scenes, script]);
-
-  /** Dialogue distribution per character — from backend analysis */
-  const dialogueDistData = useMemo(() => {
-    const dist: Record<string, number> = script?.analysis?.dialogue_distribution || {};
-    const entries = Object.entries(dist).filter(([, v]) => v > 0);
-    if (!entries.length) return [];
-    return entries
+  const dialogueDistData = useMemo<{ name: string; value: number }[]>(() => {
+    const dist = script?.analysis?.dialogue_distribution as Record<string, number> | undefined;
+    if (!dist) return [];
+    return Object.entries(dist)
+      .filter(([, v]) => v > 0)
       .map(([name, pct]) => ({ name, value: pct }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8);
   }, [script]);
-
-  /** INT / EXT counts as numbers for stat cards */
-  const intCount = useMemo(() => intExtData.find((d) => d.name === "INT")?.value ?? 0, [intExtData]);
-  const extCount = useMemo(() => intExtData.find((d) => d.name === "EXT")?.value ?? 0, [intExtData]);
 
   /* ═══════════════════ Helpers for view ═══════════════════ */
 
@@ -1031,8 +1002,8 @@ export default function ScriptPage() {
             <span className="hidden sm:inline">Shortcuts</span>
           </button>
 
-          {/* Analytics */}
-          {script && scenes.length > 0 && !isAwaitingConfirm && (
+          {/* Analytics — show as soon as the script has been saved once (analysis populated) */}
+          {script && script.analysis?.scene_count && !isAwaitingConfirm && (
             <button
               data-tour="script-analytics-btn"
               onClick={() => setShowAnalytics(true)}
@@ -1742,13 +1713,13 @@ export default function ScriptPage() {
                 <div className="p-3 bg-[var(--surface)] rounded-md border border-[var(--border)] text-center">
                   <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">Scenes</span>
                   <p className="text-xl font-bold text-emerald-400 mt-1">
-                    {script.analysis?.scene_count || scenes.length || scriptHeadings.length}
+                    {(script.analysis?.scene_count as number | undefined) ?? sceneBreakdownData.length}
                   </p>
                 </div>
                 <div className="p-3 bg-[var(--surface)] rounded-md border border-[var(--border)] text-center">
                   <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">Characters</span>
                   <p className="text-xl font-bold text-emerald-400 mt-1">
-                    {characters.length || script.analysis?.character_count || 0}
+                    {(script.analysis?.character_count as number | undefined) ?? characterData.length}
                   </p>
                 </div>
                 <div className="p-3 bg-[var(--surface)] rounded-md border border-[var(--border)] text-center">
@@ -1767,7 +1738,7 @@ export default function ScriptPage() {
                 </div>
               </div>
 
-              {scenes.length > 0 && (
+              {sceneBreakdownData.length > 0 && (
                 <>
                   {/* Row 1 — Scene-by-Scene line chart (full width) */}
                   {sceneBreakdownData.length > 1 && (
