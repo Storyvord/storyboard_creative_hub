@@ -913,8 +913,8 @@ export default function ScriptPage() {
 
   const COLORS = ["#22c55e", "#10b981", "#059669", "#047857", "#6ee7b7"];
 
-  const intCount = (script?.analysis?.interior_vs_exterior as Record<string, number> | undefined)?.Interior ?? 0;
-  const extCount = (script?.analysis?.interior_vs_exterior as Record<string, number> | undefined)?.Exterior ?? 0;
+  const intCount = script?.analysis?.interior_vs_exterior?.Interior ?? 0;
+  const extCount = script?.analysis?.interior_vs_exterior?.Exterior ?? 0;
 
   const intExtData = useMemo<{ name: string; value: number }[]>(() => {
     const d: { name: string; value: number }[] = [];
@@ -924,7 +924,7 @@ export default function ScriptPage() {
   }, [intCount, extCount]);
 
   const locationData = useMemo<{ name: string; count: number }[]>(() => {
-    const dist = script?.analysis?.setting_distribution as Record<string, number> | undefined;
+    const dist = script?.analysis?.setting_distribution;
     if (!dist) return [];
     return Object.entries(dist)
       .map(([name, count]) => ({ name, count }))
@@ -933,12 +933,10 @@ export default function ScriptPage() {
   }, [script]);
 
   const characterData = useMemo<{ name: string; count: number }[]>(() => {
-    const apps = script?.analysis?.character_appearances as
-      | Record<string, { count: number }>
-      | undefined;
+    const apps = script?.analysis?.character_appearances;
     if (!apps) return [];
     return Object.entries(apps)
-      .map(([name, v]) => ({ name, count: v.count ?? 0 }))
+      .map(([name, v]) => ({ name, count: v.count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
   }, [script]);
@@ -946,20 +944,18 @@ export default function ScriptPage() {
   const sceneBreakdownData = useMemo<
     { label: string; scene: string; characters: number; dialogues: number }[]
   >(() => {
-    const breakdown = script?.analysis?.scene_breakdown as
-      | { scene_label?: string; heading?: string; characters?: number; dialogues?: number }[]
-      | undefined;
+    const breakdown = script?.analysis?.scene_breakdown;
     if (!breakdown?.length) return [];
     return breakdown.map((sb, idx) => ({
       label: sb.scene_label ?? `S${idx + 1}`,
       scene: sb.heading ?? `Scene ${idx + 1}`,
-      characters: sb.characters ?? 0,
-      dialogues: sb.dialogues ?? 0,
+      characters: sb.characters,
+      dialogues: sb.dialogues,
     }));
   }, [script]);
 
   const dialogueDistData = useMemo<{ name: string; value: number }[]>(() => {
-    const dist = script?.analysis?.dialogue_distribution as Record<string, number> | undefined;
+    const dist = script?.analysis?.dialogue_distribution;
     if (!dist) return [];
     return Object.entries(dist)
       .filter(([, v]) => v > 0)
@@ -1713,13 +1709,13 @@ export default function ScriptPage() {
                 <div className="p-3 bg-[var(--surface)] rounded-md border border-[var(--border)] text-center">
                   <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">Scenes</span>
                   <p className="text-xl font-bold text-emerald-400 mt-1">
-                    {(script.analysis?.scene_count as number | undefined) ?? sceneBreakdownData.length}
+                    {script.analysis?.scene_count ?? sceneBreakdownData.length}
                   </p>
                 </div>
                 <div className="p-3 bg-[var(--surface)] rounded-md border border-[var(--border)] text-center">
                   <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">Characters</span>
                   <p className="text-xl font-bold text-emerald-400 mt-1">
-                    {(script.analysis?.character_count as number | undefined) ?? characterData.length}
+                    {script.analysis?.character_count ?? characterData.length}
                   </p>
                 </div>
                 <div className="p-3 bg-[var(--surface)] rounded-md border border-[var(--border)] text-center">
