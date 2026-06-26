@@ -91,7 +91,8 @@ export default function ProfilePage() {
         }
 
         if (tierRes.status === "fulfilled") {
-          const td = tierRes.value.data ?? {};
+          // Unwrap the success envelope ({ data: { wallet, ... } }) before reading wallet.
+          const td = tierRes.value.data?.data ?? tierRes.value.data ?? {};
           setTierName(td?.wallet?.tier_name ?? null);
         }
       } catch (e) {
