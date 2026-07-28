@@ -1,3 +1,31 @@
+/**
+ * Storyboarding styles, mirroring `STORYBOARDING_TYPE_CHOICES` in the backend's
+ * `creative_hub/models.py`. Import this type instead of re-declaring the union —
+ * it was previously spelled out in six places and every one of them went stale
+ * when a style was added.
+ */
+export type StoryboardingType =
+  | 'sketch'
+  | 'storyboard'
+  | 'hd'
+  | 'anime'
+  | 'pixar'
+  | 'comic'
+  | 'watercolor'
+  | 'noir';
+
+/** Display order and labels for the style pickers. */
+export const STORYBOARDING_TYPES: { value: StoryboardingType; label: string }[] = [
+  { value: 'sketch', label: 'Sketch' },
+  { value: 'storyboard', label: 'Storyboard' },
+  { value: 'hd', label: 'HD' },
+  { value: 'anime', label: 'Anime' },
+  { value: 'pixar', label: '3D Animation' },
+  { value: 'comic', label: 'Comic Book' },
+  { value: 'watercolor', label: 'Watercolor' },
+  { value: 'noir', label: 'Film Noir' },
+];
+
 export interface TaskStatusRecord {
   id: number;
   task_id: string;
@@ -61,7 +89,7 @@ export interface Script {
   suggestions: unknown[];
   analysis?: ScriptAnalysis;
   aspect_ratio?: string;
-  storyboarding_type?: 'sketch' | 'storyboard' | 'hd' | 'anime';
+  storyboarding_type?: StoryboardingType;
   uploaded_at: string;
   updated_at?: string;
   task_id?: string;
@@ -97,9 +125,9 @@ export interface Scene {
   /** Number of shots that would be deleted if this scene is removed */
   sync_shot_count?: number;
   /** Per-scene style override; null means inherit from script/project level */
-  storyboarding_type?: 'hd' | 'sketch' | 'anime' | 'storyboard' | null;
+  storyboarding_type?: StoryboardingType | null;
   /** Always-resolved effective style (never null) */
-  effective_storyboarding_type?: 'hd' | 'sketch' | 'anime' | 'storyboard';
+  effective_storyboarding_type?: StoryboardingType;
   [key: string]: any;
 }
 

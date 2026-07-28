@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getScripts, getScenes, getShots, generateShotImage, bulkGenerateShots, bulkGeneratePreviz, getStoryboardDataPaginated, getSceneStoryboardData, getScriptTasks, getShotPreviz, getBulkTaskStatus, updateScript, updateScene, createShot, reorderShots as reorderShotsApi, getCharacters, updateShotDetails, getShotDetail, isTaskBackfillRow } from "@/services/creative-hub";
 import ModelSelector from "@/components/creative-hub/ModelSelector";
-import { Scene, Shot, Script } from "@/types/creative-hub";
+import { Scene, Shot, Script, StoryboardingType, STORYBOARDING_TYPES } from "@/types/creative-hub";
 import { Loader2, Film, ChevronRight, CheckSquare, Square, Play, Image as ImageIcon, CheckCircle, Circle, AlertTriangle, GripVertical, Plus, X } from "lucide-react";
 import StoryboardTour, { TourTriggerButton, TOUR_STORAGE_KEY } from "@/components/creative-hub/StoryboardTour";
 import { clsx } from "clsx";
@@ -42,13 +42,6 @@ export const CAMERA_ANGLES = [
 
 const SHOT_TYPES = Object.keys(SHOT_TYPE_MAP);
 export const ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3", "3:4", "2.35:1", "21:9", "3:2"];
-const STORYBOARDING_TYPES: { value: 'sketch' | 'storyboard' | 'hd' | 'anime'; label: string }[] = [
-  { value: 'sketch',     label: 'Sketch' },
-  { value: 'storyboard', label: 'Storyboard' },
-  { value: 'hd',         label: 'HD' },
-  { value: 'anime',      label: 'Anime' },
-];
-
 function getAbbrev(type: string): string {
   return SHOT_TYPE_MAP[type] || type?.substring(0, 3)?.toUpperCase() || "—";
 }
@@ -329,7 +322,7 @@ interface SceneItemProps {
   onTagsChange: (shotId: number, tags: TaggedCharacter[]) => void;
   globalCharacters: GlobalCharacterItem[];
   shotsAreaTourId?: string;
-  onUpdateSceneStyle: (sceneId: number, value: string | null) => void;
+  onUpdateSceneStyle: (sceneId: number, value: StoryboardingType | null) => void;
   activeScriptStoryboardingType?: string;
 }
 
@@ -436,7 +429,7 @@ function SceneItem({ scene, shots, isSelected, onToggleSelect, onShotClick, load
                 : "text-white"
             )}
             value={scene.storyboarding_type || activeScriptStoryboardingType || 'hd'}
-            onChange={(e) => onUpdateSceneStyle(scene.id as number, e.target.value)}
+            onChange={(e) => onUpdateSceneStyle(scene.id as number, e.target.value as StoryboardingType)}
           >
             {STORYBOARDING_TYPES.map(t => (
               <option key={t.value} value={t.value}>
@@ -1137,16 +1130,16 @@ export default function StoryboardPage() {
       } catch (error) { console.error(error); toast.error(extractApiError(error, "Failed to start previz generation.")); } finally { setIsBulkGenerating(false); setPendingPrevizShotIds([]); }
   };
 
-  const handleUpdateSceneStyle = async (sceneId: number, value: string | null) => {
+  const handleUpdateSceneStyle = async (sceneId: number, value: StoryboardingType | null) => {
     if (!activeScript) return;
     const prevScenes = scenes;
     setScenes(prev => prev.map(s =>
       s.id === sceneId
-        ? { ...s, storyboarding_type: value as any, effective_storyboarding_type: (value ?? activeScript.storyboarding_type ?? 'hd') as any }
+        ? { ...s, storyboarding_type: value, effective_storyboarding_type: value ?? activeScript.storyboarding_type ?? 'hd' }
         : s
     ));
     try {
-      await updateScene(sceneId, { storyboarding_type: value as any });
+      await updateScene(sceneId, { storyboarding_type: value });
       toast.success(value ? "Scene style pinned." : "Scene style reset to project default.");
     } catch (err) {
       setScenes(prevScenes);
@@ -1301,7 +1294,7 @@ export default function StoryboardPage() {
                   className="bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] border border-[var(--border)] rounded-md text-[11px] font-medium transition-colors text-[var(--text-primary)] px-2 py-1.5 outline-none focus:border-emerald-500/40"
                   value={activeScript.storyboarding_type || "hd"}
                   onChange={async (e) => {
-                    const newValue = e.target.value as 'sketch' | 'storyboard' | 'hd' | 'anime';
+                    const newValue = e.target.value as StoryboardingType;
                     setActiveScript({ ...activeScript, storyboarding_type: newValue });
                     try {
                       await updateScript(activeScript.id, { storyboarding_type: newValue });
