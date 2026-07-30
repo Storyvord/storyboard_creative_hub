@@ -37,7 +37,7 @@ const SCENES = [
     slug: "INT. ART DEPARTMENT — DAY",
     title: "AI Storyboard Generation.",
     body:
-      "Shot-by-shot storyboards drawn by AI. Three styles — anime, cinematic, sketch. Run a slideshow of the whole sequence before a single frame is shot.",
+      "Shot-by-shot storyboards drawn by AI. Eight styles — sketch, storyboard, photoreal, anime, 3D animation, comic book, watercolor and film noir. Run a slideshow of the whole sequence before a single frame is shot.",
     shotlist: ["Shot-by-shot panels", "Style switcher", "Slideshow preview", "Frame export"],
     image: "/screenshots/storyboard.png",
   },

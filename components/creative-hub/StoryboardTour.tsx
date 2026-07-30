@@ -33,7 +33,7 @@ const TOUR_STEPS: TourStep[] = [
     id: "style",
     title: "Generation Style",
     content:
-      "Choose how the AI renders each shot: Sketch for fast rough drafts, Storyboard for clean panel-style frames, HD for photorealistic images, or Anime for illustrated style.",
+      "Choose how the AI renders each shot: Sketch for fast rough drafts, Storyboard for clean panel-style frames, HD for photorealistic images, or an illustrated look — Anime, 3D Animation, Comic Book, Watercolor or Film Noir.",
     target: "style",
     position: "bottom",
   },

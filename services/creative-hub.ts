@@ -1,5 +1,5 @@
 import api from "./api";
-import { Script, Scene, Character, Cloth, Shot, SceneSyncDiff, TaskStatusRecord } from "@/types/creative-hub";
+import { Script, Scene, Character, Cloth, Shot, SceneSyncDiff, TaskStatusRecord, StoryboardingType } from "@/types/creative-hub";
 
 export interface ImageModel {
   model_name: string;
@@ -521,7 +521,7 @@ export interface BulkGenerateShotConfig {
     scene_character_ids?: number[];
     character_ids?: number[];
     location_id?: number | null;
-    storyboarding_type?: 'hd' | 'sketch' | 'anime' | 'storyboard';
+    storyboarding_type?: StoryboardingType;
 }
 
 export const bulkGeneratePreviz = async (

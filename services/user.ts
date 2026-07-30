@@ -78,7 +78,10 @@ export const getMyProfile = async (): Promise<UserProfile> => {
 // immediately; the v2 endpoint does not reflect AI usage.
 export const getUserCreditInfo = async (): Promise<UserCreditInfo> => {
   const response = await api.get('/api/accounts/v3/tier/credit-info/');
-  const body = response.data ?? {};
+  // The endpoint wraps its payload in a success envelope: { status, message,
+  // data: { wallet, recent_transactions } }. Unwrap `data` before reading the
+  // wallet — reading response.data.wallet directly always misses and falls back to 0.
+  const body = response.data?.data ?? response.data ?? {};
   const wallet: UserWallet = body.wallet ?? {
     current_balance: 0,
     total_used: 0,
