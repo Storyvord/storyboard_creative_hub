@@ -627,9 +627,42 @@ export const uploadCreativeSpaceReference = async (
   return response.data;
 };
 
+// Module-level cache for the image-model catalog.
+//
+// The payload is identical for every user and changes only when an admin edits a
+// model, but this was refetched on every ModelSelector open — its effect keys on
+// `isOpen` — and again by the Creative Space page. Opening the picker three times
+// meant three round trips for the same bytes.
+//
+// The promise itself is cached, not just the result, so concurrent callers share
+// one in-flight request instead of racing. Cleared on failure: caching a rejected
+// promise would turn one transient blip into an empty picker for the rest of the
+// session.
+let imageModelsCache: Promise<ImageModel[]> | null = null;
+
 export const getImageModels = async (): Promise<ImageModel[]> => {
-    const response = await api.get(`/api/creative_hub/image-models/`);
-    return response.data;
+    if (!imageModelsCache) {
+        imageModelsCache = api
+            .get(`/api/creative_hub/image-models/`)
+            .then((response) => {
+                const data = response.data;
+                if (Array.isArray(data)) return data as ImageModel[];
+                // Tolerate a paginated envelope rather than handing callers a
+                // non-array they will immediately .filter() over.
+                if (Array.isArray(data?.results)) return data.results as ImageModel[];
+                return [] as ImageModel[];
+            })
+            .catch((err) => {
+                imageModelsCache = null;
+                throw err;
+            });
+    }
+    return imageModelsCache;
+}
+
+/** Drop the cached catalog — call after models change within a session. */
+export const invalidateImageModelsCache = (): void => {
+    imageModelsCache = null;
 }
 
 export const getScriptTasks = async (scriptId: string | number): Promise<any> => {
