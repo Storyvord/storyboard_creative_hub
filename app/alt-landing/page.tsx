@@ -15,6 +15,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
+import ReelSection from "@/components/reel/ReelSection";
 import { STATIONS, type StationId } from "@/components/soundstage/stations";
 import "./alt-landing.css";
 
@@ -182,6 +183,8 @@ export default function AltLandingPage() {
               : "Wide shot. No department selected."}
           </p>
         </section>
+
+        <ReelSection />
 
         <section className="alt-close">
           <h2 className="alt-h2 alt-close-title">

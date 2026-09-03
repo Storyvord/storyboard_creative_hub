@@ -316,3 +316,194 @@
   .alt-cta:hover { transform: none; }
   .alt-station { transition: none; }
 }
+
+/* ──────────────────────────────────────────────────────────────────────
+   The roll — scroll-driven film strip.
+
+   Layout: the canvas is sticky and full-height, the steps are pulled back over
+   it with a negative margin. That keeps the scroll native — the steps occupy
+   real height in the flow, so the scrollbar, keyboard paging and find-in-page
+   all still mean something, which a transform-based fake scroller takes away.
+   ────────────────────────────────────────────────────────────────────── */
+
+.reel {
+  position: relative;
+  background: var(--ink);
+  border-top: 1px solid var(--rule);
+}
+
+.reel-canvas {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  z-index: 0;
+}
+
+.reel-steps {
+  position: relative;
+  z-index: 1;
+  /* Pull the flow back over the sticky canvas it just passed. */
+  margin-top: -100svh;
+  pointer-events: none;
+}
+/* The copy still needs to be selectable and its links clickable. */
+.reel-steps a,
+.reel-card,
+.reel-head,
+.reel-rest { pointer-events: auto; }
+
+.reel-head {
+  min-height: 62svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  padding: 0 clamp(16px, 5vw, 48px);
+  max-width: 34ch;
+}
+.reel-head-sub {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--silver);
+  margin: 0;
+}
+
+.reel-step-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.reel-step {
+  /* One viewport of scroll per frame — this is what sets the fall's pace. */
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  padding: 0 clamp(16px, 5vw, 48px);
+}
+
+.reel-card {
+  max-width: 34ch;
+  padding: 26px 24px;
+  background: rgba(10, 10, 10, 0.72);
+  border-left: 2px solid var(--rule);
+  /* Legibility over a moving 3D background needs more than opacity. */
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: border-color 0.5s var(--ease), background 0.5s var(--ease);
+}
+.reel-card.is-open { border-left-color: var(--brand); background: rgba(10, 10, 10, 0.82); }
+
+.reel-slate {
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--brand);
+  margin: 0 0 12px;
+}
+.reel-card-title {
+  font-family: var(--font-serif), Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  line-height: 1.12;
+  text-wrap: balance;
+  margin: 0 0 12px;
+}
+.reel-card-body {
+  font-size: 14px;
+  line-height: 1.65;
+  opacity: 0.84;
+  text-wrap: pretty;
+  margin: 0;
+}
+
+/* Where it rests ──────────────────────────────────────────────── */
+.reel-rest {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 clamp(16px, 5vw, 48px);
+}
+
+.reel-can {
+  width: min(38ch, 100%);
+  padding: 32px 30px;
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--rule);
+}
+.reel-can-mark {
+  font-size: 10px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--brand);
+  margin: 0 0 20px;
+}
+.reel-can-label {
+  margin: 0 0 28px;
+  display: grid;
+  gap: 12px;
+}
+.reel-can-label > div {
+  display: grid;
+  grid-template-columns: 11ch 1fr;
+  gap: 14px;
+  align-items: baseline;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.reel-can-label dt {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--silver);
+}
+.reel-can-label dd {
+  margin: 0;
+  font-size: 14px;
+}
+
+.reel-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Reduced motion: same content, stacked, no canvas ────────────── */
+.reel--flat {
+  padding: clamp(64px, 12vh, 140px) clamp(16px, 5vw, 48px);
+}
+.reel--flat .reel-head { min-height: 0; margin-bottom: 48px; padding: 0; }
+.reel-flat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 56px;
+}
+.reel--flat .reel-card {
+  max-width: 62ch;
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.reel-flat-shot {
+  width: 100%;
+  height: auto;
+  margin-top: 20px;
+  border: 1px solid var(--rule);
+}
+.reel--flat .reel-can { margin-top: 64px; width: min(46ch, 100%); }
+
+@media (max-width: 720px) {
+  .reel-card { max-width: none; }
+  .reel-rest { justify-content: stretch; }
+  .reel-can { width: 100%; }
+  .reel-can-label > div { grid-template-columns: 1fr; gap: 4px; }
+}
