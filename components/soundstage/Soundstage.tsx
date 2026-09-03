@@ -164,7 +164,10 @@ export default function Soundstage({ station }: { station: StationId | null }) {
     <Canvas
       aria-hidden
       tabIndex={-1}
-      shadows
+      // "percentage" is PCFShadowMap. R3F's bare `shadows` asks for
+      // PCFSoftShadowMap, which three 0.184 has deprecated — it falls back to
+      // exactly this and warns to the console on every render while doing so.
+      shadows="percentage"
       // Clamped: an uncapped DPR on a 3x phone renders nine times the pixels
       // for a background element.
       dpr={[1, 1.8]}
