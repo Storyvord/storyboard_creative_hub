@@ -24,7 +24,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 
-import { CAN_LABEL, REEL_FRAMES } from "./frames";
+import { CAN_LABEL, REEL_FRAMES, REEL_LAYOUT } from "./frames";
 
 const Reel = dynamic(() => import("./Reel"), { ssr: false, loading: () => null });
 
@@ -135,7 +135,22 @@ export default function ReelSection() {
   }
 
   return (
-    <section className="reel" aria-labelledby="reel-title" ref={section}>
+    <section
+      className="reel"
+      aria-labelledby="reel-title"
+      ref={section}
+      // The stylesheet reads its lengths from these. REEL_LAYOUT also decides
+      // where each frame sits on the curve, so publishing it here is what keeps
+      // the scroll distance and the geometry describing the same fall.
+      style={
+        {
+          "--reel-head": `${REEL_LAYOUT.head}svh`,
+          "--reel-step": `${REEL_LAYOUT.step}svh`,
+          "--reel-rest": `${REEL_LAYOUT.rest}svh`,
+          "--reel-tail": `${REEL_LAYOUT.tail}svh`,
+        } as React.CSSProperties
+      }
+    >
       <div className="reel-canvas" aria-hidden>
         {armed && <Reel active={active} progress={progress} />}
       </div>

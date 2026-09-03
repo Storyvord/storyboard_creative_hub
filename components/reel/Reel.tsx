@@ -19,6 +19,7 @@ import {
   SRGBColorSpace,
   TextureLoader,
   Vector3,
+  DoubleSide,
   type Group,
   type MeshStandardMaterial,
   type Texture,
@@ -28,13 +29,14 @@ import {
   buildRibbonGeometry,
   frameAt,
   makeFilmBaseTexture,
+  makeFrameLabelTexture,
   STRIP_BOTTOM_Y,
   STRIP_CURVE,
   STRIP_HALF_WIDTH,
   STRIP_TOP_Y,
   type StripFrame,
 } from "./filmstrip";
-import { REEL_FRAMES } from "./frames";
+import { FRAME_POSITIONS, REEL_FRAMES } from "./frames";
 
 const BRAND = "#22cb67";
 const INK = "#0a0a0a";
@@ -95,10 +97,14 @@ function useFrameTexture(url: string): Texture | null {
 function Frame({
   at,
   image,
+  slate,
+  title,
   active,
 }: {
   at: number;
   image: string;
+  slate: string;
+  title: string;
   active: boolean;
 }) {
   const group = useRef<Group>(null);
@@ -122,6 +128,10 @@ function Frame({
     () => ({ dummy: new Object3D(), quat: new Quaternion(), dir: new Vector3() }),
     []
   );
+
+  // The marking printed on the roll beside the image. Built once per frame.
+  const label = useMemo(() => makeFrameLabelTexture(slate, title), [slate, title]);
+  useEffect(() => () => label.dispose(), [label]);
 
   useFrame((state, delta) => {
     const g = group.current;
@@ -170,9 +180,16 @@ function Frame({
         />
       </mesh>
       {/* Frame line, so an open frame still reads as cut from the strip. */}
-      <mesh position={[0, 0, -0.006]}>
-        <planeGeometry args={[STRIP_HALF_WIDTH * 1.74, STRIP_HALF_WIDTH * 1.13]} />
+      <mesh position={[0, -STRIP_HALF_WIDTH * 0.12, -0.006]}>
+        <planeGeometry args={[STRIP_HALF_WIDTH * 1.74, STRIP_HALF_WIDTH * 1.4]} />
         <meshBasicMaterial color={INK} />
+      </mesh>
+      {/* The frame's own marking, printed on the strip below the image — the
+          detail that was missing, so the roll carried no information of its
+          own and everything had to be read off the cards beside it. */}
+      <mesh position={[0, -STRIP_HALF_WIDTH * 0.62, 0.004]}>
+        <planeGeometry args={[STRIP_HALF_WIDTH * 1.62, STRIP_HALF_WIDTH * 0.2]} />
+        <meshBasicMaterial map={label} toneMapped={false} />
       </mesh>
       {/* Scene tab on the edge, lit only while this frame is the one. */}
       <mesh position={[STRIP_HALF_WIDTH * 0.78, STRIP_HALF_WIDTH * 0.62, 0.004]}>
@@ -197,9 +214,13 @@ function Ribbon() {
     <mesh geometry={geometry}>
       <meshStandardMaterial
         map={texture}
-        transparent
-        alphaTest={0.35}
-        side={2}
+        // alphaTest WITHOUT transparent. Setting both moves the ribbon into the
+        // transparent pass, where it is depth-sorted per object and does not
+        // write depth — so a strip that folds back over itself renders its far
+        // side over its near side and appears to break apart. As a pure cutout
+        // it stays in the opaque pass and sorts per fragment, correctly.
+        alphaTest={0.5}
+        side={DoubleSide}
         roughness={0.85}
         metalness={0.05}
       />
@@ -319,7 +340,14 @@ function Scene({ active, progress }: { active: number; progress: React.RefObject
       <Spool position={[2.45, STRIP_TOP_Y + 0.45, -0.6]} />
       <Ribbon />
       {REEL_FRAMES.map((f, i) => (
-        <Frame key={f.id} at={f.at} image={f.image} active={active === i} />
+        <Frame
+          key={f.id}
+          at={FRAME_POSITIONS[i]}
+          image={f.image}
+          slate={f.slate}
+          title={f.title}
+          active={active === i}
+        />
       ))}
       <FilmCan />
       <Rider progress={progress} />

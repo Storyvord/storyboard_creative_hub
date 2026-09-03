@@ -12,6 +12,7 @@ import {
   BufferGeometry,
   CanvasTexture,
   CatmullRomCurve3,
+  LinearFilter,
   RepeatWrapping,
   SRGBColorSpace,
   Vector3,
@@ -50,6 +51,12 @@ export const STRIP_CURVE = new CatmullRomCurve3(
   "catmullrom",
   0.5
 );
+
+// getPointAt/getTangentAt walk an arc-length table built at this resolution.
+// The default of 200 is coarse for a curve this long — samples bunch through
+// the tight turns, which stretches the sprocket pitch and makes the ribbon look
+// like it is tearing where it bends hardest.
+STRIP_CURVE.arcLengthDivisions = 800;
 
 /**
  * Roll about the strip's own tangent.
@@ -163,12 +170,29 @@ export function buildRibbonGeometry(segments = 420, vRepeat = 46): BufferGeometr
 /**
  * One sprocket pitch of 35mm film base, drawn to a canvas and tiled.
  *
+ * The canvas's WIDTH runs across the strip and its HEIGHT along the length, so
+ * everything is laid out in lanes: perforations at both edges, a print lane
+ * inboard of each, and the frame area down the middle. The lanes matter — the
+ * first version drew the key code at x = W-40, which is inside the right
+ * perforation lane, so the holes punched the text straight back out again and
+ * the roll carried no edge printing at all.
+ *
  * The perforations are punched with `destination-out` so they are genuinely
- * transparent — you see the set through them, which is what sells the ribbon as
- * film rather than as a dark stripe. The edge printing is the detail that does
- * the most work for the least cost: real stock carries a key code down the
- * margin, and without it the strip reads as a generic band.
+ * transparent: you see the set through them, which is what sells the ribbon as
+ * film rather than as a dark stripe.
  */
+
+/** Lane geometry, in canvas px across a 256-wide strip. */
+const PERF_W = 30;
+const LANE = {
+  perfLeft: 10,
+  printLeft: 44,
+  frame: 66,
+  frameEnd: 190,
+  printRight: 194,
+  perfRight: 216,
+} as const;
+
 export function makeFilmBaseTexture(): CanvasTexture {
   const W = 256;
   const H = 128;
@@ -181,35 +205,44 @@ export function makeFilmBaseTexture(): CanvasTexture {
   ctx.fillStyle = "#141416";
   ctx.fillRect(0, 0, W, H);
 
-  // Rails just inboard of the perforations.
+  // Rails bounding the frame area.
   ctx.fillStyle = "#1d1e21";
-  ctx.fillRect(52, 0, 6, H);
-  ctx.fillRect(W - 58, 0, 6, H);
+  ctx.fillRect(LANE.frame - 4, 0, 3, H);
+  ctx.fillRect(LANE.frameEnd + 1, 0, 3, H);
 
-  // Edge print, down the margin between the rail and the frame.
+  // Key code down the right print lane, clear of the perforations.
   ctx.save();
-  ctx.translate(W - 40, H / 2);
+  ctx.translate(LANE.printRight + 9, H / 2);
   ctx.rotate(-Math.PI / 2);
-  ctx.fillStyle = "rgba(226, 200, 140, 0.55)";
-  ctx.font = "600 15px ui-monospace, monospace";
+  ctx.fillStyle = "rgba(226, 200, 140, 0.62)";
+  ctx.font = "600 13px ui-monospace, monospace";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("STORYVORD 5219 · 24A", 0, 0);
+  ctx.fillText("STORYVORD 5219", 0, 0);
+  ctx.restore();
+
+  // Frame counter down the left print lane — the second edge marking real
+  // stock carries, and it reads as movement when the strip is falling.
+  ctx.save();
+  ctx.translate(LANE.printLeft + 9, H / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = "rgba(226, 200, 140, 0.34)";
+  ctx.font = "600 11px ui-monospace, monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("· 24A ·", 0, 0);
   ctx.restore();
 
   // Frame line, so consecutive frames read as separated.
   ctx.fillStyle = "#0a0a0b";
-  ctx.fillRect(58, H - 5, W - 116, 5);
+  ctx.fillRect(LANE.frame, H - 5, LANE.frameEnd - LANE.frame, 5);
 
   // Perforations: punched out, two per pitch per edge.
   ctx.globalCompositeOperation = "destination-out";
-  const holeW = 30;
-  const holeH = 26;
-  const radius = 5;
-  for (const x of [14, W - 14 - holeW]) {
+  for (const x of [LANE.perfLeft, LANE.perfRight]) {
     for (const y of [16, 82]) {
       ctx.beginPath();
-      ctx.roundRect(x, y, holeW, holeH, radius);
+      ctx.roundRect(x, y, PERF_W, 26, 5);
       ctx.fill();
     }
   }
@@ -219,6 +252,53 @@ export function makeFilmBaseTexture(): CanvasTexture {
   texture.wrapS = RepeatWrapping;
   texture.wrapT = RepeatWrapping;
   texture.colorSpace = SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.anisotropy = 8;
+  // No mipmaps. The material cuts the perforations with alphaTest, and a mip
+  // chain averages a punched hole and its solid surround into a half-alpha
+  // grey — which alphaTest then discards wholesale, tearing visible gaps in the
+  // ribbon wherever it turns away from the camera. Anisotropy covers the
+  // glancing angles that mipmaps would otherwise have handled.
+  texture.generateMipmaps = false;
+  texture.minFilter = LinearFilter;
+  texture.magFilter = LinearFilter;
+  return texture;
+}
+
+/**
+ * The per-frame marking printed on the roll itself.
+ *
+ * Asked for as "details on the roll" as well as outside it. Drawn to a canvas
+ * rather than rendered with troika/drei <Text>, which fetches a font from a CDN
+ * on first use — the whole strip is otherwise network-free, and a roll that
+ * waits on a font to show its markings is a roll that shows none.
+ */
+export function makeFrameLabelTexture(slate: string, title: string): CanvasTexture {
+  const W = 1024;
+  const H = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+
+  ctx.fillStyle = "#0d0d0f";
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textBaseline = "middle";
+  ctx.font = "700 46px ui-monospace, monospace";
+  ctx.fillStyle = "#22cb67";
+  ctx.fillText(slate.toUpperCase(), 34, H / 2);
+
+  const slateWidth = ctx.measureText(slate.toUpperCase()).width;
+
+  ctx.fillStyle = "rgba(245, 245, 245, 0.32)";
+  ctx.fillRect(34 + slateWidth + 26, H / 2 - 16, 2, 32);
+
+  ctx.font = "500 44px ui-monospace, monospace";
+  ctx.fillStyle = "rgba(245, 245, 245, 0.86)";
+  ctx.fillText(title.toUpperCase(), 34 + slateWidth + 52, H / 2);
+
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = 8;
   return texture;
 }

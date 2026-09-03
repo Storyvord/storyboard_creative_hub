@@ -20,7 +20,11 @@
   min-height: 100vh;
   font-family: var(--font-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  /* NOT overflow-x: hidden. Per spec, when one axis is not `visible` the other
+     computes to `auto`, which makes this element a scroll container — and
+     `position: sticky` inside then anchors to it rather than to the viewport,
+     so the reel's canvas never sticks and scrolls away with the page. The hero
+     clips its own bleed (.alt-stage), which is all that ever needed clipping. */
 }
 
 .alt * { box-sizing: border-box; }
@@ -344,6 +348,12 @@
   z-index: 1;
   /* Pull the flow back over the sticky canvas it just passed. */
   margin-top: -100svh;
+  /* A sticky child stops at (parent height − its own height), so without this
+     the canvas unstuck a full viewport before the last step had been read —
+     the roll scrolled away while the wrap copy was still coming. The padding
+     buys back exactly the canvas's height, so every step is read while the
+     canvas is still stuck, and the final screen holds on the roll at rest. */
+  padding-bottom: var(--reel-tail, 100svh);
   pointer-events: none;
 }
 /* The copy still needs to be selectable and its links clickable. */
@@ -353,7 +363,7 @@
 .reel-rest { pointer-events: auto; }
 
 .reel-head {
-  min-height: 62svh;
+  min-height: var(--reel-head, 62svh);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -375,8 +385,9 @@
 }
 
 .reel-step {
-  /* One viewport of scroll per frame — this is what sets the fall's pace. */
-  min-height: 100svh;
+  /* Scroll distance per frame — set in REEL_LAYOUT, which also places the
+     frames on the curve. Changing it here alone would desync the two. */
+  min-height: var(--reel-step, 100svh);
   display: flex;
   align-items: center;
   padding: 0 clamp(16px, 5vw, 48px);
@@ -420,7 +431,7 @@
 
 /* Where it rests ──────────────────────────────────────────────── */
 .reel-rest {
-  min-height: 100svh;
+  min-height: var(--reel-rest, 100svh);
   display: flex;
   align-items: center;
   justify-content: flex-end;
