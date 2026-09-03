@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { motion, useInView, useScroll, useTransform } from "framer-motion";
+import { MotionConfig, motion, useInView, useReducedMotion, useScroll, useTransform } from "framer-motion";
 
 // ─────────────────────────────────────────────────────────────────────
 // Storyvord landing — black editorial theme, AI Co-Producer brand DNA.
@@ -19,7 +19,7 @@ const SCENES = [
     slug: "INT. SCRIPT ROOM — DAY",
     title: "AI Script Breakdown.",
     body:
-      "Drop a screenplay. Storyvord auto-tags every character, location, prop, and scene requirement — the kind of work that used to eat a week of an AD's life.",
+      "Drop a screenplay. Storyvord auto-tags every character, location, prop, and scene requirement — the kind of work that used to eat a week of an AD’s life.",
     shotlist: ["Auto-tagged scenes", "Character & prop index", "Location lookup", "Page-count math"],
     image: "/screenshots/script.png",
   },
@@ -28,7 +28,7 @@ const SCENES = [
     slug: "INT. ART DEPARTMENT — DAY",
     title: "The Creative Hub.",
     body:
-      "Storyvord's flagship feature. Script, Scenes, Characters, Locations, Wardrobe and Storyboard — the entire art department in one workspace, every module linked back to your script.",
+      "Storyvord’s flagship feature. Script, Scenes, Characters, Locations, Wardrobe and Storyboard — the entire art department in one workspace, every module linked back to your script.",
     shotlist: ["Script", "Scenes", "Characters", "Locations", "Wardrobe", "Storyboard"],
     image: "/screenshots/dashboard.png",
   },
@@ -61,7 +61,7 @@ const SCENES = [
   },
   {
     no: "06",
-    slug: "INT. PRODUCER'S OFFICE — DAY",
+    slug: "INT. PRODUCER’S OFFICE — DAY",
     title: "AI Budget & Compliance.",
     body:
       "Budget breakdown, logistics, sustainability and global film-compliance reports — generated at a click. Numbers that survive the audit.",
@@ -73,7 +73,7 @@ const SCENES = [
     slug: "INT. CASTING — DAY",
     title: "AI Crew & Casting.",
     body:
-      "Reference portraits, per-scene looks, AI-suggested crew matched to your project's shape. Continuity that survives the schedule.",
+      "Reference portraits, per-scene looks, AI-suggested crew matched to your project’s shape. Continuity that survives the schedule.",
     shotlist: ["Reference portrait", "Per-scene looks", "Continuity log", "Crew matches"],
     image: "/screenshots/anna-detail.png",
   },
@@ -136,21 +136,29 @@ const PRICING = [
 
 export default function LandingPage() {
   return (
-    <div className="lp">
-      <Grain />
-      <TopBar />
-      <Timecode />
-      <TitleCard />
-      <Marquee />
-      <Logline />
-      <Breakdown />
-      <Reel scenes={SCENES} />
-      <ShotList rows={SHOT_LIST} />
-      <Pricing tiers={PRICING} />
-      <Cast />
-      <Wrap />
-      <EndCredits />
-    </div>
+    // landing.css honoured prefers-reduced-motion for the CSS animations, but
+    // every framer-motion entrance on this page ran regardless — the slide-ups,
+    // the parallax, the per-character title reveal. reducedMotion="user" drops
+    // transform and layout animation for those users while keeping opacity, so
+    // content still fades in rather than appearing to be missing.
+    <MotionConfig reducedMotion="user">
+      <div className="lp">
+        <a className="lp-skip" href="#features">Skip to content</a>
+        <Grain />
+        <TopBar />
+        <Timecode />
+        <TitleCard />
+        <Marquee />
+        <Logline />
+        <Breakdown />
+        <Reel scenes={SCENES} />
+        <ShotList rows={SHOT_LIST} />
+        <Pricing tiers={PRICING} />
+        <Cast />
+        <Wrap />
+        <EndCredits />
+      </div>
+    </MotionConfig>
   );
 }
 
@@ -159,6 +167,7 @@ export default function LandingPage() {
 function TopBar() {
   const [authed, setAuthed] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -169,12 +178,25 @@ function TopBar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Escape closes the menu — the panel is fixed and covers the page, so
+  // leaving it open with no keyboard way out traps the reader.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
   const linkStyle: React.CSSProperties = {
     fontSize: 11,
     letterSpacing: "0.22em",
     textTransform: "uppercase",
     color: "var(--paper)",
   };
+
+  const close = () => setMenuOpen(false);
 
   return (
     <motion.header
@@ -191,12 +213,14 @@ function TopBar() {
         alignItems: "center",
         justifyContent: "space-between",
         padding: "16px 6vw",
-        background: scrolled ? "var(--ink)" : "transparent",
-        borderBottom: `1px solid ${scrolled ? "var(--rule)" : "transparent"}`,
+        // The bar is transparent at rest, but once the menu is open it has a
+        // panel hanging off it and needs its own ground.
+        background: scrolled || menuOpen ? "var(--ink)" : "transparent",
+        borderBottom: `1px solid ${scrolled || menuOpen ? "var(--rule)" : "transparent"}`,
         transition: "background 0.4s ease, border-color 0.4s ease",
       }}
     >
-      <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 14 }}>
+      <Link href="/" onClick={close} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 14 }}>
         <Image
           src="/storyvord/logo.svg"
           alt="Storyvord"
@@ -205,26 +229,42 @@ function TopBar() {
           priority
           style={{ height: 32, width: "auto" }}
         />
-        <span className="mono" style={{ display: "inline-flex", alignItems: "center", gap: 8, opacity: 0.7, fontSize: 9, letterSpacing: "0.32em", color: "var(--paper)", textTransform: "uppercase", borderLeft: "1px solid var(--rule)", paddingLeft: 14 }}>
+        <span className="mono lp-wordmark-tag" style={{ display: "inline-flex", alignItems: "center", gap: 8, opacity: 0.7, fontSize: 9, letterSpacing: "0.32em", color: "var(--paper)", textTransform: "uppercase", borderLeft: "1px solid var(--rule)", paddingLeft: 14 }}>
           <Image src="/storyvord/icons_ai.svg" alt="" width={14} height={14} style={{ filter: "invert(1)" }} />
           AI Co-Producer
         </span>
       </Link>
 
-      <nav className="mono" style={{ display: "flex", gap: 24, alignItems: "center" }}>
-        <Link href="#features" className="lp-link" style={linkStyle}>Features</Link>
-        <Link href="#process" className="lp-link" style={linkStyle}>Process</Link>
-        <Link href="#pricing" className="lp-link" style={linkStyle}>Pricing</Link>
-        <Link href="#contact" className="lp-link" style={linkStyle}>Contact</Link>
-        <span style={{ width: 1, height: 16, background: "var(--rule)", margin: "0 4px" }} aria-hidden />
+      <button
+        type="button"
+        className="lp-nav-toggle"
+        aria-expanded={menuOpen}
+        aria-controls="lp-primary-nav"
+        onClick={() => setMenuOpen((v) => !v)}
+      >
+        {menuOpen ? "Close" : "Menu"}
+        <span aria-hidden>{menuOpen ? "\u2715" : "\u2261"}</span>
+      </button>
+
+      <nav
+        id="lp-primary-nav"
+        className="mono lp-nav"
+        data-open={menuOpen}
+        aria-label="Primary"
+      >
+        <Link href="#features" className="lp-link" style={linkStyle} onClick={close}>Features</Link>
+        <Link href="#process" className="lp-link" style={linkStyle} onClick={close}>Process</Link>
+        <Link href="#pricing" className="lp-link" style={linkStyle} onClick={close}>Pricing</Link>
+        <Link href="#contact" className="lp-link" style={linkStyle} onClick={close}>Contact</Link>
+        <span className="lp-nav-divider" style={{ width: 1, height: 16, background: "var(--rule)", margin: "0 4px" }} aria-hidden />
         {authed ? (
-          <Link href="/dashboard" className="lp-cta" style={{ padding: "10px 18px", fontSize: 11, letterSpacing: "0.22em" }}>
+          <Link href="/dashboard" className="lp-cta" style={{ padding: "10px 18px", fontSize: 11, letterSpacing: "0.22em" }} onClick={close}>
             Dashboard <span aria-hidden>→</span>
           </Link>
         ) : (
           <>
-            <Link href="/login" className="lp-link" style={linkStyle}>Log in</Link>
-            <Link href="/register" className="lp-cta" style={{ padding: "10px 18px", fontSize: 11, letterSpacing: "0.22em" }}>
+            <Link href="/login" className="lp-link" style={linkStyle} onClick={close}>Log in</Link>
+            <Link href="/register" className="lp-cta" style={{ padding: "10px 18px", fontSize: 11, letterSpacing: "0.22em" }} onClick={close}>
               Start for free <span aria-hidden>→</span>
             </Link>
           </>
@@ -242,9 +282,16 @@ function Grain() {
 
 function Timecode() {
   const [tc, setTc] = useState("00:00:00:00");
+  // A 12 Hz React state update runs forever otherwise — including in a
+  // background tab, where it costs battery for a readout nobody can see.
+  const reduceMotion = useReducedMotion();
+
   useEffect(() => {
+    if (reduceMotion) return; // a counter ticking 12 times a second is motion
     const start = performance.now();
-    const id = setInterval(() => {
+    let id: ReturnType<typeof setInterval> | undefined;
+
+    const tick = () => {
       const elapsed = (performance.now() - start) / 1000;
       const totalFrames = Math.floor(elapsed * 24);
       const ff = totalFrames % 24;
@@ -253,9 +300,26 @@ function Timecode() {
       const hh = Math.floor(totalFrames / (24 * 60 * 60));
       const pad = (n: number) => n.toString().padStart(2, "0");
       setTc(`${pad(hh)}:${pad(mm)}:${pad(ss)}:${pad(ff)}`);
-    }, 1000 / 12);
-    return () => clearInterval(id);
-  }, []);
+    };
+
+    const start_ = () => {
+      if (id === undefined) id = setInterval(tick, 1000 / 12);
+    };
+    const stop = () => {
+      if (id !== undefined) {
+        clearInterval(id);
+        id = undefined;
+      }
+    };
+    const onVisibility = () => (document.hidden ? stop() : start_());
+
+    start_();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [reduceMotion]);
   return (
     <div className="lp-tc" aria-hidden>
       <span className="dot" />
@@ -275,7 +339,7 @@ function TitleCard() {
 
   return (
     <section ref={ref} style={{ position: "relative", minHeight: "100vh", padding: "14vh 6vw 8vh", display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
-      {/* Brand curve — Storyvord's signature decorative arc */}
+      {/* Brand curve — Storyvord’s signature decorative arc */}
       <motion.div
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 0.45, scale: 1 }}
@@ -296,6 +360,7 @@ function TitleCard() {
           src="/storyvord/landing-page_aiSimplifies_curve.svg"
           alt=""
           fill
+          sizes="(max-width: 900px) 80vw, 60vw"
           style={{ objectFit: "contain" }}
         />
       </motion.div>
@@ -312,8 +377,13 @@ function TitleCard() {
           AI CO-PRODUCER ·  BUILT FOR MODERN FILMMAKERS ·  RUNTIME: 0:00 → ∞
         </motion.div>
 
+        {/* The per-character reveal splits the headline into ~30 inline-block
+            spans. Screen readers can announce that letter by letter, and it
+            defeats text selection. The accessible name comes from aria-label;
+            the pieces are decorative and hidden from assistive tech. */}
         <h1
           className="display"
+          aria-label="Insights that simplify production."
           style={{
             fontSize: "clamp(3rem, 9vw, 9.5rem)",
             margin: "0 0 28px",
@@ -321,17 +391,19 @@ function TitleCard() {
             maxWidth: "18ch",
           }}
         >
-          {"Insights that ".split("").map((c, i) => (
-            <ClipChar key={`a-${i}`} delay={0.5 + i * 0.025} char={c} />
-          ))}
-          <em style={{ color: "var(--brand)", fontStyle: "italic" }}>
-            {"simplify".split("").map((c, i) => (
-              <ClipChar key={`b-${i}`} delay={0.85 + i * 0.04} char={c} />
+          <span aria-hidden>
+            {"Insights that ".split("").map((c, i) => (
+              <ClipChar key={`a-${i}`} delay={0.5 + i * 0.025} char={c} />
             ))}
-          </em>
-          {" production.".split("").map((c, i) => (
-            <ClipChar key={`c-${i}`} delay={1.2 + i * 0.025} char={c} />
-          ))}
+            <em style={{ color: "var(--brand)", fontStyle: "italic" }}>
+              {"simplify".split("").map((c, i) => (
+                <ClipChar key={`b-${i}`} delay={0.85 + i * 0.04} char={c} />
+              ))}
+            </em>
+            {" production.".split("").map((c, i) => (
+              <ClipChar key={`c-${i}`} delay={1.2 + i * 0.025} char={c} />
+            ))}
+          </span>
         </h1>
 
         <motion.p
@@ -353,7 +425,8 @@ function TitleCard() {
             Start for free
             <Image src="/storyvord/landing-page_startForFreeIcon.svg" alt="" width={16} height={16} aria-hidden />
           </Link>
-          <Link href="#features" className="lp-cta lp-cta-ghost">Watch demo</Link>
+          {/* Was "Watch demo" pointing at #features, where there is no demo. */}
+          <Link href="#features" className="lp-cta lp-cta-ghost">See the reel</Link>
         </motion.div>
       </motion.div>
 
@@ -449,7 +522,7 @@ function Breakdown() {
   const stats = [
     { num: "80%", label: "Less time on script breakdown.", caption: "AI parses every scene in seconds — characters, props, locations." },
     { num: "06", label: "Modules in the Creative Hub.", caption: "Script · Scenes · Characters · Locations · Wardrobe · Storyboard." },
-    { num: "00", label: "Apps you switch between.", caption: "Human creativity in. Tab-juggling out. That's the entire pitch." },
+    { num: "00", label: "Apps you switch between.", caption: "Human creativity in. Tab-juggling out. That’s the entire pitch." },
   ];
   return (
     <section style={{ borderTop: "1px solid var(--rule)", borderBottom: "1px solid var(--rule)", padding: "12vh 6vw" }}>
@@ -505,17 +578,13 @@ function SceneRow({ scene, index }: { scene: typeof SCENES[number]; index: numbe
   const inView = useInView(ref, { once: true, margin: "-15% 0px" });
   const flipped = index % 2 === 1;
   return (
-    <article
-      ref={ref}
-      style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 0.9fr)",
-        gap: "5vw",
-        alignItems: "center",
-        direction: flipped ? "rtl" : "ltr",
-      }}
-    >
-      <div style={{ direction: "ltr" }}>
+    // Layout moved to .lp-scene: as inline styles the two columns could not be
+    // collapsed by a media query, so every scene row stayed side by side on a
+    // phone and crushed both the still and the copy. The flip was direction:rtl
+    // with a direction:ltr reset on each child; grid order reorders without
+    // inverting the writing direction of the subtree.
+    <article ref={ref} className={`lp-scene ${flipped ? "lp-scene--flip" : ""}`}>
+      <div className="lp-scene-still">
         <div className={`lp-still-frame ${inView ? "open" : ""}`} style={{ aspectRatio: "16 / 10" }}>
           <div className={`lp-stillframe ${inView ? "developed" : ""}`} style={{ position: "absolute", inset: 0 }}>
             <Image
@@ -549,7 +618,7 @@ function SceneRow({ scene, index }: { scene: typeof SCENES[number]; index: numbe
         </div>
       </div>
 
-      <div style={{ direction: "ltr" }}>
+      <div className="lp-scene-copy">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={inView ? { opacity: 1, y: 0 } : {}}
@@ -562,7 +631,7 @@ function SceneRow({ scene, index }: { scene: typeof SCENES[number]; index: numbe
           <p style={{ fontSize: 16, lineHeight: 1.7, color: "var(--paper)", opacity: 0.78, margin: "0 0 24px", maxWidth: "44ch" }}>
             {scene.body}
           </p>
-          <ul className="mono" style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--paper)" }}>
+          <ul className="mono lp-shotlist">
             {scene.shotlist.map((b) => (
               <li key={b} style={{ display: "flex", gap: 10, alignItems: "center" }}>
                 <span style={{ width: 6, height: 6, background: "var(--brand)", display: "inline-block", flexShrink: 0 }} />
@@ -694,7 +763,7 @@ function PriceCard({ tier, index }: { tier: typeof PRICING[number]; index: numbe
 function Cast() {
   const quotes = [
     { q: "It cut three days out of pre-production. We onboarded the AD in an afternoon.", who: "Producer", credit: "FALSE LAUREL (2025)" },
-    { q: "The AI breakdown caught two location conflicts I'd have missed at 2am.", who: "1st AD", credit: "DUNE GRASS (2024)" },
+    { q: "The AI breakdown caught two location conflicts I’d have missed at 2am.", who: "1st AD", credit: "DUNE GRASS (2024)" },
   ];
   return (
     <section id="cast" style={{ padding: "16vh 6vw", borderTop: "1px solid var(--rule)" }}>
@@ -752,7 +821,7 @@ function Wrap() {
           transition={{ duration: 0.9, delay: 0.6 }}
           style={{ maxWidth: "48ch", margin: "32px auto", color: "var(--paper)", opacity: 0.8, fontSize: "1.1rem", lineHeight: 1.65 }}
         >
-          Storyvord is the AI co-producer the set has been waiting for. Don't replace your team — supercharge it.
+          Storyvord is the AI co-producer the set has been waiting for. Don’t replace your team — supercharge it.
         </motion.p>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
