@@ -1,0 +1,438 @@
+/* ──────────────────────────────────────────────────────────────────────
+   /alt-landing. Three acts, one rule: scroll moves the camera.
+
+   Scoped under .alt so nothing leaks into the editorial landing or the app.
+
+   Locks (decided once, applied everywhere):
+   - Shape: all sharp. Radius 0 on every surface and control.
+   - Accent: brand green, and only brand green. The chroma screen and the amber
+     edge-print inside the 3D are objects on a set, not UI.
+   - Type: Playfair for display (the brand's, per the v1 landing), JetBrains
+     Mono for labels, Inter Tight for body. Emphasis inside a headline is italic
+     of the same face, never a second family.
+   - Theme: dark only. It is a soundstage.
+   ────────────────────────────────────────────────────────────────────── */
+
+.alt {
+  --ink: #0a0a0a;
+  --ink-2: #111214;
+  --paper: #f5f5f5;
+  --brand: #22cb67;
+  --silver: #8a8a8a;         /* 5.7:1 on ink */
+  --rule: #1e2023;
+  --ease: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* z-index scale. Nothing else on the page picks its own number. */
+  --z-canvas: 0;
+  --z-copy: 1;
+  --z-bar: 20;
+  --z-skip: 100;
+
+  color-scheme: dark;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Never overflow-x: hidden here. It would make this element a scroll
+     container and break every position: sticky inside it. */
+}
+
+.alt * { box-sizing: border-box; }
+.alt ::selection { background: var(--brand); color: var(--ink); }
+.alt .mono { font-family: var(--font-mono), ui-monospace, monospace; }
+
+.alt a:focus-visible,
+.alt button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+
+/* Type scale ──────────────────────────────────────────────────── */
+.alt .display-1,
+.alt .display-2 {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+  margin: 0;
+  /* Italic descenders (the p in "department.", the y in "saw") clip at
+     line-height 1. 1.1 plus a small reserve below is the floor. */
+  line-height: 1.1;
+  padding-bottom: 0.08em;
+}
+.alt .display-1 { font-size: clamp(2.6rem, 7vw, 5.6rem); }
+.alt .display-2 { font-size: clamp(2rem, 4.6vw, 3.4rem); }
+.alt .display-1 em,
+.alt .display-2 em { font-style: italic; color: var(--brand); }
+
+.alt .lede {
+  font-size: clamp(0.98rem, 1.25vw, 1.1rem);
+  line-height: 1.62;
+  opacity: 0.84;
+  text-wrap: pretty;
+  max-width: 46ch;
+  margin: 0;
+}
+
+/* One eyebrow per act, at most. Two on the page: the hero and the wrap. */
+.alt .eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--brand);
+  margin: 0 0 18px;
+}
+
+.alt .sr-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Skip ────────────────────────────────────────────────────────── */
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: var(--z-skip);
+  background: var(--brand);
+  color: var(--ink);
+  padding: 14px 22px;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.skip:focus { left: 6px; top: 6px; }
+
+/* Bar ─────────────────────────────────────────────────────────── */
+.bar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: var(--z-bar);
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 clamp(16px, 5vw, 48px);
+  padding-left: max(clamp(16px, 5vw, 48px), env(safe-area-inset-left, 0px));
+  padding-right: max(clamp(16px, 5vw, 48px), env(safe-area-inset-right, 0px));
+  /* Legible over whatever the canvas is doing underneath. */
+  background: linear-gradient(to bottom, rgba(10, 10, 10, 0.9), rgba(10, 10, 10, 0));
+}
+.bar-home { display: inline-flex; text-decoration: none; margin-right: auto; }
+.bar-nav { display: flex; gap: 22px; }
+.bar-link {
+  position: relative;
+  color: var(--paper);
+  opacity: 0.72;
+  text-decoration: none;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 6px 0;
+  transition: opacity 0.3s var(--ease);
+}
+.bar-link:hover { opacity: 1; }
+.bar-link[aria-current="true"] { opacity: 1; }
+.bar-link[aria-current="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 1px;
+  background: var(--brand);
+}
+
+/* CTAs ────────────────────────────────────────────────────────── */
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;          /* a CTA never wraps */
+  padding: 16px 28px;
+  background: var(--brand);
+  color: var(--ink);            /* 9.25:1 */
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border: 1px solid var(--brand);
+  touch-action: manipulation;
+  transition: background 0.3s var(--ease), color 0.3s var(--ease),
+    border-color 0.3s var(--ease), transform 0.3s var(--ease);
+}
+.cta:hover { background: var(--paper); border-color: var(--paper); }
+.cta:active { transform: translateY(1px); }
+.cta:focus-visible { outline-color: var(--paper); }
+.cta-small { padding: 10px 16px; font-size: 10px; }
+
+/* Ghost over a moving 3D ground needs a stroke that reads, not a hairline. */
+.cta-ghost {
+  background: rgba(10, 10, 10, 0.35);
+  color: var(--paper);
+  border-color: rgba(245, 245, 245, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.cta-ghost:hover { background: rgba(10, 10, 10, 0.5); border-color: var(--brand); color: var(--brand); }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+
+/* Sticky-canvas act (shared by the floor and the roll) ───────────
+   The canvas is sticky and full-height; the steps are pulled back over it with
+   a negative margin so they occupy real height in the flow. The scroll stays
+   native. The tail buys back the canvas's height so the last step is read
+   while the canvas is still stuck (a sticky child stops at parent height minus
+   its own). */
+.floor,
+.reel {
+  position: relative;
+  background: var(--ink);
+}
+.floor-canvas,
+.reel-canvas {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  z-index: var(--z-canvas);
+}
+.floor-steps,
+.reel-steps {
+  position: relative;
+  z-index: var(--z-copy);
+  margin-top: -100svh;
+  pointer-events: none;
+}
+.floor-steps a, .floor-steps button, .floor-hero, .floor-station,
+.reel-steps a, .reel-card, .reel-head, .reel-rest { pointer-events: auto; }
+
+/* Copy over 3D: one scrim, applied to the canvas, not to every card. */
+.floor-canvas::after,
+.reel-canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    rgba(10, 10, 10, 0.78) 0%,
+    rgba(10, 10, 10, 0.42) 38%,
+    rgba(10, 10, 10, 0) 62%
+  );
+}
+
+.floor-nogl {
+  position: absolute;
+  inset: auto 0 44%;
+  text-align: center;
+  padding: 0 8vw;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: var(--silver);
+}
+
+/* Act I: the floor ────────────────────────────────────────────── */
+.floor-hero {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 96px clamp(16px, 5vw, 48px) 48px;
+  max-width: 62ch;
+}
+.floor-hero .lede { margin-top: 22px; }
+
+.floor-sheet {
+  list-style: none;
+  margin: 0;
+  padding: 0 clamp(16px, 5vw, 48px) 100svh;   /* the tail */
+  max-width: 44ch;
+}
+.floor-row {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+}
+.floor-station {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  padding: 26px 24px 24px 22px;
+  background: rgba(10, 10, 10, 0.72);
+  border: none;
+  border-left: 2px solid var(--rule);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: border-color 0.5s var(--ease), background 0.5s var(--ease);
+}
+.floor-station:hover { background: rgba(17, 18, 20, 0.82); }
+.floor-station.is-on { border-left-color: var(--brand); background: rgba(10, 10, 10, 0.84); }
+.floor-station:active { transform: translateY(1px); }
+
+.floor-role {
+  font-family: var(--font-serif), Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  line-height: 1.1;
+  padding-bottom: 0.06em;
+}
+.floor-station.is-on .floor-role { color: var(--brand); }
+.floor-kit {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--silver);
+}
+.floor-job {
+  font-size: 14px;
+  line-height: 1.6;
+  opacity: 0.84;
+  text-wrap: pretty;
+  margin-top: 6px;
+}
+.floor-module {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.floor-module::before {
+  content: "In Storyvord";
+  color: var(--silver);
+  margin-right: 12px;
+}
+
+/* Act II: the roll ────────────────────────────────────────────── */
+.reel-head {
+  min-height: var(--reel-head, 62svh);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 clamp(16px, 5vw, 48px);
+  max-width: 44ch;
+}
+.reel-step-list { list-style: none; margin: 0; padding: 0; }
+.reel-step {
+  min-height: var(--reel-step, 100svh);
+  display: flex;
+  align-items: center;
+  padding: 0 clamp(16px, 5vw, 48px);
+}
+.reel-card {
+  max-width: 36ch;
+  padding: 26px 24px;
+  background: rgba(10, 10, 10, 0.72);
+  border-left: 2px solid var(--rule);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: border-color 0.5s var(--ease), background 0.5s var(--ease);
+}
+.reel-card.is-open { border-left-color: var(--brand); background: rgba(10, 10, 10, 0.84); }
+.reel-card-title {
+  font-family: var(--font-serif), Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  line-height: 1.12;
+  padding-bottom: 0.06em;
+  text-wrap: balance;
+  margin: 0 0 12px;
+}
+.reel-card.is-open .reel-card-title { color: var(--brand); }
+.reel-card-body { font-size: 14px; line-height: 1.65; opacity: 0.84; text-wrap: pretty; margin: 0; }
+
+/* Act III: the wrap ───────────────────────────────────────────── */
+.reel-rest {
+  min-height: var(--reel-rest, 100svh);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 clamp(16px, 5vw, 48px);
+  /* The tail: read the wrap while the roll is still on screen. */
+  margin-bottom: var(--reel-tail, 100svh);
+}
+.wrap-can {
+  width: min(40ch, 100%);
+  padding: 32px 30px;
+  background: rgba(10, 10, 10, 0.82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--rule);
+}
+.wrap-label {
+  margin: 0 0 28px;
+  display: grid;
+  gap: 12px;
+  /* One rule above the group, not one under every row. */
+  border-top: 1px solid var(--rule);
+  padding-top: 16px;
+}
+.wrap-label > div {
+  display: grid;
+  grid-template-columns: 11ch 1fr;
+  gap: 14px;
+  align-items: baseline;
+}
+.wrap-label dt { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--silver); }
+.wrap-label dd { margin: 0; font-size: 14px; }
+
+/* Reduced motion: same content, stacked, no canvas ────────────── */
+.reel--flat { padding: clamp(64px, 12vh, 140px) clamp(16px, 5vw, 48px); }
+.reel--flat .reel-head { min-height: 0; margin-bottom: 48px; padding: 0; }
+.reel-flat-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 56px; }
+.reel--flat .reel-card { max-width: 62ch; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.reel-flat-shot { width: 100%; height: auto; margin-top: 20px; border: 1px solid var(--rule); }
+.reel--flat .wrap-can { margin-top: 64px; }
+
+/* Credits ─────────────────────────────────────────────────────── */
+.credits {
+  border-top: 1px solid var(--rule);
+  padding: 28px clamp(16px, 5vw, 48px);
+  padding-bottom: max(28px, env(safe-area-inset-bottom, 0px));
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--silver);
+}
+.credits nav { display: flex; gap: 24px; }
+.credits-link { color: var(--paper); text-decoration: none; opacity: 0.8; }
+.credits-link:hover { opacity: 1; color: var(--brand); }
+
+/* Small screens: every multi-column decision, collapsed explicitly ─ */
+@media (max-width: 720px) {
+  .bar { gap: 14px; }
+  .bar-nav { display: none; }             /* three acts + CTA do not fit at 360px */
+  .floor-canvas::after,
+  .reel-canvas::after {
+    background: linear-gradient(to top, rgba(10, 10, 10, 0.92) 0%, rgba(10, 10, 10, 0.5) 45%, rgba(10, 10, 10, 0) 70%);
+  }
+  .floor-hero { justify-content: flex-end; padding-bottom: 64px; }
+  .floor-sheet, .reel-card { max-width: none; }
+  .reel-rest { justify-content: stretch; }
+  .wrap-can { width: 100%; }
+  .wrap-label > div { grid-template-columns: 1fr; gap: 4px; }
+}
+
+/* Reduced motion ──────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .cta, .bar-link, .floor-station, .reel-card { transition: none; }
+  .cta:active, .floor-station:active { transform: none; }
+}
