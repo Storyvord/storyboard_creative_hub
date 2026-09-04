@@ -58,14 +58,14 @@ export const REEL_FRAMES: ReelFrame[] = [
     id: "script",
     slate: "SC. 01",
     title: "The script goes in.",
-    body: "Drop a screenplay and every scene, character, prop and location is tagged for you — the week of an AD's life that used to happen on index cards.",
+    body: "Drop a screenplay and every scene, character, prop and location is tagged for you. That used to be a week of an AD’s life on index cards.",
     image: "/screenshots/reel/script.jpg",
   },
   {
     id: "hub",
     slate: "SC. 02",
     title: "The art department, in one place.",
-    body: "Script, Scenes, Characters, Locations, Wardrobe and Storyboard — six modules, every one of them linked back to the same script.",
+    body: "Script, Scenes, Characters, Locations, Wardrobe and Storyboard. Six modules, every one of them linked back to the same script.",
     image: "/screenshots/reel/dashboard.jpg",
   },
   {
@@ -79,7 +79,7 @@ export const REEL_FRAMES: ReelFrame[] = [
     id: "tasks",
     slate: "SC. 04",
     title: "The board runs the day.",
-    body: "Department lanes, assignees, priorities and due dates. The status meeting writes itself, which is the only kind worth having.",
+    body: "Department lanes, assignees, priorities and due dates. The status meeting writes itself.",
     image: "/screenshots/reel/tasks.jpg",
   },
   {
@@ -93,7 +93,7 @@ export const REEL_FRAMES: ReelFrame[] = [
     id: "reports",
     slate: "SC. 06",
     title: "Numbers that survive the audit.",
-    body: "Budget breakdown, logistics, sustainability and global film-compliance reports, generated at a click and traceable to the scene that caused them.",
+    body: "Budget, logistics, sustainability and global compliance reports, generated at a click and traceable to the scene that caused them.",
     image: "/screenshots/reel/reports.jpg",
   },
   {
@@ -111,14 +111,15 @@ export const FRAME_POSITIONS: number[] = REEL_FRAMES.map((_, i) =>
 );
 
 /**
- * The can label at the bottom of the fall — the wrap.
+ * The can label at the bottom of the fall. The wrap.
  *
  * Written the way a real can is marked up, and deliberately echoing the END
  * CREDITS block on the v1 landing so the two builds read as the same product.
+ * No separators inside a value: the label's columns do that job.
  */
 export const CAN_LABEL: Array<[string, string]> = [
-  ["Production", "Storyvord · AI Co-Producer"],
-  ["Reels", "07 · script → screen"],
-  ["Format", "2.39 : 1 · 24 fps"],
+  ["Production", "Storyvord, AI Co-Producer"],
+  ["Reels", "Seven, script to screen"],
+  ["Format", "2.39:1 at 24 fps"],
   ["Status", "Delivered"],
 ];

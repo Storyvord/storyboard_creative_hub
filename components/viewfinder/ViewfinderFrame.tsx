@@ -15,7 +15,7 @@ import ViewfinderPill from "./ViewfinderPill";
 // Routes that should NOT mount any in-app widgets (AI assistant, command
 // palette, viewfinder pill, save indicator, composition guides). These are
 // public, pre-auth pages — landing + auth flows.
-const PUBLIC_ROUTES = new Set(["/", "/login", "/register", "/reset-password"]);
+const PUBLIC_ROUTES = new Set(["/", "/alt-landing", "/login", "/register", "/reset-password"]);
 
 // Mount the AI widget globally so ⌘K → "Ask the 1st AD" works on every route.
 // It was previously mounted inside /projects/[id]/layout.tsx only; we remove

@@ -39,7 +39,16 @@ import { STATIONS, WIDE_SHOT, type StationId } from "./stations";
  * directed move between known marks, and letting the viewer spin freely while
  * a station is selected would fight the framing the selection just set up.
  */
-function CameraMove({ station, idle }: { station: StationId | null; idle: boolean }) {
+function CameraMove({
+  station,
+  idle,
+  snap,
+}: {
+  station: StationId | null;
+  idle: boolean;
+  /** Reduced motion: land on the mark in a frame or two instead of gliding. */
+  snap: boolean;
+}) {
   const { camera } = useThree();
   const goal = useRef(new Vector3(...WIDE_SHOT.focus));
   const look = useRef(new Vector3(...WIDE_SHOT.target));
@@ -53,7 +62,7 @@ function CameraMove({ station, idle }: { station: StationId | null; idle: boolea
   }, [station]);
 
   useFrame((_, delta) => {
-    const damp = Math.min(1, delta * 2.2);
+    const damp = Math.min(1, delta * (snap ? 14 : 2.2));
 
     if (!station && idle) {
       // A slow drift around the wide, so the establishing shot is never dead
@@ -179,7 +188,7 @@ export default function Soundstage({ station }: { station: StationId | null }) {
       <Suspense fallback={null}>
         <Scene station={station} />
       </Suspense>
-      <CameraMove station={station} idle={idle} />
+      <CameraMove station={station} idle={idle} snap={!!reduceMotion} />
     </Canvas>
   );
 }

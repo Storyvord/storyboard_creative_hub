@@ -1,92 +1,71 @@
 "use client";
 
 /**
- * /alt-landing — a 3D alternative to the editorial landing page, kept beside it
- * rather than replacing it so the two can be shown side by side.
+ * /alt-landing. The 3D build, kept beside the editorial landing so the two can
+ * be compared.
  *
- * The premise: a soundstage you can walk around, where every piece of kit is a
- * department, and every department maps to the Storyvord surface that does its
- * job. The 3D is the argument, not decoration — "one workspace for the whole
- * unit" is easier to see as a set than to read as a list.
+ * Three acts, one rule: scroll moves the camera.
+ *
+ *   I.   The floor.  A soundstage. The wide shot is the hero; scrolling on walks
+ *        the set, and each department's row pushes the camera in on its station.
+ *        The walk ends on the camera, whose copy hands off to what it shot.
+ *   II.  The roll.   A film strip unspools from that camera's reel and falls,
+ *        twisting, past the viewer. Each frame is a part of the product; each
+ *        opens as its copy reaches reading position.
+ *   III. The wrap.   The strip winds into a can. The can is labelled the way a
+ *        real one is, and the label is the close.
+ *
+ * Every section is what the previous one produced: the set makes the footage,
+ * the footage fills the can. That is the whole argument for "one workspace for
+ * the whole unit", made as a thing you scroll through rather than a list.
+ *
+ * Dark only, on purpose. This is a soundstage and the v1 landing is the same
+ * black; a light mode here would be a different product.
  */
 
-import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 
+import FloorSection from "@/components/soundstage/FloorSection";
 import ReelSection from "@/components/reel/ReelSection";
-import { STATIONS, type StationId } from "@/components/soundstage/stations";
 import "./alt-landing.css";
 
-// three.js reaches for `window` on import and a WebGL context cannot exist on
-// the server, so there is nothing to server-render here.
-const Soundstage = dynamic(() => import("@/components/soundstage/Soundstage"), {
-  ssr: false,
-  loading: () => null,
-});
+const ACTS = [
+  { id: "floor", label: "The floor" },
+  { id: "roll", label: "The roll" },
+  { id: "wrap", label: "The wrap" },
+] as const;
 
-/**
- * Cheap probe: does this device have a WebGL context to give us at all?
- *
- * useSyncExternalStore rather than an effect that calls setState — the answer
- * is a fact about the browser, not a subscription, and setting it from an
- * effect costs a second render pass on every visit. The result is cached at
- * module scope because getSnapshot must be referentially stable: returning a
- * freshly-probed value each call would spin React forever.
- */
-let webglSupport: boolean | undefined;
-
-function probeWebGL(): boolean | null {
-  if (webglSupport === undefined) {
-    try {
-      const canvas = document.createElement("canvas");
-      webglSupport = !!(canvas.getContext("webgl2") || canvas.getContext("webgl"));
-    } catch {
-      webglSupport = false;
-    }
-  }
-  return webglSupport;
-}
-
-/** No store to subscribe to: support does not change mid-session. */
-const noSubscribe = () => () => {};
-/** Unknown on the server, which is what renders the neutral empty frame. */
-const serverSnapshot = (): boolean | null => null;
-
-function useWebGL() {
-  return useSyncExternalStore(noSubscribe, probeWebGL, serverSnapshot);
+/** Which act is on screen, for the bar. The sections own their own ids. */
+function useActiveAct() {
+  const [active, setActive] = useState<string>("floor");
+  useEffect(() => {
+    const targets = ACTS.map((a) => document.getElementById(a.id)).filter(Boolean) as HTMLElement[];
+    if (!targets.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) setActive(entry.target.id);
+        }
+      },
+      { rootMargin: "-45% 0px -45% 0px" }
+    );
+    targets.forEach((t) => io.observe(t));
+    return () => io.disconnect();
+  }, []);
+  return active;
 }
 
 export default function AltLandingPage() {
-  const [station, setStation] = useState<StationId | null>(null);
-  const webgl = useWebGL();
-  const selected = useMemo(
-    () => STATIONS.find((s) => s.id === station) ?? null,
-    [station]
-  );
-
-  // Escape returns to the wide shot — the same gesture as stepping back.
-  useEffect(() => {
-    if (!station) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setStation(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [station]);
-
-  const toggle = useCallback(
-    (id: StationId) => setStation((cur) => (cur === id ? null : id)),
-    []
-  );
+  const act = useActiveAct();
 
   return (
     <div className="alt">
-      <a className="alt-skip" href="#stations">Skip to the departments</a>
+      <a className="skip" href="#floor-title">Skip to content</a>
 
-      <header className="alt-bar">
-        <Link href="/" className="alt-home">
+      <header className="bar">
+        <Link href="/" className="bar-home" aria-label="Storyvord home">
           <Image
             src="/storyvord/logo.svg"
             alt="Storyvord"
@@ -96,107 +75,34 @@ export default function AltLandingPage() {
             style={{ height: 28, width: "auto" }}
           />
         </Link>
-        <span className="alt-tag mono">
-          Soundstage build · v2 ·{" "}
-          <Link href="/" className="alt-inline-link">see v1</Link>
-        </span>
+
+        <nav className="bar-nav mono" aria-label="Acts">
+          {ACTS.map((a) => (
+            <a
+              key={a.id}
+              href={`#${a.id}`}
+              className="bar-link"
+              aria-current={act === a.id ? "true" : undefined}
+            >
+              {a.label}
+            </a>
+          ))}
+        </nav>
+
+        <Link href="/register" className="cta cta-small">Start for free</Link>
       </header>
 
       <main>
-        <section className="alt-stage" aria-labelledby="alt-title">
-          <div className="alt-canvas">
-            {webgl === true && <Soundstage station={station} />}
-            {webgl === false && (
-              // Not an error state. The page's content is the station list
-              // below; this just explains the empty frame.
-              <p className="alt-nogl mono">
-                3D preview unavailable on this device — the departments below
-                work exactly the same.
-              </p>
-            )}
-          </div>
-
-          <div className="alt-stage-copy">
-            <p className="alt-eyebrow mono">Interior · Soundstage · Day</p>
-            <h1 id="alt-title" className="alt-title">
-              One set.<br />
-              <em>Every department.</em>
-            </h1>
-            <p className="alt-lede">
-              Walk the floor. Every piece of kit on this stage is a department,
-              and every department is already a place inside Storyvord.
-            </p>
-            <div className="alt-actions">
-              <Link href="/register" className="alt-cta">Start for free</Link>
-              <a href="#stations" className="alt-cta alt-cta-ghost">Walk the floor</a>
-            </div>
-          </div>
-
-          <p className="alt-hint mono" aria-hidden>
-            {selected ? "Esc to pull back" : "Pick a department to push in"}
-          </p>
-        </section>
-
-        {/*
-          The real interface. Buttons, not clickable meshes: geometry has no
-          accessible name, takes no focus and answers no keyboard. Selecting
-          here drives the camera in the canvas, so pointer, keyboard and screen
-          reader all reach the same state.
-        */}
-        <section id="stations" className="alt-stations" aria-labelledby="stations-title">
-          <div className="alt-stations-head">
-            <h2 id="stations-title" className="alt-h2">The unit list.</h2>
-            <p className="alt-stations-sub mono">
-              Five departments · one workspace
-            </p>
-          </div>
-
-          <ul className="alt-grid">
-            {STATIONS.map((s) => {
-              const on = station === s.id;
-              return (
-                <li key={s.id}>
-                  <button
-                    type="button"
-                    className={`alt-station ${on ? "is-on" : ""}`}
-                    aria-pressed={on}
-                    onClick={() => toggle(s.id)}
-                  >
-                    <span className="alt-station-role">{s.role}</span>
-                    <span className="alt-station-kit mono">{s.kit}</span>
-                    <span className="alt-station-job">{s.job}</span>
-                    <span className="alt-station-module mono">
-                      <span className="alt-dot" aria-hidden />
-                      {s.module}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-
-          {/* Announced when the selection changes, so a screen-reader user is
-              told what the camera just did rather than being left out of it. */}
-          <p className="alt-live mono" aria-live="polite">
-            {selected
-              ? `Camera on ${selected.role.toLowerCase()} — ${selected.kit}.`
-              : "Wide shot. No department selected."}
-          </p>
-        </section>
-
+        <FloorSection />
         <ReelSection />
-
-        <section className="alt-close">
-          <h2 className="alt-h2 alt-close-title">
-            Your unit, <em>one workspace.</em>
-          </h2>
-          <Link href="/register" className="alt-cta">Start for free</Link>
-        </section>
       </main>
 
-      <footer className="alt-foot mono">
-        <span>© Storyvord MMXXVI</span>
-        <span>Alt landing · 3D soundstage build</span>
+      <footer className="credits mono">
+        <span>Storyvord</span>
+        <nav aria-label="Footer">
+          <Link href="/" className="credits-link">Editorial version</Link>
+          <Link href="/login" className="credits-link">Log in</Link>
+        </nav>
       </footer>
     </div>
   );

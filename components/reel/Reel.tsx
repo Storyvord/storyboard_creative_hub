@@ -12,6 +12,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
+import type { MotionValue } from "framer-motion";
 import {
   Matrix4,
   Object3D,
@@ -305,13 +306,13 @@ function FilmCan() {
  * and holds a fixed standoff in Z so the strip's own depth wander is what
  * creates the sense of it passing you.
  */
-function Rider({ progress }: { progress: React.RefObject<number> }) {
+function Rider({ progress }: { progress: MotionValue<number> }) {
   const target = useMemo(() => new Vector3(), []);
   const goal = useMemo(() => new Vector3(), []);
   const look = useMemo(() => new Vector3(), []);
 
   useFrame((state, delta) => {
-    const t = Math.min(1, Math.max(0, progress.current ?? 0));
+    const t = Math.min(1, Math.max(0, progress.get()));
     const point = STRIP_CURVE.getPointAt(t, target);
 
     goal.set(point.x * 0.42, point.y + 0.28, point.z + 5.35);
@@ -325,7 +326,7 @@ function Rider({ progress }: { progress: React.RefObject<number> }) {
 
 /* ── Scene ──────────────────────────────────────────────────────── */
 
-function Scene({ active, progress }: { active: number; progress: React.RefObject<number> }) {
+function Scene({ active, progress }: { active: number; progress: MotionValue<number> }) {
   return (
     <>
       <ambientLight intensity={0.55} />
@@ -362,7 +363,7 @@ export default function Reel({
   progress,
 }: {
   active: number;
-  progress: React.RefObject<number>;
+  progress: MotionValue<number>;
 }) {
   return (
     <Canvas

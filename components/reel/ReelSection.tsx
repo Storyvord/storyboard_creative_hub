@@ -1,71 +1,44 @@
 "use client";
 
 /**
- * The scroll section that drives the falling roll.
+ * Act II: the roll. And Act III, the wrap, which is where the roll comes to rest.
  *
- * Two rules shape this component:
+ * Same grammar as the floor: the page scrolls normally and the camera reads
+ * where it got to. Scroll progress comes from Motion's useScroll, which hands
+ * back a MotionValue - a number that changes every frame WITHOUT re-rendering
+ * anything. The canvas reads it directly. A scroll listener writing to React
+ * state would re-render the tree at 60fps to move a camera that only needs a
+ * number.
  *
- * 1. **The page scrolls normally.** No scroll-jacking, no transform-based fake
- *    scroller. The scrollbar, keyboard paging, find-in-page and "scroll to
- *    here" all keep working, and the 3D reads the position rather than owning
- *    it.
- * 2. **The steps are the content.** Each frame's copy is a real <article> in
- *    the flow, not an overlay painted from JS. That is what a screen reader
- *    reads, what renders under reduced motion, and what survives the canvas
- *    failing to start.
- *
- * Scroll progress is written to a ref, never to state: it changes every frame,
- * and putting it in state would re-render the whole tree at 60fps to move a
- * camera that reads the value directly.
+ * The steps are the content, not an overlay painted from JS. Each frame's copy
+ * is a real <article> in the flow: what a screen reader reads, what renders under
+ * reduced motion, what survives WebGL failing to start.
  */
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { useReducedMotion } from "framer-motion";
+import { useReducedMotion, useScroll } from "framer-motion";
 
 import { CAN_LABEL, REEL_FRAMES, REEL_LAYOUT } from "./frames";
 
 const Reel = dynamic(() => import("./Reel"), { ssr: false, loading: () => null });
 
 export default function ReelSection() {
-  const section = useRef<HTMLDivElement>(null);
-  const progress = useRef(0);
+  const section = useRef<HTMLElement>(null);
   const [active, setActive] = useState(0);
-  // Only spin up WebGL when the roll is nearly on screen — there is no reason
-  // to run it while the reader is still up on the soundstage.
   const [armed, setArmed] = useState(false);
   const reduceMotion = useReducedMotion();
   const flat = reduceMotion === true;
 
-  /* Scroll → progress, rAF-throttled, written to a ref. */
-  useEffect(() => {
-    if (flat) return;
-    const el = section.current;
-    if (!el) return;
-
-    let frame = 0;
-    const measure = () => {
-      frame = 0;
-      const rect = el.getBoundingClientRect();
-      // 0 when the section's top reaches the viewport top, 1 when its bottom
-      // does. Guarded against a zero-height span.
-      const span = Math.max(1, rect.height - window.innerHeight);
-      progress.current = Math.min(1, Math.max(0, -rect.top / span));
-    };
-    const onScroll = () => {
-      if (!frame) frame = requestAnimationFrame(measure);
-    };
-
-    measure();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
-    return () => {
-      if (frame) cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, [flat]);
+  // 0 when the section's top meets the viewport's top, 1 when its bottom meets
+  // the viewport's bottom. REEL_LAYOUT places the frames on the curve using
+  // exactly this definition, which is what keeps them under the camera.
+  const { scrollYProgress } = useScroll({
+    target: section,
+    offset: ["start start", "end end"],
+  });
 
   /* Arm the canvas one viewport early. */
   useEffect(() => {
@@ -80,47 +53,49 @@ export default function ReelSection() {
     return () => io.disconnect();
   }, [flat]);
 
-  /* Which frame is open. State, because it changes rarely. */
+  /* Which frame is open. */
   useEffect(() => {
     if (flat) return;
-    const steps = Array.from(
-      section.current?.querySelectorAll<HTMLElement>("[data-step]") ?? []
-    );
+    const steps = Array.from(section.current?.querySelectorAll<HTMLElement>("[data-step]") ?? []);
     if (!steps.length) return;
     const io = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setActive(Number(entry.target.getAttribute("data-step")));
-          }
+          if (entry.isIntersecting) setActive(Number(entry.target.getAttribute("data-step")));
         }
       },
-      // A band across the middle of the viewport: a frame opens as its copy
-      // reaches reading position, not as it clips the bottom edge.
+      // A band across the middle: a frame opens as its copy reaches reading
+      // position, not as it clips the bottom edge.
       { rootMargin: "-45% 0px -45% 0px" }
     );
     steps.forEach((s) => io.observe(s));
     return () => io.disconnect();
   }, [flat]);
 
+  const layoutVars = {
+    "--reel-head": `${REEL_LAYOUT.head}svh`,
+    "--reel-step": `${REEL_LAYOUT.step}svh`,
+    "--reel-rest": `${REEL_LAYOUT.rest}svh`,
+    "--reel-tail": `${REEL_LAYOUT.tail}svh`,
+  } as React.CSSProperties;
+
   /* Reduced motion: the same content, stacked, no canvas at all. */
   if (flat) {
     return (
-      <section className="reel reel--flat" aria-labelledby="reel-title">
+      <section className="reel reel--flat" id="roll" aria-labelledby="reel-title">
         <header className="reel-head">
-          <p className="alt-eyebrow mono">The roll</p>
-          <h2 id="reel-title" className="alt-h2">Seven reels, script to screen.</h2>
+          <h2 id="reel-title" className="display-2">What the camera saw.</h2>
+          <p className="lede">Seven reels of the product, script to screen.</p>
         </header>
         <ol className="reel-flat-list">
           {REEL_FRAMES.map((f) => (
             <li key={f.id}>
               <article className="reel-card">
-                <p className="reel-slate mono">{f.slate}</p>
                 <h3 className="reel-card-title">{f.title}</h3>
                 <p className="reel-card-body">{f.body}</p>
                 <Image
                   src={f.image}
-                  alt={`${f.title} — Storyvord interface`}
+                  alt={`${f.title} Storyvord interface`}
                   width={960}
                   height={600}
                   className="reel-flat-shot"
@@ -129,46 +104,27 @@ export default function ReelSection() {
             </li>
           ))}
         </ol>
-        <CanLabel />
+        <Wrap />
       </section>
     );
   }
 
   return (
-    <section
-      className="reel"
-      aria-labelledby="reel-title"
-      ref={section}
-      // The stylesheet reads its lengths from these. REEL_LAYOUT also decides
-      // where each frame sits on the curve, so publishing it here is what keeps
-      // the scroll distance and the geometry describing the same fall.
-      style={
-        {
-          "--reel-head": `${REEL_LAYOUT.head}svh`,
-          "--reel-step": `${REEL_LAYOUT.step}svh`,
-          "--reel-rest": `${REEL_LAYOUT.rest}svh`,
-          "--reel-tail": `${REEL_LAYOUT.tail}svh`,
-        } as React.CSSProperties
-      }
-    >
+    <section className="reel" id="roll" aria-labelledby="reel-title" ref={section} style={layoutVars}>
       <div className="reel-canvas" aria-hidden>
-        {armed && <Reel active={active} progress={progress} />}
+        {armed && <Reel active={active} progress={scrollYProgress} />}
       </div>
 
       <div className="reel-steps">
         <header className="reel-head">
-          <p className="alt-eyebrow mono">The roll</p>
-          <h2 id="reel-title" className="alt-h2">Seven reels, script to screen.</h2>
-          <p className="reel-head-sub">
-            It falls as you scroll. Each frame opens as it passes.
-          </p>
+          <h2 id="reel-title" className="display-2">What the camera saw.</h2>
+          <p className="lede">Seven reels of the product, script to screen.</p>
         </header>
 
         <ol className="reel-step-list">
           {REEL_FRAMES.map((f, i) => (
             <li className="reel-step" data-step={i} key={f.id}>
               <article className={`reel-card ${active === i ? "is-open" : ""}`}>
-                <p className="reel-slate mono">{f.slate}</p>
                 <h3 className="reel-card-title">{f.title}</h3>
                 <p className="reel-card-body">{f.body}</p>
               </article>
@@ -176,24 +132,24 @@ export default function ReelSection() {
           ))}
         </ol>
 
-        <div className="reel-rest">
-          <CanLabel />
+        <div className="reel-rest" id="wrap">
+          <Wrap />
         </div>
       </div>
 
-      <p className="reel-live mono" aria-live="polite">
-        {`Frame ${active + 1} of ${REEL_FRAMES.length}: ${REEL_FRAMES[active]?.title ?? ""}`}
+      <p className="sr-live mono" aria-live="polite">
+        {`Frame ${active + 1} of ${REEL_FRAMES.length}. ${REEL_FRAMES[active]?.title ?? ""}`}
       </p>
     </section>
   );
 }
 
-/** Where the roll comes to rest. Struck on the can lid, as a can is. */
-function CanLabel() {
+/** Act III. The roll is wound, canned and labelled. The label is the close. */
+function Wrap() {
   return (
-    <div className="reel-can">
-      <p className="reel-can-mark mono">Wrap</p>
-      <dl className="reel-can-label">
+    <div className="wrap-can">
+      <p className="eyebrow mono">Wrap</p>
+      <dl className="wrap-label">
         {CAN_LABEL.map(([term, value]) => (
           <div key={term}>
             <dt className="mono">{term}</dt>
@@ -201,7 +157,7 @@ function CanLabel() {
           </div>
         ))}
       </dl>
-      <a href="/register" className="alt-cta">Start for free</a>
+      <Link href="/register" className="cta">Start for free</Link>
     </div>
   );
 }
