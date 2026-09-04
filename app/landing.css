@@ -15,6 +15,14 @@
   --silver: #7c7c7c;
   --rule: #1c1c1c;
 
+  /* Was referenced by .lp-price but never declared, so that transition never
+     ran. Declared once here; every cinematic ease now resolves to it. */
+  --ease-cine: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* Tells the browser to render native scrollbars, form controls and the
+     overscroll gutter dark. Without it they render light against #0a0a0a. */
+  color-scheme: dark;
+
   background: var(--ink);
   color: var(--paper);
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
@@ -130,8 +138,8 @@
 /* Sticky timecode HUD ─────────────────────────────────────── */
 .lp-tc {
   position: fixed;
-  bottom: 22px;
-  left: 22px;
+  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  left: calc(22px + env(safe-area-inset-left, 0px));
   z-index: 50;
   display: flex;
   gap: 12px;
@@ -172,7 +180,9 @@
   border-radius: 0;
   position: relative;
   cursor: pointer;
-  transition: background 0.4s, color 0.4s, transform 0.4s cubic-bezier(0.77, 0, 0.175, 1), box-shadow 0.4s cubic-bezier(0.77, 0, 0.175, 1);
+  /* Kills the 300ms double-tap delay on touch without disabling pinch zoom. */
+  touch-action: manipulation;
+  transition: background 0.4s, color 0.4s, transform 0.4s var(--ease-cine), box-shadow 0.4s var(--ease-cine);
 }
 .lp-cta:hover {
   background: var(--paper);
@@ -253,6 +263,11 @@
   font-weight: 400;
   line-height: 1;
 }
+/* WCAG 2.2.2: motion running longer than five seconds beside other content
+   needs a way to stop it. Hover/focus is that mechanism here; the
+   reduced-motion block below removes the animation outright. */
+.lp-marquee:hover,
+.lp-marquee:focus-within { animation-play-state: paused; }
 .lp-marquee span {
   padding: 0 32px;
   color: var(--paper);
@@ -294,7 +309,9 @@
   left: 50%;
   transform: translate(-50%, -50%);
   background: var(--brand);
-  color: var(--paper);
+  /* ink, not paper: paper on this green is 1.96:1 and unreadable. The CTA on
+     the same green already uses ink, at 9.25:1. */
+  color: var(--ink);
   font-size: 10px;
   letter-spacing: 0.32em;
   padding: 6px 14px;
@@ -361,6 +378,143 @@
 .lp-credits dt { color: var(--silver); text-transform: uppercase; letter-spacing: 0.22em; font-size: 11px; }
 .lp-credits dd { margin: 0; color: var(--paper); }
 
+/* Focus states ────────────────────────────────────────────────
+   There were none. Every CTA and nav link was invisible to anyone
+   navigating by keyboard — you could tab the whole page and never see
+   where you were. :focus-visible so a mouse click does not draw a ring. */
+.lp a:focus-visible,
+.lp button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+.lp .lp-cta:focus-visible {
+  /* The CTA is already brand-filled, so a brand ring on it would vanish.
+     Paper reads against both the fill and the page. */
+  outline-color: var(--paper);
+  outline-offset: 4px;
+}
+/* The underline is a hover affordance; give focus the same feedback. */
+.lp-link:focus-visible::after { transform: scaleX(1); }
+
+/* Skip link ───────────────────────────────────────────────────
+   First tab stop. Off-screen until focused, then parked top-left. */
+.lp-skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  background: var(--brand);
+  color: var(--ink);
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 14px 22px;
+}
+.lp-skip:focus {
+  left: 6px;
+  top: 6px;
+}
+
+/* Anchor targets ──────────────────────────────────────────────
+   The header is fixed, so #features et al. landed underneath it. */
+.lp [id] { scroll-margin-top: 96px; }
+
+/* Scene rows ──────────────────────────────────────────────────
+   Was an inline two-column grid, which no media query could reach: on a
+   phone it stayed two columns and crushed both. The flip was done with
+   direction:rtl and a direction:ltr reset on every child; grid order does
+   the same job without inverting the writing direction. */
+.lp-scene {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 5vw;
+  align-items: center;
+}
+.lp-scene--flip .lp-scene-still { order: 2; }
+.lp-scene--flip .lp-scene-copy  { order: 1; }
+
+@media (max-width: 900px) {
+  .lp-scene { grid-template-columns: 1fr; gap: 32px; }
+  /* One column reads top-to-bottom: the still always leads. */
+  .lp-scene--flip .lp-scene-still,
+  .lp-scene--flip .lp-scene-copy { order: 0; }
+}
+
+/* Shot list inside a scene row — two columns is too narrow on a phone. */
+.lp-shotlist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 24px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--paper);
+}
+@media (max-width: 520px) {
+  .lp-shotlist { grid-template-columns: 1fr; }
+}
+
+/* Mobile navigation ───────────────────────────────────────────
+   The bar was a single flex row: logo, four links, log in and a CTA. Below
+   about 900px that overflowed the viewport.
+
+   The desktop layout lives here rather than inline on the element: an inline
+   `display: flex` outranks any stylesheet rule, so the media query below
+   could never have hidden the nav. */
+.lp-nav {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+.lp-nav-toggle { display: none; }
+
+@media (max-width: 900px) {
+  .lp-nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: none;
+    border: 1px solid var(--rule);
+    color: var(--paper);
+    font-family: var(--font-mono), monospace;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .lp-nav {
+    position: fixed;
+    inset: 0 0 auto 0;
+    top: 64px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    background: var(--ink);
+    border-bottom: 1px solid var(--rule);
+    padding: 8px 6vw 28px;
+    /* Not display:none — that would drop it from the tab order in a way
+       the toggle's aria-expanded then lies about. */
+    display: none;
+  }
+  .lp-nav[data-open="true"] { display: flex; }
+  .lp-nav > * { padding: 16px 0; border-top: 1px solid var(--rule); }
+  .lp-nav .lp-cta { justify-content: center; margin-top: 16px; }
+  .lp-nav-divider { display: none; }
+  .lp-wordmark-tag { display: none; }
+}
+
+/* Typography polish ───────────────────────────────────────────
+   Stops one-word widows on the big display lines. */
+.lp h1, .lp h2, .lp h3, .lp .display { text-wrap: balance; }
+.lp p { text-wrap: pretty; }
+
 /* Reduced motion ──────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .lp-grain { animation: none; opacity: 0.1; }
@@ -369,6 +523,11 @@
   .lp-stillframe { transition: none; filter: none; }
   .lp-still-frame::before,
   .lp-still-frame::after { transition: none; height: 0; }
+  /* The CTA lift and the link underline are transitions, not animations, so
+     the rules above never reached them. */
+  .lp-cta { transition: background 0.4s, color 0.4s; }
+  .lp-cta:hover { transform: none; }
+  .lp-link::after { transition: none; }
 }
 
 /* Mobile ──────────────────────────────────────────────────── */
